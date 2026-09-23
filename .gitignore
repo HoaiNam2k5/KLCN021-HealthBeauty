@@ -1,0 +1,24 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# Visual Studio and local tooling
+.vs/
+**/.vscode/
+**/*.user
+**/*.suo
+
+# Local secrets and environment files
+**/appsettings.*.local.json
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local agent working notes
+HealthBeauty.Api/findings.md
+HealthBeauty.Api/progress.md
+HealthBeauty.Api/task_plan.md
+
+# OS files
+Thumbs.db
+.DS_Store
