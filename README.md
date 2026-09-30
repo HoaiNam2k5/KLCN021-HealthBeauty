@@ -26,6 +26,18 @@ Repository chứa ASP.NET Core Web API, SQL Server schema và danh mục API cho
 
 2. Chạy script `DB_KLCN021/KLCN021_HealthBeauty.sql` trong SQL Server Management Studio. Script tạo database `KLCN021_HealthBeauty` và các bảng cần thiết.
 
+   Để nạp dữ liệu mẫu cho giao diện và luồng nghiệp vụ, tiếp tục chạy `DB_KLCN021/02_SeedData.sql`. Script seed có thể chạy lại an toàn.
+
+   Tài khoản demo local sau khi chạy seed:
+
+   | Vai trò | Email | Mật khẩu |
+   | --- | --- | --- |
+   | Admin | `admin@healthbeauty.local` | `HealthBeauty@123` |
+   | Reception | `reception@healthbeauty.local` | `HealthBeauty@123` |
+   | Customer | `customer@healthbeauty.local` | `HealthBeauty@123` |
+
+   Các tài khoản trên chỉ dùng phát triển local. Không nạp seed này vào môi trường production và phải đổi mật khẩu nếu dùng trong môi trường dùng chung.
+
 3. Cấu hình connection string và JWT key bằng User Secrets ở project API. Ví dụ với SQL Server Express:
 
    ```powershell
