@@ -38,6 +38,23 @@ public sealed class ServicesController(Klcn021HealthBeautyContext db) : Controll
         return CreatedAtAction(nameof(GetService), new { id = item.DichVuId }, new ServiceResponse(item.DichVuId, item.LoaiDichVuId, item.TenDichVu, item.Gia, item.ThoiLuongPhut, item.MoTa));
     }
 
+    [Authorize(Roles = "Admin,Manager"), HttpPut("services/{id:int}")]
+    public async Task<IActionResult> UpdateService(int id, CreateServiceRequest request, CancellationToken ct)
+    {
+        var item = await db.Dichvus.FindAsync([id], ct); if (item is null) return NotFound();
+        if (!await db.Loaidichvus.AnyAsync(x => x.LoaiDichVuId == request.CategoryId && x.TrangThai, ct)) return BadRequest("Loại dịch vụ không tồn tại.");
+        item.LoaiDichVuId=request.CategoryId; item.TenDichVu=request.Name.Trim(); item.Gia=request.Price; item.ThoiLuongPhut=request.DurationMinutes; item.MoTa=request.Description?.Trim(); await db.SaveChangesAsync(ct); return Ok(new ServiceResponse(item.DichVuId,item.LoaiDichVuId,item.TenDichVu,item.Gia,item.ThoiLuongPhut,item.MoTa));
+    }
+
+    [Authorize(Roles = "Admin,Manager"), HttpDelete("services/{id:int}")]
+    public async Task<IActionResult> DeactivateService(int id, CancellationToken ct) { var item=await db.Dichvus.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
+
+    [Authorize(Roles = "Admin,Manager"), HttpPut("service-categories/{id:int}")]
+    public async Task<IActionResult> UpdateCategory(int id, CreateCategoryRequest request, CancellationToken ct) { var item=await db.Loaidichvus.FindAsync([id],ct); if(item is null)return NotFound(); item.TenLoai=request.Name.Trim(); item.MoTa=request.Description?.Trim(); await db.SaveChangesAsync(ct); return Ok(new ServiceCategoryResponse(item.LoaiDichVuId,item.TenLoai,item.MoTa)); }
+
+    [Authorize(Roles = "Admin,Manager"), HttpDelete("service-categories/{id:int}")]
+    public async Task<IActionResult> DeactivateCategory(int id, CancellationToken ct) { var item=await db.Loaidichvus.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
+
     [Authorize(Roles = "Admin,Manager"), HttpPost("service-categories")]
     public async Task<ActionResult<ServiceCategoryResponse>> CreateCategory(CreateCategoryRequest request, CancellationToken cancellationToken)
     {

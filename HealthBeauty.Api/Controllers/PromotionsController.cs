@@ -33,6 +33,9 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         await db.SaveChangesAsync(ct); return Ok(item);
     }
 
+    [Authorize(Roles = "Admin,Manager"), HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct) { var item=await db.Khuyenmais.FindAsync([id],ct); if(item is null)return NotFound(); if(await db.Vouchers.AnyAsync(x=>x.KhuyenMaiId==id&&x.TrangThai,ct))return Conflict("Khuyến mãi còn voucher đang hoạt động."); db.Khuyenmais.Remove(item); await db.SaveChangesAsync(ct); return NoContent(); }
+
     [Authorize, HttpPost("vouchers/validate")]
     public async Task<IActionResult> ValidateVoucher([FromQuery] string code, CancellationToken ct)
     {
@@ -54,6 +57,13 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         var voucher = new Voucher { MaCode = code, KhuyenMaiId = request.PromotionId, KhachHangId = request.CustomerId, GiaTriGiam = request.DiscountValue, HanSuDung = request.ExpiresAt, TrangThai = true };
         db.Vouchers.Add(voucher); await db.SaveChangesAsync(ct); return Created("api/v1/promotions/vouchers/" + voucher.VoucherId, voucher);
     }
+
+    [Authorize(Roles = "Admin,Manager"), HttpPut("vouchers/{id:int}")]
+    public async Task<IActionResult> UpdateVoucher(int id, VoucherRequest request, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.MaCode=request.Code.Trim().ToUpperInvariant(); item.KhuyenMaiId=request.PromotionId; item.KhachHangId=request.CustomerId; item.GiaTriGiam=request.DiscountValue; item.HanSuDung=request.ExpiresAt; await db.SaveChangesAsync(ct); return Ok(item); }
+    [Authorize(Roles = "Admin,Manager"), HttpPatch("vouchers/{id:int}/status")]
+    public async Task<IActionResult> VoucherStatus(int id, [FromQuery] bool active, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=active; await db.SaveChangesAsync(ct); return NoContent(); }
+    [Authorize(Roles = "Admin,Manager"), HttpDelete("vouchers/{id:int}")]
+    public async Task<IActionResult> DeleteVoucher(int id, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
 }
 
 [ApiController, Route("api/v1/reviews")]
