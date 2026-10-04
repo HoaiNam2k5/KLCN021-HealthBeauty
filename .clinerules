@@ -40,7 +40,7 @@ Không bao giờ hardcode tài khoản hay mật khẩu vào code.
 - JSON UTF-8, ngày giờ ISO-8601.
 - Phân trang: `page` bắt đầu từ 1, `size` mặc định 20, tối đa 100. Kết quả dạng `{ items, page, size, totalItems, totalPages }`.
 - Mã lỗi cần xử lý trên giao diện: 400 (dữ liệu sai, hiện lỗi từng trường), 401, 403 (không đủ quyền), 404, 409 (xung đột, ví dụ trùng lịch), 500.
-- Tên trường giữ nguyên như API (tiếng Việt không dấu, camelCase: `tenDichVu`, `thoiLuong`...). Không đổi tên khi map.
+- Tên trường giữ nguyên theo Swagger (hiện là tiếng Anh camelCase: `name`, `price`, `durationMinutes`...). Không đổi tên khi map.
 
 ## Cấu trúc thư mục (src/)
 ```
