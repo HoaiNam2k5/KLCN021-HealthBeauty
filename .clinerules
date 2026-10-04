@@ -76,3 +76,16 @@ utils/        format tiền VND, ngày giờ
 - Sau khi sửa, chạy `npm run build` và `npm run lint` rồi báo kết quả. Sửa hết lỗi TypeScript/ESLint trước khi báo xong.
 - Cuối mỗi task, giải thích ngắn gọn bằng tiếng Việt code vừa viết làm gì, để tôi hiểu và bảo vệ được.
 - Gợi ý commit message ngắn cho mỗi task hoàn thành.
+
+## Giao diện
+- Giao diện bám theo DESIGN.md ở thư mục gốc (màu, font, khoảng cách, bo góc).
+- Áp dụng qua theme token của Ant Design (ConfigProvider) trong src/theme/theme.ts, không viết CSS riêng cho từng trang nếu token làm được.
+- Chỉ lấy cảm hứng phong cách; không dùng logo, tên hay hình ảnh thương hiệu của site gốc.
+
+### Điều chỉnh DESIGN.md cho trang quản trị
+- DESIGN.md là phong cách của site marketing: chỉ lấy màu, viền, bo góc, khoảng cách. Bỏ qua hero, lưới logo, banner, kích thước display 54/80px.
+- Font: 'Inter', 'Segoe UI', system-ui, sans-serif (không dùng Saans/SaansMono/Serrif, không dùng font mono giãn chữ cho nhãn tiếng Việt). Không cài thêm package font nếu chưa hỏi tôi.
+- Chữ nội dung và bảng độ đậm 400, tiêu đề 500 (không dùng 300). Cỡ: bảng/biểu mẫu 14px, tiêu đề trang 24px.
+- Màu chữ: chính #111111, phụ #414141, mô tả #585858. Chỉ dùng #888888/#a0a0a0 cho placeholder hoặc trạng thái vô hiệu hóa.
+- Antd theme: colorBgLayout #faf9f6, colorBgContainer #ffffff, colorBorder #dedbd6, borderRadius 4, colorPrimary #111111 (nút chính nền đen chữ trắng), colorLink #0007cb, không dùng đổ bóng.
+- Màu trạng thái (DESIGN.md không có, dùng bộ này): thành công #2F7D4F, cảnh báo #B7791F, lỗi #C0392B, thông tin #0007cb. Thẻ trạng thái dùng nền nhạt + chữ đậm cùng tông, bo góc 4px.
