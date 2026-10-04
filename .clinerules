@@ -89,3 +89,10 @@ utils/        format tiền VND, ngày giờ
 - Màu chữ: chính #111111, phụ #414141, mô tả #585858. Chỉ dùng #888888/#a0a0a0 cho placeholder hoặc trạng thái vô hiệu hóa.
 - Antd theme: colorBgLayout #faf9f6, colorBgContainer #ffffff, colorBorder #dedbd6, borderRadius 4, colorPrimary #111111 (nút chính nền đen chữ trắng), colorLink #0007cb, không dùng đổ bóng.
 - Màu trạng thái (DESIGN.md không có, dùng bộ này): thành công #2F7D4F, cảnh báo #B7791F, lỗi #C0392B, thông tin #0007cb. Thẻ trạng thái dùng nền nhạt + chữ đậm cùng tông, bo góc 4px.
+
+## Git (theo CONTRIBUTING.md của nhóm)
+- Không commit trực tiếp lên main. Mỗi task làm trên nhánh riêng: feature/<ten-ngan>, fix/<ten-ngan>, docs/<ten-ngan>, chore/<ten-ngan>. Tên viết thường, không dấu, dùng gạch ngang.
+- Commit theo Conventional Commits, tiếng Anh, không kết thúc bằng dấu chấm. Ví dụ: feat(auth): add login page, fix(api): handle 401 refresh, chore: update packages.
+- Không commit .env, secret, token, node_modules, dist.
+- Không tự chạy git push, git reset --hard, git push --force. Chỉ gợi ý commit message, tôi tự commit.
+- Không tự đổi cách gọi API nếu Swagger không thay đổi. Nếu thấy catalog lệch Swagger, báo cho tôi để báo lại backend.
