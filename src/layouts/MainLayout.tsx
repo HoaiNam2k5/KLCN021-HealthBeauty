@@ -1,5 +1,5 @@
 import { App as AntApp, Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
-import { DashboardOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearSession, getRefreshToken } from '../api/session'
 import api from '../api/client'
@@ -35,6 +35,9 @@ export default function MainLayout() {
         <div className="sider-brand"><span className="brand-mark">S</span><span>SeoulSpa.Vn</span></div>
         <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} items={[
           { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
+          { key: '/service-categories', icon: <TagsOutlined />, label: 'Loại dịch vụ' },
+          { key: '/services', icon: <AppstoreOutlined />, label: 'Dịch vụ' },
+          { key: '/combos', icon: <AppstoreOutlined />, label: 'Combo' },
         ]} onClick={({ key }) => navigate(key)} />
       </Sider>
       <Layout>
