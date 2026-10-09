@@ -7,6 +7,7 @@ import theme from './theme/theme'
 import ServiceCategoriesPage from './features/services/ServiceCategoriesPage'
 import ServicesPage from './features/services/ServicesPage'
 import CombosPage from './features/services/CombosPage'
+import AppointmentsPage from './features/appointments/AppointmentsPage'
 import api from './api/client'
 import { clearSession, getRefreshToken, getSession, saveAuthResponse } from './api/session'
 import { useAuth } from './hooks/useAuth'
@@ -59,6 +60,7 @@ function ApplicationRoutes() {
           <Route path="/service-categories" element={<ServiceCategoriesPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/combos" element={<CombosPage />} />
+          <Route path="/appointments" element={<AppointmentsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={getSession() ? '/' : '/login'} replace />} />
