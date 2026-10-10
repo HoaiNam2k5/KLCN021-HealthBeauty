@@ -1,5 +1,5 @@
 import { App as AntApp, Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
-import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined, TeamOutlined, ContactsOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearSession, getRefreshToken } from '../api/session'
 import api from '../api/client'
@@ -39,6 +39,8 @@ export default function MainLayout() {
           { key: '/services', icon: <AppstoreOutlined />, label: 'Dịch vụ' },
           { key: '/combos', icon: <AppstoreOutlined />, label: 'Combo' },
           { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn' },
+          { key: '/customers', icon: <ContactsOutlined />, label: 'Khách hàng' },
+          { key: '/staff', icon: <TeamOutlined />, label: 'Nhân viên' },
         ]} onClick={({ key }) => navigate(key)} />
       </Sider>
       <Layout>

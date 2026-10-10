@@ -8,6 +8,8 @@ import ServiceCategoriesPage from './features/services/ServiceCategoriesPage'
 import ServicesPage from './features/services/ServicesPage'
 import CombosPage from './features/services/CombosPage'
 import AppointmentsPage from './features/appointments/AppointmentsPage'
+import CustomersPage from './features/customers-staff/CustomersPage'
+import StaffPage from './features/customers-staff/StaffPage'
 import api from './api/client'
 import { clearSession, getRefreshToken, getSession, saveAuthResponse } from './api/session'
 import { useAuth } from './hooks/useAuth'
@@ -61,6 +63,8 @@ function ApplicationRoutes() {
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/combos" element={<CombosPage />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
+          <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/staff" element={<StaffPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={getSession() ? '/' : '/login'} replace />} />
