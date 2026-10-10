@@ -11,6 +11,7 @@ import AppointmentsPage from './features/appointments/AppointmentsPage'
 import CustomersPage from './features/customers-staff/CustomersPage'
 import StaffPage from './features/customers-staff/StaffPage'
 import WorkSchedulesPage from './features/staff-schedules/WorkSchedulesPage'
+import BillingPage from './features/billing/BillingPage'
 import api from './api/client'
 import { clearSession, getRefreshToken, getSession, saveAuthResponse } from './api/session'
 import { useAuth } from './hooks/useAuth'
@@ -67,6 +68,7 @@ function ApplicationRoutes() {
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/staff-schedules" element={<WorkSchedulesPage />} />
+          <Route path="/billing" element={<BillingPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={getSession() ? '/' : '/login'} replace />} />
