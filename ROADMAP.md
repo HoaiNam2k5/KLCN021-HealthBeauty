@@ -12,7 +12,7 @@ Nếu Cline đứng quá 3 phút: xem 9Router > Console Log (dòng đỏ `stream
 - Mỗi trang đủ trạng thái loading, lỗi, rỗng. Ghi thành công/thất bại có thông báo; xóa có xác nhận. 403 hiện "Bạn không có quyền thực hiện thao tác này"; 400/409 hiện thông báo từ API.
 - Quyền hiển thị theo role (Admin, Manager, Reception, Staff). Quyền cụ thể trong từng task là GIẢ ĐỊNH, backend vẫn là nơi kiểm tra thật.
 - Tiền hiển thị VND, ngày dd/MM/yyyy HH:mm. Số tiền do backend tính, frontend chỉ hiển thị.
-- KHÔNG gọi POST/PUT/PATCH/DELETE từ terminal/script; không đăng nhập bằng script trừ khi để GET. Không lưu token/mật khẩu vào file.
+- KHÔNG gọi POST/PUT/PATCH/DELETE từ terminal/script, NGOẠI TRỪ một lần POST /auth/login bằng tài khoản demo trong .clinerules để lấy token vào biến tạm cho các lệnh GET (xóa biến sau khi dùng). Không lưu token/mật khẩu vào file.
 - KHÔNG cài package ngoài .clinerules (trừ khi task cho phép rõ), KHÔNG sửa backend, KHÔNG git push, KHÔNG git switch/checkout. Ghi file bằng công cụ sửa file, không dùng Set-Content/Out-File.
 - Cuối task: chạy `npm run build` và `npm run lint`, sửa hết lỗi, báo kết quả ngắn gọn: đã làm gì, chưa làm gì, giả định nào. Gợi ý commit message.
 
@@ -33,6 +33,13 @@ Tài khoản demo (local): admin@, reception@, customer@healthbeauty.local, mậ
 - Tuần 10 (19–25/10): 6, 7, 8
 - Tuần 11 (26/10–1/11): 3b (nếu Nam xong), 9, 10, ghép với app Flutter
 - Tuần 12 (2–8/11): 11 kiểm thử + báo cáo + slide, nộp 08/11
+
+## 4b. Tiến độ và sự thật đã xác nhận (cập nhật sau Task 4b)
+- Đã xong: Task 1 (auth), 2 (dịch vụ), 3a (Lịch hẹn: danh sách, chi tiết, đổi trạng thái, đổi lịch, sửa, xóa), 4a (Khách hàng chỉ đọc, Nhân viên CRUD), 4b (Lịch làm việc, cần test rồi commit).
+- Khách hàng: backend chỉ có GET /customers?keyword= và PUT /customers/me (khách tự sửa). KHÔNG có PUT/DELETE theo id, nên màn Khách hàng chỉ đọc. Task 4a ở dưới đã được thay bằng phạm vi này.
+- Lịch làm việc: GET trả tên TIẾNG VIỆT (lichLamViecId, nhanVienId, staffName, ngayLam yyyy-MM-dd, gioBatDau/gioKetThuc HH:mm:ss, trangThai); WorkScheduleRequest ghi tên TIẾNG ANH (staffId, workDate, startAt, endAt, status). Giá trị status duy nhất xác nhận: HoatDong. Seed có 15 ca (05/10 đến 09/10, 09:00–17:00), đều đã qua nên thử Đổi lịch phải thêm ca ngày tương lai.
+- Sự cố Cline: nếu báo "PLAN MODE ... file modifications are blocked" dù nút Act đang sáng: bấm Plan rồi Act lại; hoặc Cancel, mở task mới, hỏi "Bạn đang ở Plan hay Act?"; hoặc Developer: Reload Window; hoặc cập nhật phần mở rộng Cline.
+- Commit/merge xong mỗi task trước khi mở task mới. Đặt ROADMAP.md và HANDOFF.md đã commit để `git add .` không kéo file lạ.
 
 ## 5. Danh sách task
 
@@ -136,7 +143,7 @@ Commit: `chore: polish ui, lazy load and docs`.
 - Đừng gửi cho ai (kể cả chat) khóa JWT, connection string thật, token. Mật khẩu demo trong .clinerules chỉ dùng local.
 
 ## 7. Cần Nam xử lý (gửi nguyên văn)
-1) POST /appointments thiếu customerId và staffId. 2) GET /appointments thiếu bộ lọc (from, to, status, staffId, keyword) và phân trang. 3) Cần danh sách trạng thái lịch hẹn và luồng chuyển hợp lệ (enum trong Swagger); xác nhận giá trị DaXacNhan, KhachDaDen, DangThucHien, DaHuy. 4) GET /appointments/{id} trả 500 (id 3, 4). 5) StaffRequest tên tiếng Anh nhưng GET /staff tên tiếng Việt: thống nhất. 6) available-slots luôn rỗng và thiếu schema response (cả appointments/{id}, staff, staff/{id}/appointments). 7) Catalog lệch code; chưa có API đổi/quên mật khẩu, kho, báo cáo (nếu thiếu). 8) Dữ liệu thử "asd123".
+1) POST /appointments thiếu customerId và staffId. 2) GET /appointments thiếu bộ lọc (from, to, status, staffId, keyword) và phân trang. 3) Cần danh sách trạng thái lịch hẹn và luồng chuyển hợp lệ (enum trong Swagger); xác nhận giá trị DaXacNhan, KhachDaDen, DangThucHien, DaHuy. 4) GET /appointments/{id} trả 500 (id 3, 4). 5) StaffRequest tên tiếng Anh nhưng GET /staff tên tiếng Việt: thống nhất. 6) available-slots luôn rỗng và thiếu schema response (cả appointments/{id}, staff, staff/{id}/appointments). 7) Catalog lệch code; chưa có API đổi/quên mật khẩu, kho, báo cáo (nếu thiếu). 8) Dữ liệu thử "asd123". 9) Cần PUT /customers/{id} (lễ tân sửa khách; hiện chỉ có PUT /customers/me), tùy chọn DELETE. 10) GET /staff/schedules: Swagger thiếu schema response; response tên tiếng Việt nhưng WorkScheduleRequest tên tiếng Anh. 11) available-slots vẫn rỗng ngay cả ngày có ca làm (08/10, nhân viên 2).
 
 ## 8. Báo cáo (chương còn thiếu)
 - Chương 4 – Cài đặt: kiến trúc triển khai (Web React + API ASP.NET Core + SQL Server + Flutter), môi trường, cấu trúc mã nguồn web, luồng xác thực JWT + refresh, các màn hình (mỗi task một mục, ảnh chụp từ report-screens/), đoạn mã tiêu biểu (interceptor refresh, phân quyền route, ánh xạ dữ liệu).
