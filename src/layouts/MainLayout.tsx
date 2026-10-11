@@ -43,6 +43,7 @@ export default function MainLayout() {
           { key: '/staff', icon: <TeamOutlined />, label: 'Nhân viên' },
           { key: '/staff-schedules', icon: <ClockCircleOutlined />, label: 'Lịch làm việc' },
           { key: '/billing', icon: <DollarOutlined />, label: 'Hóa đơn và thanh toán' },
+          { key: '/promotions', icon: <TagsOutlined />, label: 'Khuyến mãi và voucher' },
         ]} onClick={({ key }) => navigate(key)} />
       </Sider>
       <Layout>
