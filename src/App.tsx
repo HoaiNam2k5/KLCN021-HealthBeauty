@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { App as AntApp, Result, Spin } from 'antd'
+import { App as AntApp, Spin } from 'antd'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ConfigProvider } from 'antd'
@@ -14,6 +14,7 @@ import WorkSchedulesPage from './features/staff-schedules/WorkSchedulesPage'
 import BillingPage from './features/billing/BillingPage'
 import PromotionsPage from './features/promotions/PromotionsPage'
 import ReviewsPage from './features/reviews/ReviewsPage'
+import ReportsPage from './features/reports/ReportsPage'
 import api from './api/client'
 import { clearSession, getRefreshToken, getSession, saveAuthResponse } from './api/session'
 import { useAuth } from './hooks/useAuth'
@@ -25,7 +26,7 @@ import { isAuthResponse, isWebAccount } from './types/auth'
 const queryClient = new QueryClient()
 
 function HomePage() {
-  return <Result status="success" title="Chào mừng đến hệ thống quản lý" subTitle="Nền tảng quản lý SeoulSpa.Vn" />
+  return <ReportsPage home />
 }
 
 function ApplicationRoutes() {
@@ -73,6 +74,7 @@ function ApplicationRoutes() {
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={getSession() ? '/' : '/login'} replace />} />

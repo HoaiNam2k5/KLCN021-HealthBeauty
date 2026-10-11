@@ -5,6 +5,7 @@ import { clearSession, getRefreshToken } from '../api/session'
 import api from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { RefreshRequest } from '../types/auth'
+import { REPORT_ADMIN_ROLES, REPORTS_ROUTE, REPORT_MENU_LABEL } from '../types/reports'
 
 const { Header, Sider, Content } = Layout
 
@@ -13,6 +14,7 @@ export default function MainLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { message } = AntApp.useApp()
+  const canViewReports = (REPORT_ADMIN_ROLES as readonly string[]).includes(session?.account?.role ?? '')
 
   async function handleLogout() {
     const refreshToken = getRefreshToken()
@@ -35,16 +37,21 @@ export default function MainLayout() {
         <div className="sider-brand"><span className="brand-mark">S</span><span>SeoulSpa.Vn</span></div>
         <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} items={[
           { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
-          { key: '/service-categories', icon: <TagsOutlined />, label: 'Loại dịch vụ' },
-          { key: '/services', icon: <AppstoreOutlined />, label: 'Dịch vụ' },
-          { key: '/combos', icon: <AppstoreOutlined />, label: 'Combo' },
+          ...(canViewReports ? [
+            { key: '/service-categories', icon: <TagsOutlined />, label: 'Loại dịch vụ' },
+            { key: '/services', icon: <AppstoreOutlined />, label: 'Dịch vụ' },
+            { key: '/combos', icon: <AppstoreOutlined />, label: 'Combo' },
+          ] : []),
           { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn' },
           { key: '/customers', icon: <ContactsOutlined />, label: 'Khách hàng' },
-          { key: '/staff', icon: <TeamOutlined />, label: 'Nhân viên' },
-          { key: '/staff-schedules', icon: <ClockCircleOutlined />, label: 'Lịch làm việc' },
-          { key: '/billing', icon: <DollarOutlined />, label: 'Hóa đơn và thanh toán' },
-          { key: '/promotions', icon: <TagsOutlined />, label: 'Khuyến mãi và voucher' },
+          ...(canViewReports ? [
+            { key: '/staff', icon: <TeamOutlined />, label: 'Nhân viên' },
+            { key: '/staff-schedules', icon: <ClockCircleOutlined />, label: 'Lịch làm việc' },
+            { key: '/billing', icon: <DollarOutlined />, label: 'Hóa đơn và thanh toán' },
+            { key: '/promotions', icon: <TagsOutlined />, label: 'Khuyến mãi và voucher' },
+          ] : []),
           { key: '/reviews', icon: <StarOutlined />, label: 'Đánh giá' },
+          ...(canViewReports ? [{ key: REPORTS_ROUTE, icon: <DashboardOutlined />, label: REPORT_MENU_LABEL }] : []),
         ]} onClick={({ key }) => navigate(key)} />
       </Sider>
       <Layout>
