@@ -2,8 +2,9 @@ import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { isAuthResponse, type RefreshRequest } from '../types/auth'
 import { clearSession, getRefreshToken, getSession, saveAuthResponse } from './session'
 
-const api = axios.create({ baseURL: '/api/v1', headers: { 'Content-Type': 'application/json' } })
-const refreshClient = axios.create({ baseURL: '/api/v1', headers: { 'Content-Type': 'application/json' } })
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+const api = axios.create({ baseURL: apiBaseUrl, headers: { 'Content-Type': 'application/json' } })
+const refreshClient = axios.create({ baseURL: apiBaseUrl, headers: { 'Content-Type': 'application/json' } })
 
 interface RetryConfig extends InternalAxiosRequestConfig {
   _retry?: boolean

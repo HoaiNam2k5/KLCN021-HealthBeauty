@@ -55,7 +55,9 @@ export default function ManagementTable<T extends { id: number }>({
         </Space>
       </div>
       {error ? <Alert type="error" showIcon message="Không tải được dữ liệu" description="Vui lòng thử lại sau." /> : (
+        <div className="table-scroll-container">
         <Table<T>
+          scroll={{ x: 'max-content' }}
           rowKey="id"
           columns={tableColumns}
           dataSource={filteredData}
@@ -63,6 +65,7 @@ export default function ManagementTable<T extends { id: number }>({
           locale={{ emptyText: <Empty description="Chưa có dữ liệu" /> }}
           pagination={{ current: page, pageSize: currentPageSize, total: filteredData.length, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (count) => `Tổng ${count} mục`, onChange: (next, filters) => { setCurrentPageSize(filters); onPageChange(next, filters) } }}
         />
+        </div>
       )}
     </section>
   )

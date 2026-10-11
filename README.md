@@ -1,4 +1,50 @@
-# React + TypeScript + Vite
+# HealthBeauty Web
+
+Ứng dụng quản trị cơ sở làm đẹp, xây dựng bằng React, TypeScript và Vite. Web phục vụ Admin, Manager, Reception và Staff; ứng dụng Flutter cho khách hàng nằm ngoài repository này.
+
+## Yêu cầu
+
+- Node.js và npm tương thích với phiên bản Vite của dự án
+- Backend local đang chạy tại cổng 5230 nếu cần dùng API khi phát triển
+
+## Cài đặt và chạy
+
+```sh
+npm install
+Copy-Item .env.example .env
+npm run dev
+```
+
+Trên macOS/Linux dùng `cp .env.example .env`. Để dùng proxy dev mặc định, để `VITE_API_BASE_URL` trống: Vite chuyển tiếp `/api` tới backend local. Nếu môi trường không dùng proxy, đặt biến này thành base URL phù hợp (đường dẫn API kết thúc bằng `/api/v1`). Không đưa URL/secret môi trường thật vào Git.
+
+Lệnh kiểm tra/đóng gói:
+
+```sh
+npm run build
+npm run lint
+npm run preview
+```
+
+## Cấu trúc chính
+
+- `src/api/`: axios client và API theo nghiệp vụ
+- `src/types/`: kiểu DTO và kiểm tra phản hồi API
+- `src/features/`: trang nghiệp vụ (auth, services, appointments, customers/staff, billing, promotions, reviews, reports)
+- `src/components/`: component dùng chung
+- `src/layouts/`: layout đăng nhập và quản trị
+- `src/routes/`: định nghĩa route và bảo vệ quyền truy cập
+- `src/hooks/`, `src/utils/`: hook và tiện ích dùng chung
+
+## Xác thực và an toàn
+
+Access token được giữ trong bộ nhớ; refresh token lưu trong localStorage để duy trì phiên. Cách lưu refresh token này có rủi ro bị đọc nếu xảy ra XSS, cần cân nhắc khi triển khai thực tế. Không hardcode tài khoản demo; chỉ sử dụng thông tin demo được cung cấp riêng cho môi trường local.
+
+Vai trò trên giao diện chỉ giúp điều hướng/trải nghiệm; backend vẫn là nơi quyết định quyền truy cập cuối cùng. Khách hàng dùng ứng dụng di động, không đăng nhập web quản trị.
+
+## Giao diện
+
+Theme Ant Design đặt tại `src/theme/theme.ts`; phong cách giao diện theo `DESIGN.md` ở thư mục gốc.
+
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

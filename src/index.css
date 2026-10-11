@@ -32,7 +32,14 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #faf9f6; }
 .app-header { display: flex; align-items: center; justify-content: space-between; padding: 0 28px; background: #ffffff; border-bottom: 1px solid #dedbd6; }
 .app-header h5.ant-typography { margin: 0; font-weight: 500; }
 .account-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app-content { padding: 28px; background: #faf9f6; }
+.app-content { min-width: 0; padding: 28px; background: #faf9f6; }
+.route-loading { min-height: 100vh; display: grid; place-items: center; }
+.table-scroll-container { width: 100%; overflow-x: auto; }
+.table-scroll-container .ant-table-wrapper { min-width: 100%; }
+@media (max-width: 991px) {
+  .app-sider { position: fixed !important; z-index: 1000; height: 100vh; }
+  .app-header { padding-left: 24px; }
+}
 @media (max-width: 600px) {
   .login-card .ant-card-body { padding: 28px 22px; }
   .app-header { padding: 0 12px; }

@@ -99,7 +99,7 @@ export default function BillingPage() {
     </div>
     {invoices.isError && <Alert type="error" showIcon message="Không tải được danh sách hóa đơn" description={getApiErrorMessage(invoices.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     {customers.isError && <Alert type="warning" message="Không tải được tên khách hàng." style={{ marginBottom: 16 }} />}
-    <Table<Invoice> rowKey="id" columns={columns} dataSource={filtered} loading={invoices.isLoading || customers.isLoading} onRow={(invoice) => ({ onClick: () => setSelected(invoice), style: { cursor: 'pointer' } })} locale={{ emptyText: <Empty description={invoices.isError ? 'Không có dữ liệu để hiển thị' : 'Chưa có hóa đơn'} /> }} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (count) => `Tổng ${count} hóa đơn` }} />
+    <div className="table-scroll-container"><Table<Invoice> scroll={{ x: 'max-content' }} rowKey="id" columns={columns} dataSource={filtered} loading={invoices.isLoading || customers.isLoading} onRow={(invoice) => ({ onClick: () => setSelected(invoice), style: { cursor: 'pointer' } })} locale={{ emptyText: <Empty description={invoices.isError ? 'Không có dữ liệu để hiển thị' : 'Chưa có hóa đơn'} /> }} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (count) => `Tổng ${count} hóa đơn` }} /></div>
     <Drawer title={`Chi tiết hóa đơn #${selected?.id ?? ''}`} open={Boolean(selected)} onClose={() => setSelected(null)} width={640}>
       {selected && <>
         <Descriptions column={1} bordered size="small">
