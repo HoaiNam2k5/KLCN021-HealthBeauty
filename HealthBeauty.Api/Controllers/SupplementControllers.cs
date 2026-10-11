@@ -43,11 +43,30 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!); var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
             if (customerId != item.KhachHangId || request.Status != "DaHuy") return Forbid();
         }
+        var nextStatuses = item.TrangThai switch
+        {
+            "ChoXacNhan" => new[] { "DaXacNhan", "DaHuy" },
+            "DaXacNhan" => new[] { "DaDen", "DaHuy" },
+            "DaDen" => new[] { "DangThucHien", "DaHuy" },
+            "DangThucHien" => new[] { "HoanThanh" },
+            _ => Array.Empty<string>()
+        };
+        if (!nextStatuses.Contains(request.Status)) return Conflict("Invalid appointment status transition.");
         item.TrangThai = request.Status; await db.SaveChangesAsync(ct); return NoContent();
     }
 
     [HttpPost("{id:int}/reschedule")]
-    public async Task<IActionResult> Reschedule(int id, AppointmentUpdateRequest request, CancellationToken ct) => await Update(id, request, ct);
+    public async Task<IActionResult> Reschedule(int id, AppointmentUpdateRequest request, CancellationToken ct)
+    {
+        var item = await db.Lichhens.FindAsync([id], ct); if (item is null) return NotFound();
+        var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
+        if (customerId != item.KhachHangId && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
+        if (request.AppointmentAt <= DateTime.Now) return BadRequest("Thời gian hẹn phải ở tương lai.");
+        if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, ct)) return BadRequest("Nhân viên không tồn tại.");
+        item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim();
+        await db.SaveChangesAsync(ct); return Ok(item);
+    }
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Cancel(int id, CancellationToken ct)
@@ -58,7 +77,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         item.TrangThai = "DaHuy"; await db.SaveChangesAsync(ct); return NoContent();
     }
 
-    [AllowAnonymous, HttpGet("available-slots")]
+    [AllowAnonymous, HttpGet("available-slots"), HttpGet("availability")]
     public async Task<IActionResult> AvailableSlots([FromQuery] DateOnly date, [FromQuery] int? staffId, CancellationToken ct)
     {
         var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam == date && x.TrangThai != "NghiPhep"); if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);

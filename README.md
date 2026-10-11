@@ -64,6 +64,9 @@ Repository chứa ASP.NET Core Web API, SQL Server schema và danh mục API cho
 - Web/app gọi `auth/register` hoặc `auth/login`, sau đó gửi access token trong header `Authorization: Bearer <token>` cho endpoint cần đăng nhập.
 - Khi web/app chạy trên thiết bị khác, `localhost` phải được thay bằng địa chỉ IP máy chạy API; cấu hình CORS và HTTPS phù hợp trước khi triển khai dùng chung.
 - Danh mục endpoint: xem Swagger hoặc file `KLCN021_API_Catalog.xlsx`.
+- Lịch hẹn dùng các trạng thái `ChoXacNhan`, `DaXacNhan`, `DaDen`, `DangThucHien`, `HoanThanh`, `DaHuy`.
+- Giờ trống: `GET /api/v1/appointments/availability?date=YYYY-MM-DD` (alias tương thích: `available-slots`).
+- Trên Android Emulator chạy API bằng `dotnet run --launch-profile http` và dùng base URL `http://10.0.2.2:5230/api/v1`. Trên thiết bị thật dùng `dotnet run --urls http://0.0.0.0:5230` và địa chỉ IP của máy.
 
 ## Lưu ý
 

@@ -10,13 +10,18 @@ namespace HealthBeauty.Api.Controllers;
 public sealed class CombosController(Klcn021HealthBeautyContext db) : ControllerBase
 {
     [AllowAnonymous, HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await db.Combodichvus.AsNoTracking().Where(x => x.TrangThai)
+    public async Task<IActionResult> List(CancellationToken ct) => Ok(await db.Combodichvus.AsNoTracking().Where(x => x.TrangThai
+        && (!x.NgayBatDauHieuLuc.HasValue || x.NgayBatDauHieuLuc.Value <= DateOnly.FromDateTime(DateTime.Today))
+        && (!x.NgayKetThucHieuLuc.HasValue || x.NgayKetThucHieuLuc.Value >= DateOnly.FromDateTime(DateTime.Today)))
         .Include(x => x.Chitietcombos).ThenInclude(x => x.DichVu).OrderBy(x => x.TenCombo).Select(x => Map(x)).ToListAsync(ct));
 
     [AllowAnonymous, HttpGet("{id:int}")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
-        var item = await db.Combodichvus.AsNoTracking().Include(x => x.Chitietcombos).ThenInclude(x => x.DichVu).FirstOrDefaultAsync(x => x.ComboId == id && x.TrangThai, ct);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var item = await db.Combodichvus.AsNoTracking().Include(x => x.Chitietcombos).ThenInclude(x => x.DichVu).FirstOrDefaultAsync(x => x.ComboId == id && x.TrangThai
+            && (!x.NgayBatDauHieuLuc.HasValue || x.NgayBatDauHieuLuc.Value <= today)
+            && (!x.NgayKetThucHieuLuc.HasValue || x.NgayKetThucHieuLuc.Value >= today), ct);
         return item is null ? NotFound() : Ok(Map(item));
     }
 
