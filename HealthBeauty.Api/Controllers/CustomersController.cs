@@ -38,6 +38,16 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
         return Ok(await query.OrderBy(x => x.HoTen).Take(200).Select(x => new CustomerResponse(x.KhachHangId, x.HoTen, x.SoDienThoai, x.GioiTinh, x.DiemThuong)).ToListAsync(ct));
     }
 
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
+    public async Task<ActionResult<CustomerResponse>> Update(int id, UpdateCustomerRequest request, CancellationToken ct)
+    {
+        var customer = await db.Khachhangs.FirstOrDefaultAsync(x => x.KhachHangId == id, ct);
+        if (customer is null) return NotFound();
+        customer.HoTen = request.FullName.Trim(); customer.SoDienThoai = request.Phone?.Trim(); customer.GioiTinh = request.Gender?.Trim();
+        await db.SaveChangesAsync(ct);
+        return Ok(new CustomerResponse(customer.KhachHangId, customer.HoTen, customer.SoDienThoai, customer.GioiTinh, customer.DiemThuong));
+    }
+
     [HttpGet("me/points")]
     public async Task<IActionResult> Points(CancellationToken ct)
     {

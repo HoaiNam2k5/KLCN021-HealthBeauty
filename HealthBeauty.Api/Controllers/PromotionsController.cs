@@ -58,6 +58,17 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         db.Vouchers.Add(voucher); await db.SaveChangesAsync(ct); return Created("api/v1/promotions/vouchers/" + voucher.VoucherId, voucher);
     }
 
+    [Authorize(Roles = "Admin,Manager"), HttpGet("~/api/v1/vouchers")]
+    public async Task<IActionResult> ListVouchers([FromQuery] string? keyword, [FromQuery] bool? active, CancellationToken ct)
+    {
+        var query = db.Vouchers.AsNoTracking().Include(x => x.KhuyenMai).Include(x => x.KhachHang).AsQueryable();
+        if (active.HasValue) query = query.Where(x => x.TrangThai == active.Value);
+        if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.MaCode.Contains(keyword) || x.KhuyenMai.TenKhuyenMai.Contains(keyword) || (x.KhachHang != null && x.KhachHang.HoTen.Contains(keyword)));
+        return Ok(await query.OrderByDescending(x => x.HanSuDung).Take(500)
+            .Select(x => new VoucherResponse(x.VoucherId, x.MaCode, x.KhuyenMaiId, x.KhuyenMai.TenKhuyenMai, x.KhachHangId, x.KhachHang != null ? x.KhachHang.HoTen : null, x.GiaTriGiam, x.HanSuDung, x.TrangThai))
+            .ToListAsync(ct));
+    }
+
     [Authorize(Roles = "Admin,Manager"), HttpPut("vouchers/{id:int}")]
     public async Task<IActionResult> UpdateVoucher(int id, VoucherRequest request, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.MaCode=request.Code.Trim().ToUpperInvariant(); item.KhuyenMaiId=request.PromotionId; item.KhachHangId=request.CustomerId; item.GiaTriGiam=request.DiscountValue; item.HanSuDung=request.ExpiresAt; await db.SaveChangesAsync(ct); return Ok(item); }
     [Authorize(Roles = "Admin,Manager"), HttpPatch("vouchers/{id:int}/status")]

@@ -4,6 +4,7 @@ namespace HealthBeauty.Api.Contracts;
 
 public sealed record UpdateCustomerRequest([param: Required, StringLength(100)] string FullName, [param: Phone, StringLength(15)] string? Phone, [param: StringLength(20)] string? Gender);
 public sealed record CustomerResponse(int Id, string FullName, string? Phone, string? Gender, int RewardPoints);
+public sealed record VoucherResponse(int Id, string Code, int PromotionId, string PromotionName, int? CustomerId, string? CustomerName, decimal DiscountValue, DateTime ExpiresAt, bool Active);
 public sealed record StaffRequest([param: Required, StringLength(100)] string FullName, [param: StringLength(50)] string? Position, [param: StringLength(255)] string? Specialty, [param: Phone, StringLength(15)] string? Phone, DateOnly? HireDate);
 public sealed record WorkScheduleRequest([param: Range(1, int.MaxValue)] int StaffId, DateOnly WorkDate, TimeOnly StartAt, TimeOnly EndAt, [param: StringLength(30)] string? Status);
 public sealed record ComboItemRequest([param: Range(1, int.MaxValue)] int ServiceId, [param: Range(1, 100)] int Quantity);
