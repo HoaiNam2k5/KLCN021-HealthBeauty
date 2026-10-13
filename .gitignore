@@ -22,3 +22,6 @@ HealthBeauty.Api/task_plan.md
 # OS files
 Thumbs.db
 .DS_Store
+
+# Temporary API audit server logs
+.audit/*.log

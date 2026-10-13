@@ -29,7 +29,9 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
     public async Task<IActionResult> Create(ComboRequest request, CancellationToken ct)
     {
         if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidTo < request.ValidFrom) return BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
+        if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one combo component is required.");
         var ids = request.Items.Select(x => x.ServiceId).Distinct().ToList();
+        if (ids.Count != request.Items.Count) return BadRequest("Each service must appear only once in a combo; use quantity for repetitions.");
         var services = await db.Dichvus.Where(x => ids.Contains(x.DichVuId) && x.TrangThai).Select(x => x.DichVuId).ToListAsync(ct);
         if (ids.Count != services.Count) return BadRequest("Có dịch vụ không tồn tại hoặc đã ngừng hoạt động.");
         var item = new Combodichvu { TenCombo = request.Name.Trim(), GiaCombo = request.Price, NgayBatDauHieuLuc = request.ValidFrom, NgayKetThucHieuLuc = request.ValidTo, TrangThai = true };
@@ -44,8 +46,17 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
     {
         var item = await db.Combodichvus.Include(x => x.Chitietcombos).FirstOrDefaultAsync(x => x.ComboId == id, ct); if (item is null) return NotFound();
         if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidTo < request.ValidFrom) return BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
+        if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one combo component is required.");
         var ids = request.Items.Select(x => x.ServiceId).Distinct().ToList();
+        if (ids.Count != request.Items.Count) return BadRequest("Each service must appear only once in a combo; use quantity for repetitions.");
         if (ids.Count != await db.Dichvus.CountAsync(x => ids.Contains(x.DichVuId) && x.TrangThai, ct)) return BadRequest("Có dịch vụ không tồn tại hoặc đã ngừng hoạt động.");
+        var oldComponents = item.Chitietcombos.ToDictionary(x => x.DichVuId, x => x.SoLuong);
+        var newComponents = request.Items.GroupBy(x => x.ServiceId).ToDictionary(g => g.Key, g => g.Sum(x => (long)x.Quantity));
+        var componentsChanged = oldComponents.Count != newComponents.Count
+            || oldComponents.Any(x => !newComponents.TryGetValue(x.Key, out var count) || count != x.Value);
+        if (componentsChanged && await db.Chitietlichhens.AnyAsync(x => x.ComboId == id
+            && x.LichHen.TrangThai != "DaHuy" && !x.LichHen.Hoadons.Any(), ct))
+            return Conflict("Combo components cannot change while an uncancelled appointment still awaits invoicing.");
         item.TenCombo = request.Name.Trim(); item.GiaCombo = request.Price; item.NgayBatDauHieuLuc = request.ValidFrom; item.NgayKetThucHieuLuc = request.ValidTo;
         db.Chitietcombos.RemoveRange(item.Chitietcombos);
         foreach (var line in request.Items) item.Chitietcombos.Add(new Chitietcombo { DichVuId = line.ServiceId, SoLuong = line.Quantity });

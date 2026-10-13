@@ -60,20 +60,44 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
     }
 }
 
-[ApiController, Authorize(Roles = "Admin,Manager"), Route("api/v1/staff")]
+[ApiController, Authorize, Route("api/v1/staff")]
 public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerBase
 {
-    [HttpGet]
+    [Authorize(Roles = "Admin,Manager,Reception,Customer"), HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await db.Nhanviens.AsNoTracking().OrderBy(x => x.HoTen).Select(x => new { x.NhanVienId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam }).ToListAsync(ct));
 
-    [HttpPost]
+    [Authorize(Roles = "Staff"), HttpGet("me/appointments")]
+    public async Task<IActionResult> MyAppointments(CancellationToken ct)
+    {
+        var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(ct);
+        if (!ownStaffId.HasValue) return Forbid();
+        return Ok(await db.Lichhens.AsNoTracking().Where(x => x.NhanVienId == ownStaffId.Value)
+            .OrderByDescending(x => x.NgayGioHen).Take(200)
+            .Select(x => new { x.LichHenId, x.KhachHangId, x.NhanVienId, x.NgayGioHen, x.TrangThai, x.GhiChu }).ToListAsync(ct));
+    }
+
+    [Authorize(Roles = "Staff"), HttpGet("me/schedules")]
+    public async Task<IActionResult> MySchedules([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
+    {
+        var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(ct);
+        if (!ownStaffId.HasValue) return Forbid();
+        var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NhanVienId == ownStaffId.Value);
+        if (from.HasValue) query = query.Where(x => x.NgayLam >= from.Value);
+        if (to.HasValue) query = query.Where(x => x.NgayLam <= to.Value);
+        return Ok(await query.OrderBy(x => x.NgayLam).ThenBy(x => x.GioBatDau).Take(500)
+            .Select(x => new { x.LichLamViecId, x.NhanVienId, x.NgayLam, x.GioBatDau, x.GioKetThuc, x.TrangThai }).ToListAsync(ct));
+    }
+
+    [Authorize(Roles = "Admin,Manager"), HttpPost]
     public async Task<IActionResult> Create(StaffRequest request, CancellationToken ct)
     {
         var item = new Nhanvien { HoTen = request.FullName.Trim(), ChucVu = request.Position?.Trim(), ChuyenMon = request.Specialty?.Trim(), SoDienThoai = request.Phone?.Trim(), NgayVaoLam = request.HireDate };
         db.Nhanviens.Add(item); await db.SaveChangesAsync(ct); return Created($"api/v1/staff/{item.NhanVienId}", item);
     }
 
-    [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Manager"), HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, StaffRequest request, CancellationToken ct)
     {
         var item = await db.Nhanviens.FindAsync([id], ct); if (item is null) return NotFound();
@@ -81,7 +105,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerB
         await db.SaveChangesAsync(ct); return Ok(item);
     }
 
-    [HttpGet("schedules")]
+    [Authorize(Roles = "Admin,Manager"), HttpGet("schedules")]
     public async Task<IActionResult> Schedules([FromQuery] int? staffId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
     {
         var query = db.Lichlamviecs.AsNoTracking().Include(x => x.NhanVien).AsQueryable();
@@ -91,7 +115,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerB
         return Ok(await query.OrderBy(x => x.NgayLam).ThenBy(x => x.GioBatDau).Select(x => new { x.LichLamViecId, x.NhanVienId, StaffName = x.NhanVien.HoTen, x.NgayLam, x.GioBatDau, x.GioKetThuc, x.TrangThai }).Take(500).ToListAsync(ct));
     }
 
-    [HttpPost("schedules")]
+    [Authorize(Roles = "Admin,Manager"), HttpPost("schedules")]
     public async Task<IActionResult> CreateSchedule(WorkScheduleRequest request, CancellationToken ct)
     {
         if (request.StartAt >= request.EndAt) return BadRequest("Giờ bắt đầu phải trước giờ kết thúc.");

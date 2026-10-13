@@ -56,8 +56,8 @@ FROM dbo.VAITRO role
 CROSS JOIN dbo.QUYEN permission
 WHERE (role.TenVaiTro = N'Admin'
     OR (role.TenVaiTro = N'Manager' AND permission.MaQuyen <> 'ROLE.WRITE' AND permission.MaQuyen <> 'ACCOUNT.WRITE')
-    OR (role.TenVaiTro = N'Reception' AND permission.MaQuyen IN ('CUSTOMER.READ','APPOINTMENT.READ','APPOINTMENT.WRITE','SERVICE.READ','INVOICE.READ','PAYMENT.WRITE'))
-    OR (role.TenVaiTro = N'Staff' AND permission.MaQuyen IN ('APPOINTMENT.READ','SERVICE.READ'))
+    OR (role.TenVaiTro = N'Reception' AND permission.MaQuyen IN ('CUSTOMER.READ','CUSTOMER.WRITE','STAFF.READ','APPOINTMENT.READ','APPOINTMENT.WRITE','SERVICE.READ','INVOICE.READ','INVOICE.WRITE','PAYMENT.WRITE'))
+    OR (role.TenVaiTro = N'Staff' AND permission.MaQuyen IN ('APPOINTMENT.READ','SERVICE.READ','STAFF.READ'))
     OR (role.TenVaiTro = N'Customer' AND permission.MaQuyen IN ('SERVICE.READ')))
   AND NOT EXISTS (SELECT 1 FROM dbo.VAITRO_QUYEN existing WHERE existing.VaiTroID = role.VaiTroID AND existing.QuyenID = permission.QuyenID);
 

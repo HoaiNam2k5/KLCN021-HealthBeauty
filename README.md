@@ -73,3 +73,34 @@ Repository chứa ASP.NET Core Web API, SQL Server schema và danh mục API cho
 - Một số endpoint nghiệp vụ cần SQL Server đang chạy và database đã được tạo từ script.
 - Endpoint thanh toán hiện ghi nhận trạng thái thanh toán trong hệ thống, chưa tích hợp cổng thu tiền VNPay/MoMo.
 - JWT secret phải được tạo riêng cho từng môi trường; không dùng ví dụ placeholder làm secret thật.
+
+## Flutter booking update (2026-10-13)
+
+- Authenticated `Customer` accounts can call `GET /api/v1/staff`; modifying staff and accessing schedules still requires `Admin` or `Manager`.
+- `POST /appointments`, `POST /appointments/{id}/reschedule`, and `PUT /appointments/{id}` reject overlapping appointments for either the customer or the selected staff member with HTTP 409. Intervals are `[start, end)`: a 09:00?10:00 booking blocks 09:30 but allows 10:00. Cancelled bookings are ignored, and an appointment does not conflict with itself when moved. This also checks intervals crossing midnight.
+- `AppointmentItemResponse` adds `durationMinutes` (integer); `expectedPrice` remains decimal. Duration uses the saved positive duration, otherwise the current service duration, otherwise 30 minutes. The overall appointment duration is the sum of its item durations (30 minutes for legacy appointments without items).
+- The affected entries in `KLCN021_API_Catalog.xlsx` have been updated. Other catalog entries still describe older/planned contracts and were outside this change.
+- Run regression tests: `dotnet test KLCN021_HealthBeauty.sln`. Tests use a separate EF InMemory database per case and do not modify the local SQL Server database.
+
+## Priority API fixes (2026-10-13)
+
+- Appointment/staff detail responses use finite projections and retain Vietnamese property names; EF back references/account navigation are omitted.
+- Only Admin/Manager/Reception may confirm payment with POST `/invoices/{id}/payments`; customers receive403. This remains a staff acknowledgement of money received, without payment gateway integration.
+- Creating an invoice requires a completed appointment and an exact match of booked standalone services, complete combo components and quantities. Unit prices come from the catalog database. Customer creation/read is retained for their own invoices; staff role takes precedence over any linked customer profile.
+- Reschedule and PUT require `ChoXacNhan` or `DaXacNhan`; cancellation allows those states plus `DaDen`. Invalid transitions return409.
+- Assigned appointments must fit their entire duration in one non-leave working shift; Create/PUT/reschedule return400 otherwise. Unassigned appointments remain allowed; selecting staff triggers the shift check.
+- Availability/available-slots accept `date`, optional `staffId`, optional `serviceId`, and `durationMinutes` (default30, service duration takes precedence). Return individual candidate slots every30minutes with `nhanVienId`, `gioBatDau`, `gioKetThuc`; subtract full busy intervals including bookings carried from a previous day, ignore cancelled bookings and past starts.
+- Combo component changes return409 while an uncancelled referencing appointment awaits invoicing, so billing validation can still match its composition. Create a different combo or finish invoicing first. Catalog records edited earlier have no historical composition snapshot.
+- Deferred issues and verification: `API_PRIORITY_FIXES.md`; original audit preserved below a status notice in `API_REVIEW.md`.
+
+## Remaining API fixes (2026-10-13)
+
+- JWT checks the current account status, temporary lock and role on every authenticated request. Deactivation/role changes invalidate existing access tokens immediately. Failed login attempts are logged; default5wrongpasswords lock15minutes, configurable with `Authentication:MaxFailedAttempts` and `Authentication:LockoutMinutes`. Refresh honors temporary locks; logout only revokes the caller's refresh token.
+- Management APIs require both their existing role allowlist and an active database permission grant; revocation takes effect on the next request with the same JWT. Customer owned operations/public reads retain their paths. There is no Admin grant bypass. Services/combos use SERVICE.WRITE, promotions/vouchers PROMOTION.WRITE, review moderation REVIEW.MODERATE; logs use ACCOUNT.READ. Full mapping: Services/DatabasePermissionFilter.cs.
+- Existing databases: run `DB_KLCN021/03_ApiPermissionGrants.sql` to add missing Reception CUSTOMER.WRITE/STAFF.READ/INVOICE.WRITE and Staff STAFF.READ grants. It inserts only missing rows and preserves explicit revocations. New seed data includes the same grants. The migration has been prepared, not executed against the group's SQL database.
+- Invoice redemption deducts only whole points actually applied and links the ledger to its invoice. A zero-total invoice is completed by an authorized staff payment confirmation without a payment row or earned points; response `{invoiceId,status,amount:0,paymentRequired:false}`. Positive payments retain PaymentResponse.
+- Voucher creation/update share foreign-key, duplicate normalized code, nonnegative discount and future expiry validation. Validation/billing normalize code identically; customer voucher lists respect promotion dates. Promotion types are `PhanTram` (0..100) and `SoTien` (nonnegative).
+- Booking prices derive from the database; client expectedPrice is ignored. Combo composition, quantities, active status and effective dates are verified; its total is allocated across component rows with a final rounding remainder. Duplicate combo service IDs are rejected.
+- Staff can call GET `/staff/me/appointments` and `/staff/me/schedules`, and see only assigned appointments in `/appointments` and its detail endpoint. Reception can list staff. Staff deletion returns409 if any schedule/appointment references it; schedule updates validate employee existence and overlap.
+- Moderation queue: GET `/reviews/pending` for Admin/Manager with REVIEW.MODERATE; public GET reviews remains visible-only.
+- Verification and unresolved workflow/concurrency/history items: `API_FOLLOWUP_FIXES.md`.

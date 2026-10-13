@@ -18,18 +18,30 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
         var item = await db.Lichhens.AsNoTracking().Include(x => x.KhachHang).Include(x => x.NhanVien).Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).FirstOrDefaultAsync(x => x.LichHenId == id, ct);
         if (item is null) return NotFound();
-        if (customerId.HasValue && item.KhachHangId != customerId.Value) return Forbid();
-        if (!customerId.HasValue && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
-        return Ok(item);
+        var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
+        if (!isStaff && User.IsInRole("Staff"))
+        {
+            var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(ct);
+            if (!ownStaffId.HasValue || item.NhanVienId != ownStaffId.Value) return Forbid();
+        }
+        else if (!isStaff && customerId != item.KhachHangId) return Forbid();
+        return Ok(AppointmentViews.Detail(item));
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, AppointmentUpdateRequest request, CancellationToken ct)
     {
         var item = await db.Lichhens.FindAsync([id], ct); if (item is null) return NotFound();
+        if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan")) return Conflict("Only pending or confirmed appointments can be rescheduled.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Thời gian hẹn phải ở tương lai.");
         if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, ct)) return BadRequest("Nhân viên không tồn tại.");
-        item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim(); await db.SaveChangesAsync(ct); return Ok(item);
+        var durationMinutes = await AppointmentTiming.LoadDurationMinutesAsync(db, item.LichHenId, ct);
+        if (await AppointmentTiming.HasConflictAsync(db, item.KhachHangId, request.StaffId,
+            request.AppointmentAt, durationMinutes, item.LichHenId, ct))
+            return Conflict("Khách hàng hoặc nhân viên đã có lịch hẹn trong khoảng thời gian này.");
+        if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, ct))
+            return BadRequest("The entire appointment must be within the selected staff member's working shift.");
+        item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim(); await db.SaveChangesAsync(ct); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
     }
 
     [HttpPatch("{id:int}/status")]
@@ -62,10 +74,17 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
         if (customerId != item.KhachHangId && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
+        if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan")) return Conflict("Only pending or confirmed appointments can be rescheduled.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Thời gian hẹn phải ở tương lai.");
         if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, ct)) return BadRequest("Nhân viên không tồn tại.");
+        var durationMinutes = await AppointmentTiming.LoadDurationMinutesAsync(db, item.LichHenId, ct);
+        if (await AppointmentTiming.HasConflictAsync(db, item.KhachHangId, request.StaffId,
+            request.AppointmentAt, durationMinutes, item.LichHenId, ct))
+            return Conflict("Khách hàng hoặc nhân viên đã có lịch hẹn trong khoảng thời gian này.");
+        if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, ct))
+            return BadRequest("The entire appointment must be within the selected staff member's working shift.");
         item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim();
-        await db.SaveChangesAsync(ct); return Ok(item);
+        await db.SaveChangesAsync(ct); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
     }
 
     [HttpDelete("{id:int}")]
@@ -74,15 +93,45 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         var item = await db.Lichhens.FindAsync([id], ct); if (item is null) return NotFound();
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!); var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
         if (customerId != item.KhachHangId && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
+        if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan" or "DaDen")) return Conflict("This appointment can no longer be cancelled.");
         item.TrangThai = "DaHuy"; await db.SaveChangesAsync(ct); return NoContent();
     }
 
     [AllowAnonymous, HttpGet("available-slots"), HttpGet("availability")]
-    public async Task<IActionResult> AvailableSlots([FromQuery] DateOnly date, [FromQuery] int? staffId, CancellationToken ct)
+    public async Task<IActionResult> AvailableSlots([FromQuery] DateOnly date, [FromQuery] int? staffId,
+        CancellationToken ct, [FromQuery] int? serviceId = null, [FromQuery] int durationMinutes = 30)
     {
-        var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam == date && x.TrangThai != "NghiPhep"); if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
-        var shifts = await query.Select(x => new { x.NhanVienId, x.GioBatDau, x.GioKetThuc }).ToListAsync(ct); var busy = await db.Lichhens.AsNoTracking().Where(x => x.NgayGioHen.Date == date.ToDateTime(TimeOnly.MinValue).Date && x.TrangThai != "DaHuy" && (!staffId.HasValue || x.NhanVienId == staffId.Value)).Select(x => new { x.NhanVienId, x.NgayGioHen }).ToListAsync(ct);
-        return Ok(shifts.Where(s => !busy.Any(b => b.NhanVienId == s.NhanVienId && b.NgayGioHen.TimeOfDay >= s.GioBatDau.ToTimeSpan() && b.NgayGioHen.TimeOfDay < s.GioKetThuc.ToTimeSpan())).Select(s => new { s.NhanVienId, s.GioBatDau, s.GioKetThuc }));
+        if (date == default || date == DateOnly.MaxValue || durationMinutes <= 0 || durationMinutes > 1440) return BadRequest("A date and a duration between 1 and 1440 minutes are required.");
+        if (staffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == staffId.Value, ct)) return BadRequest("Staff does not exist.");
+        if (serviceId.HasValue)
+        {
+            var service = await db.Dichvus.AsNoTracking().FirstOrDefaultAsync(x => x.DichVuId == serviceId.Value && x.TrangThai, ct);
+            if (service is null) return BadRequest("Service does not exist or is inactive.");
+            durationMinutes = service.ThoiLuongPhut > 0 ? service.ThoiLuongPhut : 30;
+            if (durationMinutes > 1440) return BadRequest("Service duration exceeds one working day.");
+        }
+        var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam == date && x.TrangThai != "NghiPhep");
+        if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
+        var shifts = await query.ToListAsync(ct);
+        var staffIds = shifts.Select(x => x.NhanVienId).Distinct().ToList();
+        var dayEnd = date.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        var busy = await db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu)
+            .Where(x => x.TrangThai != "DaHuy" && x.NgayGioHen < dayEnd && x.NhanVienId.HasValue && staffIds.Contains(x.NhanVienId.Value))
+            .ToListAsync(ct);
+        var slots = new List<object>();
+        var seen = new HashSet<(int, DateTime)>();
+        var now = DateTime.Now;
+        foreach (var shift in shifts.OrderBy(x => x.NhanVienId).ThenBy(x => x.GioBatDau))
+        {
+            var shiftEnd = date.ToDateTime(shift.GioKetThuc);
+            for (var start = date.ToDateTime(shift.GioBatDau); start.AddMinutes(durationMinutes) <= shiftEnd; start = start.AddMinutes(30))
+            {
+                var end = start.AddMinutes(durationMinutes);
+                if (start <= now || busy.Any(x => x.NhanVienId == shift.NhanVienId && x.NgayGioHen < end && start < x.NgayGioHen.AddMinutes(AppointmentTiming.DurationMinutes(x)))) continue;
+                if (seen.Add((shift.NhanVienId, start))) slots.Add(new { shift.NhanVienId, GioBatDau = TimeOnly.FromDateTime(start), GioKetThuc = TimeOnly.FromDateTime(end) });
+            }
+        }
+        return Ok(slots);
     }
 }
 
@@ -90,17 +139,59 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
 public sealed class StaffManagementController(Klcn021HealthBeautyContext db) : ControllerBase
 {
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> Get(int id, CancellationToken ct) => (await db.Nhanviens.AsNoTracking().Include(x => x.Lichlamviecs).FirstOrDefaultAsync(x => x.NhanVienId == id, ct)) is { } x ? Ok(x) : NotFound();
-    [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, CancellationToken ct) { var x = await db.Nhanviens.FindAsync([id], ct); if (x is null) return NotFound(); if (await db.Lichhens.AnyAsync(a => a.NhanVienId == id && a.TrangThai != "DaHuy", ct)) return Conflict("Nhân viên đang có lịch hẹn."); db.Nhanviens.Remove(x); await db.SaveChangesAsync(ct); return NoContent(); }
-    [HttpDelete("schedules/{id:int}")] public async Task<IActionResult> DeleteSchedule(int id, CancellationToken ct) { var x = await db.Lichlamviecs.FindAsync([id], ct); if (x is null) return NotFound(); db.Lichlamviecs.Remove(x); await db.SaveChangesAsync(ct); return NoContent(); }
-    [HttpPut("schedules/{id:int}")] public async Task<IActionResult> UpdateSchedule(int id, WorkScheduleRequest request, CancellationToken ct) { var x = await db.Lichlamviecs.FindAsync([id], ct); if (x is null) return NotFound(); if (request.StartAt >= request.EndAt) return BadRequest("Giờ làm không hợp lệ."); x.NhanVienId=request.StaffId; x.NgayLam=request.WorkDate; x.GioBatDau=request.StartAt; x.GioKetThuc=request.EndAt; x.TrangThai=request.Status; await db.SaveChangesAsync(ct); return Ok(x); }
+    public async Task<IActionResult> Get(int id, CancellationToken ct) => (await db.Nhanviens.AsNoTracking().Include(x => x.Lichlamviecs).FirstOrDefaultAsync(x => x.NhanVienId == id, ct)) is { } x ? Ok(new { x.NhanVienId, x.TaiKhoanId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam,
+        Lichlamviecs = x.Lichlamviecs.Select(s => new { s.LichLamViecId, s.NhanVienId, s.NgayLam, s.GioBatDau, s.GioKetThuc, s.TrangThai }).ToList() }) : NotFound();
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        var item = await db.Nhanviens.FindAsync([id], ct); if (item is null) return NotFound();
+        if (await db.Lichhens.AnyAsync(x => x.NhanVienId == id, ct)
+            || await db.Lichlamviecs.AnyAsync(x => x.NhanVienId == id, ct))
+            return Conflict("Staff with appointment history or work schedules cannot be deleted.");
+        db.Nhanviens.Remove(item); await db.SaveChangesAsync(ct); return NoContent();
+    }
+
+    [HttpDelete("schedules/{id:int}")]
+    public async Task<IActionResult> DeleteSchedule(int id, CancellationToken ct)
+    {
+        var item = await db.Lichlamviecs.FindAsync([id], ct); if (item is null) return NotFound();
+        db.Lichlamviecs.Remove(item); await db.SaveChangesAsync(ct); return NoContent();
+    }
+
+    [HttpPut("schedules/{id:int}")]
+    public async Task<IActionResult> UpdateSchedule(int id, WorkScheduleRequest request, CancellationToken ct)
+    {
+        var item = await db.Lichlamviecs.FindAsync([id], ct); if (item is null) return NotFound();
+        if (request.StartAt >= request.EndAt) return BadRequest("Start time must be before end time.");
+        if (!await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId, ct)) return BadRequest("Staff does not exist.");
+        if (await db.Lichlamviecs.AnyAsync(x => x.LichLamViecId != id && x.NhanVienId == request.StaffId
+            && x.NgayLam == request.WorkDate && x.GioBatDau < request.EndAt && x.GioKetThuc > request.StartAt, ct))
+            return Conflict("Work schedules overlap.");
+        item.NhanVienId = request.StaffId; item.NgayLam = request.WorkDate; item.GioBatDau = request.StartAt;
+        item.GioKetThuc = request.EndAt; item.TrangThai = request.Status;
+        await db.SaveChangesAsync(ct); return Ok(item);
+    }
+
     [HttpGet("{id:int}/appointments")] public async Task<IActionResult> Appointments(int id, CancellationToken ct) => Ok(await db.Lichhens.AsNoTracking().Where(x => x.NhanVienId == id).OrderByDescending(x => x.NgayGioHen).Take(200).Select(x => new { x.LichHenId, x.KhachHangId, x.NgayGioHen, x.TrangThai, x.GhiChu }).ToListAsync(ct));
 }
 
 [ApiController, Authorize, Route("api/v1/customers/me/vouchers")]
 public sealed class CustomerVouchersController(Klcn021HealthBeautyContext db) : ControllerBase
 {
-    [HttpGet] public async Task<IActionResult> List(CancellationToken ct) { var accountId=int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!); var id=await db.Khachhangs.Where(x=>x.TaiKhoanId==accountId).Select(x=>(int?)x.KhachHangId).FirstOrDefaultAsync(ct); if(id is null)return NotFound(); return Ok(await db.Vouchers.AsNoTracking().Where(x=>x.KhachHangId==null||x.KhachHangId==id).Where(x=>x.TrangThai&&x.HanSuDung>=DateTime.Now).Include(x=>x.KhuyenMai).Select(x=>new{x.VoucherId,x.MaCode,x.GiaTriGiam,x.HanSuDung,x.KhuyenMai.TenKhuyenMai}).ToListAsync(ct)); }
+    [HttpGet]
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        var accountId=int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var id=await db.Khachhangs.Where(x=>x.TaiKhoanId==accountId).Select(x=>(int?)x.KhachHangId).FirstOrDefaultAsync(ct);
+        if(id is null)return NotFound();
+        var now=DateTime.Now;
+        var vouchers=await db.Vouchers.AsNoTracking().Include(x=>x.KhuyenMai)
+            .Where(x=>(x.KhachHangId==null || x.KhachHangId==id) && x.TrangThai && x.HanSuDung>=now)
+            .Where(x=>(!x.KhuyenMai.NgayBatDauHieuLuc.HasValue || x.KhuyenMai.NgayBatDauHieuLuc<=now)
+                && (!x.KhuyenMai.NgayKetThucHieuLuc.HasValue || x.KhuyenMai.NgayKetThucHieuLuc>=now)).ToListAsync(ct);
+        return Ok(vouchers.Where(x=>x.GiaTriGiam>=0 && VoucherRules.ValidDiscount(x.KhuyenMai.LoaiGiam,x.KhuyenMai.MucGiam))
+            .Select(x=>new {x.VoucherId,x.MaCode,x.GiaTriGiam,x.HanSuDung,x.KhuyenMai.TenKhuyenMai}));
+    }
 }
 
 [ApiController, Authorize, Route("api/v1/reports")]

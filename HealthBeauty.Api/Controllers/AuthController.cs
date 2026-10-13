@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using System.Text;
-using System.Security.Cryptography;
 using HealthBeauty.Api.Contracts;
 using HealthBeauty.Api.Models;
 using HealthBeauty.Api.Services;
@@ -33,10 +31,30 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
     {
         var email = request.Email.Trim().ToLowerInvariant();
         var account = await db.Taikhoans.Include(x => x.VaiTro).FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
-        if (account is null || !account.TrangThai || (account.KhoaDen is not null && account.KhoaDen > DateTime.UtcNow) || !passwords.Verify(request.Password, account.MatKhauHash))
+        var now = DateTime.UtcNow;
+        string? failure = account is null ? "AccountNotFound" : !account.TrangThai ? "AccountInactive" : account.KhoaDen > now ? "AccountLocked" : null;
+        if (failure is null && account is not null)
+        {
+            if (account.KhoaDen.HasValue) { account.KhoaDen = null; account.SoLanDangNhapSai = 0; }
+            if (!passwords.Verify(request.Password, account.MatKhauHash))
+            {
+                var limit = Math.Clamp(config.GetValue<int>("Authentication:MaxFailedAttempts", 5), 1, 20);
+                var minutes = Math.Clamp(config.GetValue<int>("Authentication:LockoutMinutes", 15), 1, 1440);
+                account.SoLanDangNhapSai = account.SoLanDangNhapSai >= limit ? limit : Math.Max(0, account.SoLanDangNhapSai) + 1;
+                if (account.SoLanDangNhapSai >= limit) account.KhoaDen = now.AddMinutes(minutes);
+                failure = "InvalidPassword";
+            }
+        }
+        var userAgent = Request.Headers.UserAgent.ToString();
+        db.Dangnhaplogs.Add(new Dangnhaplog { TaiKhoanId = account?.TaiKhoanId, Email = email.Length > 255 ? email[..255] : email,
+            ThanhCong = failure is null, LyDoThatBai = failure, CreatedAt = now,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(), UserAgent = userAgent.Length > 500 ? userAgent[..500] : userAgent });
+        if (failure is not null)
+        {
+            await db.SaveChangesAsync(cancellationToken);
             return Unauthorized("Email hoặc mật khẩu không đúng.");
-        account.SoLanDangNhapSai = 0; account.LanDangNhapCuoi = DateTime.UtcNow;
-        db.Dangnhaplogs.Add(new Dangnhaplog { TaiKhoanId = account.TaiKhoanId, Email = email, ThanhCong = true, IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() });
+        }
+        account!.SoLanDangNhapSai = 0; account.KhoaDen = null; account.LanDangNhapCuoi = now;
         await db.SaveChangesAsync(cancellationToken);
         return Ok(await IssueTokens(account, cancellationToken));
     }
@@ -46,7 +64,7 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
     {
         var hash = tokens.HashRefreshToken(request.RefreshToken);
         var stored = await db.Refreshtokens.Include(x => x.TaiKhoan).ThenInclude(x => x.VaiTro).FirstOrDefaultAsync(x => x.TokenHash == hash && x.RevokedAt == null, cancellationToken);
-        if (stored is null || stored.ExpiresAt <= DateTime.UtcNow || !stored.TaiKhoan.TrangThai) return Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
+        if (stored is null || stored.ExpiresAt <= DateTime.UtcNow || !stored.TaiKhoan.TrangThai || stored.TaiKhoan.KhoaDen > DateTime.UtcNow) return Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
         stored.RevokedAt = DateTime.UtcNow; stored.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
         await db.SaveChangesAsync(cancellationToken);
         return Ok(await IssueTokens(stored.TaiKhoan, cancellationToken));
@@ -55,8 +73,9 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
     [Authorize, HttpPost("logout")]
     public async Task<IActionResult> Logout(RefreshRequest request, CancellationToken cancellationToken)
     {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId)) return Unauthorized();
         var hash = tokens.HashRefreshToken(request.RefreshToken);
-        var token = await db.Refreshtokens.FirstOrDefaultAsync(x => x.TokenHash == hash && x.RevokedAt == null, cancellationToken);
+        var token = await db.Refreshtokens.FirstOrDefaultAsync(x => x.TokenHash == hash && x.TaiKhoanId == accountId && x.RevokedAt == null, cancellationToken);
         if (token is not null) { token.RevokedAt = DateTime.UtcNow; token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString(); await db.SaveChangesAsync(cancellationToken); }
         return NoContent();
     }

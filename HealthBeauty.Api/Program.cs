@@ -13,14 +13,17 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddScoped<DatabasePermissionFilter>();
+builder.Services.AddControllers(options => options.Filters.AddService<DatabasePermissionFilter>());
 builder.Services.AddDbContext<Klcn021HealthBeautyContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<AccountTokenValidation>();
 var jwt = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
+    options.EventsType = typeof(AccountTokenValidation);
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true, ValidIssuer = jwt["Issuer"],

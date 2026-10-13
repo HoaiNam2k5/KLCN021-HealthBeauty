@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using HealthBeauty.Api.Contracts;
 using HealthBeauty.Api.Models;
+using HealthBeauty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,9 +18,18 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(cancellationToken);
         var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
-        if (customerId is null && !isStaff) return Ok(Array.Empty<AppointmentResponse>());
         var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).AsQueryable();
-        if (customerId is not null) query = query.Where(x => x.KhachHangId == customerId.Value);
+        if (!isStaff && User.IsInRole("Staff"))
+        {
+            var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(cancellationToken);
+            if (!ownStaffId.HasValue) return Forbid();
+            query = query.Where(x => x.NhanVienId == ownStaffId.Value);
+        }
+        else if (!isStaff)
+        {
+            if (!customerId.HasValue) return Forbid();
+            query = query.Where(x => x.KhachHangId == customerId.Value);
+        }
         if (from.HasValue) query = query.Where(x => x.NgayGioHen >= from.Value);
         if (to.HasValue) query = query.Where(x => x.NgayGioHen < to.Value);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.TrangThai == status);
@@ -43,18 +53,56 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         if (!await db.Khachhangs.AnyAsync(x => x.KhachHangId == customerId.Value, cancellationToken)) return BadRequest("Customer does not exist.");
         if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, cancellationToken)) return BadRequest("Staff does not exist.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Appointment time must be in the future.");
+        if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one service is required.");
         var serviceIds = request.Items.Select(x => x.ServiceId).Distinct().ToList();
         var services = await db.Dichvus.Where(x => serviceIds.Contains(x.DichVuId) && x.TrangThai).ToDictionaryAsync(x => x.DichVuId, cancellationToken);
         if (services.Count != serviceIds.Count) return BadRequest("One or more services are invalid.");
-        var conflict = await db.Lichhens.AnyAsync(x => x.KhachHangId == customerId && x.NgayGioHen == request.AppointmentAt && x.TrangThai != "DaHuy", cancellationToken)
-            || (request.StaffId.HasValue && await db.Lichhens.AnyAsync(x => x.NhanVienId == request.StaffId && x.NgayGioHen == request.AppointmentAt && x.TrangThai != "DaHuy", cancellationToken));
-        if (conflict) return Conflict("Customer or staff already has an appointment at this time.");
+        var comboIds = request.Items.Where(x => x.ComboId.HasValue).Select(x => x.ComboId!.Value).Distinct().ToList();
+        var bookingDate = DateOnly.FromDateTime(request.AppointmentAt);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var combos = await db.Combodichvus.Include(x => x.Chitietcombos).Where(x => comboIds.Contains(x.ComboId) && x.TrangThai
+            && (!x.NgayBatDauHieuLuc.HasValue || (x.NgayBatDauHieuLuc <= today && x.NgayBatDauHieuLuc <= bookingDate))
+            && (!x.NgayKetThucHieuLuc.HasValue || (x.NgayKetThucHieuLuc >= today && x.NgayKetThucHieuLuc >= bookingDate)))
+            .ToDictionaryAsync(x => x.ComboId, cancellationToken);
+        if (combos.Count != comboIds.Count) return BadRequest("One or more combos are missing, inactive or outside their validity period.");
+        var expectedPrices = request.Items.Select(x => services[x.ServiceId].Gia).ToArray();
+        foreach (var group in request.Items.Select((item, index) => new { Item = item, Index = index }).Where(x => x.Item.ComboId.HasValue).GroupBy(x => x.Item.ComboId!.Value))
+        {
+            var combo = combos[group.Key];
+            var counts = group.GroupBy(x => x.Item.ServiceId).ToDictionary(x => x.Key, x => x.Count());
+            if (combo.Chitietcombos.Count == 0 || counts.Count != combo.Chitietcombos.Count) return BadRequest("Booking must include every combo component with its configured quantity.");
+            int? copies = null;
+            foreach (var component in combo.Chitietcombos)
+            {
+                if (component.SoLuong <= 0 || !counts.TryGetValue(component.DichVuId, out var count) || count % component.SoLuong != 0)
+                    return BadRequest("Booking must include every combo component with its configured quantity.");
+                var quantity = count / component.SoLuong;
+                if (quantity <= 0 || (copies.HasValue && copies.Value != quantity)) return BadRequest("Combo component quantities must describe complete copies of the combo.");
+                copies = quantity;
+            }
+            // Allocate combo price evenly across component rows; the last row receives the cent rounding remainder.
+            var lines = group.ToList();
+            var total = combo.GiaCombo * copies!.Value;
+            var perComponent = decimal.Floor(total / lines.Count * 100m) / 100m;
+            foreach (var line in lines) expectedPrices[line.Index] = perComponent;
+            expectedPrices[lines[^1].Index] += total - perComponent * lines.Count;
+        }
+        var durationMinutes = request.Items.Sum(x => services[x.ServiceId].ThoiLuongPhut > 0 ? services[x.ServiceId].ThoiLuongPhut : 30);
+        if (await AppointmentTiming.HasConflictAsync(db, customerId.Value, request.StaffId,
+            request.AppointmentAt, durationMinutes, null, cancellationToken))
+            return Conflict("Khách hàng hoặc nhân viên đã có lịch hẹn trong khoảng thời gian này.");
+        if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, cancellationToken))
+            return BadRequest("The entire appointment must be within the selected staff member's working shift.");
         var appointment = new Lichhen { KhachHangId = customerId.Value, NhanVienId = request.StaffId, NgayGioHen = request.AppointmentAt, TrangThai = "ChoXacNhan", GhiChu = request.Note?.Trim() };
-        foreach (var item in request.Items) appointment.Chitietlichhens.Add(new Chitietlichhen { DichVuId = item.ServiceId, ComboId = item.ComboId, GiaDuKien = item.ExpectedPrice > 0 ? item.ExpectedPrice : services[item.ServiceId].Gia, ThoiLuongThucTe = services[item.ServiceId].ThoiLuongPhut });
+        for (var index = 0; index < request.Items.Count; index++)
+        {
+            var item = request.Items[index];
+            appointment.Chitietlichhens.Add(new Chitietlichhen { DichVuId = item.ServiceId, ComboId = item.ComboId, GiaDuKien = expectedPrices[index], ThoiLuongThucTe = services[item.ServiceId].ThoiLuongPhut });
+        }
         db.Lichhens.Add(appointment); await db.SaveChangesAsync(cancellationToken);
         await db.Entry(appointment).Collection(x => x.Chitietlichhens).Query().Include(x => x.DichVu).LoadAsync(cancellationToken);
         return CreatedAtAction(nameof(GetMine), new { id = appointment.LichHenId }, Map(appointment));
     }
 
-    private static AppointmentResponse Map(Lichhen item) => new(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen, item.TrangThai, item.GhiChu, item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId, x.DichVu.TenDichVu, x.ComboId, x.GiaDuKien)).ToList());
+    private static AppointmentResponse Map(Lichhen item) => new(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen, item.TrangThai, item.GhiChu, item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId, x.DichVu?.TenDichVu ?? string.Empty, x.ComboId, x.GiaDuKien, AppointmentTiming.ItemDurationMinutes(x))).ToList());
 }

@@ -1,0 +1,298 @@
+﻿[
+    {
+        "method":  "GET",
+        "path":  "/api/v1/admin/roles"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/admin/permissions"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/admin/roles/{roleId}/permissions"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/admin/roles/{roleId}/permissions/{permissionId}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/admin/accounts"
+    },
+    {
+        "method":  "PATCH",
+        "path":  "/api/v1/admin/accounts/{accountId}/status"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/admin/audit-logs"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/admin/login-logs"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/appointments/{id}"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/appointments/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/appointments/{id}"
+    },
+    {
+        "method":  "PATCH",
+        "path":  "/api/v1/appointments/{id}/status"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/appointments/{id}/reschedule"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/appointments/available-slots"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/appointments/availability"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/appointments"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/appointments"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/auth/register"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/auth/login"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/auth/refresh"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/auth/logout"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/combos"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/combos"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/combos/{id}"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/combos/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/combos/{id}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/customers/me"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/customers/me"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/customers"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/customers/{id}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/customers/me/points"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/customers/me/vouchers"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/invoices"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/invoices"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/invoices/{id}/payments"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/promotions"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/promotions"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/promotions/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/promotions/{id}"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/promotions/vouchers/validate"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/promotions/vouchers"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/vouchers"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/promotions/vouchers/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/promotions/vouchers/{id}"
+    },
+    {
+        "method":  "PATCH",
+        "path":  "/api/v1/promotions/vouchers/{id}/status"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/reports/appointments"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/reports/revenue"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/reports/services"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/reports/customers"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/reviews"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/reviews/invoices/{invoiceId}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/reviews/pending"
+    },
+    {
+        "method":  "PATCH",
+        "path":  "/api/v1/reviews/{id}/moderation"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/service-categories"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/service-categories"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/services"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/services"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/services/{id}"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/services/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/services/{id}"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/service-categories/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/service-categories/{id}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/staff"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/staff"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/staff/me/appointments"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/staff/me/schedules"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/staff/{id}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/staff/{id}"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/staff/{id}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/staff/schedules"
+    },
+    {
+        "method":  "POST",
+        "path":  "/api/v1/staff/schedules"
+    },
+    {
+        "method":  "DELETE",
+        "path":  "/api/v1/staff/schedules/{id}"
+    },
+    {
+        "method":  "PUT",
+        "path":  "/api/v1/staff/schedules/{id}"
+    },
+    {
+        "method":  "GET",
+        "path":  "/api/v1/staff/{id}/appointments"
+    }
+]
