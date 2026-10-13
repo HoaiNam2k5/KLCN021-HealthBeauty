@@ -25,3 +25,12 @@ Thumbs.db
 
 # Temporary API audit server logs
 .audit/*.log
+
+# Local feedback, audit artifacts and agent plans
+/.audit/
+/API_AUDIT_*.json
+/API_REVIEW.md
+/API_PRIORITY_FIXES.md
+/API_FOLLOWUP_FIXES.md
+/PLANS.md
+/cac_van_de*.txt

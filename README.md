@@ -91,7 +91,6 @@ Repository chứa ASP.NET Core Web API, SQL Server schema và danh mục API cho
 - Assigned appointments must fit their entire duration in one non-leave working shift; Create/PUT/reschedule return400 otherwise. Unassigned appointments remain allowed; selecting staff triggers the shift check.
 - Availability/available-slots accept `date`, optional `staffId`, optional `serviceId`, and `durationMinutes` (default30, service duration takes precedence). Return individual candidate slots every30minutes with `nhanVienId`, `gioBatDau`, `gioKetThuc`; subtract full busy intervals including bookings carried from a previous day, ignore cancelled bookings and past starts.
 - Combo component changes return409 while an uncancelled referencing appointment awaits invoicing, so billing validation can still match its composition. Create a different combo or finish invoicing first. Catalog records edited earlier have no historical composition snapshot.
-- Deferred issues and verification: `API_PRIORITY_FIXES.md`; original audit preserved below a status notice in `API_REVIEW.md`.
 
 ## Remaining API fixes (2026-10-13)
 
@@ -103,4 +102,4 @@ Repository chứa ASP.NET Core Web API, SQL Server schema và danh mục API cho
 - Booking prices derive from the database; client expectedPrice is ignored. Combo composition, quantities, active status and effective dates are verified; its total is allocated across component rows with a final rounding remainder. Duplicate combo service IDs are rejected.
 - Staff can call GET `/staff/me/appointments` and `/staff/me/schedules`, and see only assigned appointments in `/appointments` and its detail endpoint. Reception can list staff. Staff deletion returns409 if any schedule/appointment references it; schedule updates validate employee existence and overlap.
 - Moderation queue: GET `/reviews/pending` for Admin/Manager with REVIEW.MODERATE; public GET reviews remains visible-only.
-- Verification and unresolved workflow/concurrency/history items: `API_FOLLOWUP_FIXES.md`.
+- Concurrent writes, historical catalog snapshots and invoice cancellation/refund workflows still require additional implementation and SQL integration tests.
