@@ -1,0 +1,98 @@
+# Dự án: HealthBeauty Web (KLCN021)
+
+Website quản lý dành cho Admin / Manager / Reception / Staff của cơ sở làm đẹp (Thẩm mỹ viện SeoulSpa.Vn).
+Đây là khóa luận tốt nghiệp. Ứng dụng di động (Flutter) cho khách hàng dùng chung API, KHÔNG nằm trong repo này.
+
+## Stack
+- React + TypeScript + Vite (project tạo bằng `npm create vite`)
+- UI: Ant Design (bảng, form, modal, layout). Không trộn thêm thư viện UI khác.
+- Routing: react-router-dom
+- Gọi API: axios (một instance dùng chung)
+- Dữ liệu từ server: @tanstack/react-query
+- Form: react-hook-form + zod (hoặc Form của Ant Design nếu form đơn giản)
+- Ngày giờ: dayjs, múi giờ Asia/Ho_Chi_Minh
+- Biểu đồ: recharts
+- Không cài thêm thư viện nào khác mà chưa hỏi tôi.
+
+## Backend (chỉ đọc, KHÔNG sửa)
+- Repo backend nằm ở thư mục khác (`C:\Users\PC\KLCN021-HealthBeauty`). Không được sửa file trong đó.
+- Base URL local: `http://localhost:5230/api/v1`
+- Trong dev, dùng proxy của Vite: đặt `baseURL = '/api/v1'` và cấu hình proxy `/api` -> `http://localhost:5230` trong `vite.config.ts` (tránh lỗi CORS).
+- Swagger UI: `http://localhost:5230/swagger`
+- **Swagger là nguồn sự thật. File KLCN021_API_Catalog.xlsx đang lệch với code.** Ví dụ thực tế: login gửi `password` (không phải `matKhau`), response trả `account` (không phải `user`).
+- Trước khi viết code cho một nhóm API, đọc schema thật bằng `curl http://localhost:5230/swagger/v1/swagger.json` (API phải đang chạy), rồi tạo type TypeScript đúng theo đó. Không đoán tên trường. Nếu không chắc, hỏi tôi.
+
+## Xác thực (đã xác nhận bằng Swagger)
+- `POST /auth/login` body: `{ email, password }`
+- Response: `{ accessToken, refreshToken, accessTokenExpiresAt, account: { id, email, name, role } }`
+- Access token sống 30 phút. Phải có refresh tự động.
+- Gửi token qua header `Authorization: Bearer <accessToken>`.
+- Interceptor: khi gặp 401, gọi `POST /auth/refresh` một lần (chống gọi trùng khi nhiều request cùng lỗi), thử lại request gốc; nếu refresh thất bại thì xóa phiên và chuyển về `/login`.
+- Lưu trữ: accessToken giữ trong bộ nhớ (state/store), refreshToken lưu localStorage (chấp nhận cho đồ án, ghi chú rủi ro XSS trong báo cáo).
+- Vai trò: Admin, Manager, Reception, Staff, Customer. Web dành cho 4 vai trò đầu. Nếu role là Customer thì báo "Tài khoản này dùng cho ứng dụng di động" và không vào trang quản lý.
+- Ẩn/hiện menu và chặn route theo `account.role`. Việc kiểm tra thật vẫn do backend (403), frontend chỉ để trải nghiệm.
+
+## Tài khoản demo (chỉ local)
+admin@healthbeauty.local / reception@healthbeauty.local / customer@healthbeauty.local, mật khẩu `HealthBeauty@123`.
+Không bao giờ hardcode tài khoản hay mật khẩu vào code.
+
+## Quy ước API chung
+- JSON UTF-8, ngày giờ ISO-8601.
+- Phân trang: `page` bắt đầu từ 1, `size` mặc định 20, tối đa 100. Kết quả dạng `{ items, page, size, totalItems, totalPages }`.
+- Mã lỗi cần xử lý trên giao diện: 400 (dữ liệu sai, hiện lỗi từng trường), 401, 403 (không đủ quyền), 404, 409 (xung đột, ví dụ trùng lịch), 500.
+- Tên trường giữ nguyên theo Swagger (hiện là tiếng Anh camelCase: `name`, `price`, `durationMinutes`...). Không đổi tên khi map.
+
+## Cấu trúc thư mục (src/)
+```
+api/          axios instance, interceptor, hàm gọi API theo nhóm (auth.ts, services.ts, appointments.ts...)
+types/        type TypeScript cho DTO, theo Swagger
+features/     mỗi nghiệp vụ một thư mục: auth, services, appointments, customers, staff, billing, promotions, reviews, reports
+components/   component dùng chung (DataTable, ConfirmModal, PageHeader...)
+layouts/      MainLayout (sidebar + header), AuthLayout
+routes/       định nghĩa route, ProtectedRoute, kiểm tra role
+hooks/        hook dùng chung
+utils/        format tiền VND, ngày giờ
+```
+
+## Quy ước code
+- TypeScript strict, KHÔNG dùng `any`. Dùng `unknown` rồi thu hẹp kiểu nếu cần.
+- Function component + hooks. Tên component PascalCase, file hook bắt đầu bằng `use`.
+- Mỗi trang xử lý đủ 3 trạng thái: loading, lỗi, rỗng.
+- Mọi thao tác ghi (thêm/sửa/xóa) hiện thông báo thành công/thất bại, xóa phải có hộp thoại xác nhận.
+- Giao diện tiếng Việt, tiền hiển thị VND (ví dụ 350.000 ₫), ngày dạng dd/MM/yyyy HH:mm.
+- Không đặt URL, khóa, thông tin nhạy cảm trong code. Cấu hình qua `.env` (biến bắt đầu bằng `VITE_`), và `.env` phải nằm trong `.gitignore`.
+- Giữ code đơn giản, dễ đọc, vì cả nhóm phải hiểu và giải thích được khi bảo vệ. Không làm kiến trúc phức tạp quá mức.
+
+## Quy tắc nghiệp vụ cần tôn trọng
+- Trạng thái lịch hẹn: chờ xác nhận, đã xác nhận, khách đã đến, đang thực hiện, hoàn thành, đã hủy. Lấy giá trị chính xác từ Swagger/backend, chỉ cho phép chuyển trạng thái hợp lệ, backend trả 409 nếu sai.
+- Đặt lịch: kiểm tra lịch trống trước (`GET /appointments/availability`), xử lý lỗi 409 trùng lịch bằng thông báo rõ ràng.
+- Hóa đơn/thanh toán: số tiền do backend tính, frontend chỉ hiển thị. Thanh toán hiện chỉ ghi nhận trạng thái, chưa tích hợp VNPay/MoMo.
+- Khuyến mãi/voucher/điểm thưởng: áp dụng qua API, không tự tính ở frontend.
+
+## Cách làm việc với tôi
+- Làm từng task nhỏ, một tính năng mỗi lần. Trước khi code, nói ngắn gọn bạn định làm gì và sửa những file nào.
+- Không tự cài package, không tự xóa file, không chạy lệnh nguy hiểm khi chưa hỏi.
+- Không sửa thư mục backend.
+- Sau khi sửa, chạy `npm run build` và `npm run lint` rồi báo kết quả. Sửa hết lỗi TypeScript/ESLint trước khi báo xong.
+- Cuối mỗi task, giải thích ngắn gọn bằng tiếng Việt code vừa viết làm gì, để tôi hiểu và bảo vệ được.
+- Gợi ý commit message ngắn cho mỗi task hoàn thành.
+
+## Giao diện
+- Giao diện bám theo DESIGN.md ở thư mục gốc (màu, font, khoảng cách, bo góc).
+- Áp dụng qua theme token của Ant Design (ConfigProvider) trong src/theme/theme.ts, không viết CSS riêng cho từng trang nếu token làm được.
+- Chỉ lấy cảm hứng phong cách; không dùng logo, tên hay hình ảnh thương hiệu của site gốc.
+
+### Điều chỉnh DESIGN.md cho trang quản trị
+- DESIGN.md là phong cách của site marketing: chỉ lấy màu, viền, bo góc, khoảng cách. Bỏ qua hero, lưới logo, banner, kích thước display 54/80px.
+- Font: 'Inter', 'Segoe UI', system-ui, sans-serif (không dùng Saans/SaansMono/Serrif, không dùng font mono giãn chữ cho nhãn tiếng Việt). Không cài thêm package font nếu chưa hỏi tôi.
+- Chữ nội dung và bảng độ đậm 400, tiêu đề 500 (không dùng 300). Cỡ: bảng/biểu mẫu 14px, tiêu đề trang 24px.
+- Màu chữ: chính #111111, phụ #414141, mô tả #585858. Chỉ dùng #888888/#a0a0a0 cho placeholder hoặc trạng thái vô hiệu hóa.
+- Antd theme: colorBgLayout #faf9f6, colorBgContainer #ffffff, colorBorder #dedbd6, borderRadius 4, colorPrimary #111111 (nút chính nền đen chữ trắng), colorLink #0007cb, không dùng đổ bóng.
+- Màu trạng thái (DESIGN.md không có, dùng bộ này): thành công #2F7D4F, cảnh báo #B7791F, lỗi #C0392B, thông tin #0007cb. Thẻ trạng thái dùng nền nhạt + chữ đậm cùng tông, bo góc 4px.
+
+## Git (theo CONTRIBUTING.md của nhóm)
+- Không commit trực tiếp lên main. Mỗi task làm trên nhánh riêng: feature/<ten-ngan>, fix/<ten-ngan>, docs/<ten-ngan>, chore/<ten-ngan>. Tên viết thường, không dấu, dùng gạch ngang.
+- Commit theo Conventional Commits, tiếng Anh, không kết thúc bằng dấu chấm. Ví dụ: feat(auth): add login page, fix(api): handle 401 refresh, chore: update packages.
+- Không commit .env, secret, token, node_modules, dist.
+- Không tự chạy git push, git reset --hard, git push --force. Chỉ gợi ý commit message, tôi tự commit.
+- Không tự đổi cách gọi API nếu Swagger không thay đổi. Nếu thấy catalog lệch Swagger, báo cho tôi để báo lại backend.
