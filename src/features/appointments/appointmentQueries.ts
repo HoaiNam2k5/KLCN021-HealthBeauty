@@ -6,7 +6,7 @@ export const appointmentKeys = {
   appointments: ['appointments'] as const,
   appointmentList: (filters: AppointmentFilters) => [...appointmentKeys.appointments, filters] as const,
   staff: ['appointment-staff'] as const,
-  customers: ['appointment-customers'] as const,
+  customers: (keyword: string) => ['appointment-customers', keyword] as const,
   availableSlots: ['appointment-available-slots'] as const,
 }
 
@@ -22,8 +22,8 @@ export function useAppointmentStaff() {
   return useQuery({ queryKey: appointmentKeys.staff, queryFn: appointmentsApi.getStaff })
 }
 
-export function useAppointmentCustomers() {
-  return useQuery({ queryKey: appointmentKeys.customers, queryFn: appointmentsApi.getCustomers })
+export function useAppointmentCustomers(keyword = '') {
+  return useQuery({ queryKey: appointmentKeys.customers(keyword), queryFn: () => appointmentsApi.getCustomers(keyword) })
 }
 
 export function useAvailableSlots(date: string, staffId?: number) {

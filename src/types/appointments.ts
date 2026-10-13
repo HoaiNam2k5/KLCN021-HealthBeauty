@@ -50,6 +50,20 @@ export interface Customer {
   rewardPoints: number
 }
 
+export interface AppointmentItemRequest {
+  serviceId: number
+  comboId: number | null
+  expectedPrice: number
+}
+
+export interface CreateAppointmentRequest {
+  appointmentAt: string
+  items: AppointmentItemRequest[]
+  note: string | null
+  customerId: number
+  staffId: number | null
+}
+
 export interface AppointmentUpdateRequest {
   appointmentAt: string
   staffId: number | null

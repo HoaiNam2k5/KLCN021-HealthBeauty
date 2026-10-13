@@ -1,5 +1,5 @@
 import api from './client'
-import { asArray, asAvailableSlots, type Appointment, type AppointmentFilters, type AppointmentListResponse, type AppointmentStatusRequest, type AppointmentUpdateRequest, type AvailableSlot, type Customer, type Staff } from '../types/appointments'
+import { asArray, asAvailableSlots, type Appointment, type AppointmentFilters, type AppointmentListResponse, type AppointmentStatusRequest, type AppointmentUpdateRequest, type AvailableSlot, type Customer, type Staff, type CreateAppointmentRequest } from '../types/appointments'
 
 export async function getAppointments(filters: AppointmentFilters = {}): Promise<AppointmentListResponse> {
   const { data } = await api.get<unknown>('/appointments', { params: filters })
@@ -29,9 +29,13 @@ export async function getStaff(): Promise<Staff[]> {
   return asArray<Staff>(data)
 }
 
-export async function getCustomers(): Promise<Customer[]> {
-  const { data } = await api.get<unknown>('/customers')
+export async function getCustomers(keyword?: string): Promise<Customer[]> {
+  const { data } = await api.get<unknown>('/customers', { params: keyword ? { keyword } : {} })
   return asArray<Customer>(data)
+}
+
+export async function createAppointment(body: CreateAppointmentRequest): Promise<void> {
+  await api.post('/appointments', body)
 }
 
 export async function getAvailableSlots(date: string, staffId?: number): Promise<AvailableSlot[]> {
