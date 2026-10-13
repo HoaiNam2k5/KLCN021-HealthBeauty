@@ -13,6 +13,7 @@ export default function ProtectedRoute() {
   const requiresAdminRole = location.pathname === '/reports'
   const isAdmin = (REPORT_ADMIN_ROLES as readonly string[]).includes(session.account.role ?? '')
   if (requiresAdminRole && !isAdmin) return <Navigate to="/403" replace />
+  if (location.pathname === '/permissions' && session.account.role !== 'Admin') return <Navigate to="/403" replace />
 
   return <Outlet />
 }

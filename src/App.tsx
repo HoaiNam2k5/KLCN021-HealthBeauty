@@ -23,6 +23,7 @@ const BillingPage = lazy(() => import('./features/billing/BillingPage'))
 const PromotionsPage = lazy(() => import('./features/promotions/PromotionsPage'))
 const ReviewsPage = lazy(() => import('./features/reviews/ReviewsPage'))
 const ReportsPage = lazy(() => import('./features/reports/ReportsPage'))
+const PermissionsPage = lazy(() => import('./features/permissions/PermissionsPage'))
 
 const queryClient = new QueryClient()
 const pageTitles: Record<string, string> = {
@@ -38,6 +39,7 @@ const pageTitles: Record<string, string> = {
   '/promotions': 'Khuyến mãi và voucher',
   '/reviews': 'Đánh giá',
   '/reports': 'Báo cáo',
+  '/permissions': 'Phân quyền',
   '/login': 'Đăng nhập',
 }
 
@@ -117,6 +119,7 @@ function ApplicationRoutes() {
               <Route path="/promotions" element={<PromotionsPage />} />
               <Route path="/reviews" element={<ReviewsPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/permissions" element={<PermissionsPage />} />
             </Route>
           </Route>
           <Route path="*" element={session ? <NotFoundPage /> : <Navigate to="/login" replace />} />

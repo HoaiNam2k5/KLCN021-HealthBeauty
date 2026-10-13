@@ -1,5 +1,5 @@
 import { App as AntApp, Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
-import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined, TeamOutlined, ContactsOutlined, ClockCircleOutlined, DollarOutlined, StarOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined, TeamOutlined, ContactsOutlined, ClockCircleOutlined, DollarOutlined, StarOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearSession, getRefreshToken } from '../api/session'
 import api from '../api/client'
@@ -15,6 +15,7 @@ export default function MainLayout() {
   const location = useLocation()
   const { message } = AntApp.useApp()
   const canViewReports = (REPORT_ADMIN_ROLES as readonly string[]).includes(session?.account?.role ?? '')
+  const isAdmin = session?.account?.role === 'Admin'
 
   async function handleLogout() {
     const refreshToken = getRefreshToken()
@@ -52,6 +53,7 @@ export default function MainLayout() {
           ] : []),
           { key: '/reviews', icon: <StarOutlined />, label: 'Đánh giá' },
           ...(canViewReports ? [{ key: REPORTS_ROUTE, icon: <DashboardOutlined />, label: REPORT_MENU_LABEL }] : []),
+          ...(isAdmin ? [{ key: '/permissions', icon: <SafetyCertificateOutlined />, label: 'Phân quyền' }] : []),
         ]} onClick={({ key }) => navigate(key)} />
       </Sider>
       <Layout>
