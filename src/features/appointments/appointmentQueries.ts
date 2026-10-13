@@ -1,15 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import * as appointmentsApi from '../../api/appointments'
+import type { AppointmentFilters } from '../../types/appointments'
 
 export const appointmentKeys = {
   appointments: ['appointments'] as const,
+  appointmentList: (filters: AppointmentFilters) => [...appointmentKeys.appointments, filters] as const,
   staff: ['appointment-staff'] as const,
   customers: ['appointment-customers'] as const,
   availableSlots: ['appointment-available-slots'] as const,
 }
 
-export function useAppointments() {
-  return useQuery({ queryKey: appointmentKeys.appointments, queryFn: appointmentsApi.getAppointments })
+export function useAppointments(filters: AppointmentFilters = {}) {
+  return useQuery({ queryKey: appointmentKeys.appointmentList(filters), queryFn: () => appointmentsApi.getAppointments(filters) })
+}
+
+export function useAllAppointments() {
+  return useQuery({ queryKey: [...appointmentKeys.appointments, 'all'], queryFn: appointmentsApi.getAllAppointments })
 }
 
 export function useAppointmentStaff() {

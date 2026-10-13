@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { App as AntApp, Alert, Button, DatePicker, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Tag, TimePicker, Typography } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -9,11 +9,11 @@ import { getApiErrorMessage } from '../../components/apiError'
 import { ACCOUNT_ROLES } from '../../constants/roles'
 import { useAuth } from '../../hooks/useAuth'
 import type { Appointment, AppointmentUpdateRequest, Staff } from '../../types/appointments'
-import { getAllowedNextAppointmentStatuses, getAppointmentStatusPresentation } from './appointmentStatus'
+import { APPOINTMENT_STATUS, APPOINTMENT_STATUSES, getAllowedNextAppointmentStatuses, getAppointmentStatusPresentation } from './appointmentStatus'
 import { appointmentKeys, useAppointmentCustomers, useAppointments, useAppointmentStaff, useAvailableSlots } from './appointmentQueries'
 
 const writableRoles: string[] = [ACCOUNT_ROLES.ADMIN, ACCOUNT_ROLES.MANAGER, ACCOUNT_ROLES.RECEPTION]
-const statusLabels: Record<string, string> = { ChoXacNhan: 'Chờ xác nhận', DaXacNhan: 'Đã xác nhận', KhachDaDen: 'Khách đã đến', DangThucHien: 'Đang thực hiện', HoanThanh: 'Hoàn thành', DaHuy: 'Đã hủy' }
+const statusLabels: Record<string, string> = { ChoXacNhan: 'Chờ xác nhận', DaXacNhan: 'Đã xác nhận', DaDen: 'Khách đã đến', DangThucHien: 'Đang thực hiện', HoanThanh: 'Hoàn thành', DaHuy: 'Đã hủy' }
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
 
 function AppointmentEditor({ appointment, staff, mode, onCancel, onSubmit, busy }: { appointment: Appointment; staff: Staff[]; mode: 'edit' | 'reschedule'; onCancel: () => void; onSubmit: (body: AppointmentUpdateRequest) => void; busy: boolean }) {
@@ -57,28 +57,43 @@ function useAppointmentMutations() {
 
 export default function AppointmentsPage() {
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(20)
   const [date, setDate] = useState<Dayjs | null>(null)
   const [status, setStatus] = useState<string>()
   const [staffId, setStaffId] = useState<number>()
   const [keyword, setKeyword] = useState('')
+  const [debouncedKeyword, setDebouncedKeyword] = useState('')
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedKeyword(keyword.trim()), 400)
+    return () => window.clearTimeout(timeout)
+  }, [keyword])
   const [selected, setSelected] = useState<Appointment | null>(null)
   const [editor, setEditor] = useState<'edit' | 'reschedule' | null>(null)
   const { message, modal } = AntApp.useApp()
   const role = useAuth()?.account?.role
   const canWrite = role !== null && role !== undefined && writableRoles.includes(role)
   const mutations = useAppointmentMutations()
-  const appointments = useAppointments()
+  const filters = useMemo(() => ({
+    ...(date ? { from: date.startOf('day').toISOString(), to: date.endOf('day').toISOString() } : {}),
+    ...(status ? { status } : {}),
+    ...(staffId !== undefined ? { staffId } : {}),
+    ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
+    page,
+    pageSize,
+  }), [date, status, staffId, debouncedKeyword, page, pageSize])
+  const appointments = useAppointments(filters)
   const staff = useAppointmentStaff()
   const customers = useAppointmentCustomers()
   const pending = mutations.update.isPending || mutations.reschedule.isPending || mutations.status.isPending || mutations.remove.isPending
   const handleError = (error: unknown) => {
     const fallback = axios.isAxiosError(error) && error.response?.status === 409
-      ? 'Lịch hẹn bị trùng với lịch khác. Vui lòng chọn khung giờ khác.'
+      ? (typeof error.response.data === 'object' && error.response.data !== null && 'message' in error.response.data && error.response.data.message === 'Invalid appointment status transition'
+        ? 'Không thể chuyển lịch hẹn sang trạng thái này. Vui lòng làm mới và thử lại.'
+        : 'Lịch hẹn bị trùng với lịch khác. Vui lòng chọn khung giờ khác.')
       : 'Không thể thực hiện thao tác. Vui lòng thử lại.'
     message.error(getApiErrorMessage(error, fallback))
   }
-  const activeAppointment = selected ? (appointments.data ?? []).find((item) => item.id === selected.id) ?? selected : null
+  const activeAppointment = selected ? appointments.data?.items.find((item) => item.id === selected.id) ?? selected : null
   const submitEditor = (body: AppointmentUpdateRequest) => {
     if (!activeAppointment) return
     const mutation = editor === 'reschedule' ? mutations.reschedule : mutations.update
@@ -91,10 +106,7 @@ export default function AppointmentsPage() {
     : ''
   const staffNames = useMemo(() => new Map((staff.data ?? []).map((item) => [item.nhanVienId, item.hoTen])), [staff.data])
   const customerNames = useMemo(() => new Map((customers.data ?? []).map((item) => [item.id, item.fullName])), [customers.data])
-  const filtered = (appointments.data ?? []).filter((item) => {
-    const appointmentDate = dayjs(item.appointmentAt)
-    return (!date || appointmentDate.isSame(date, 'day')) && (!status || item.status === status) && (staffId === undefined || item.staffId === staffId) && (!keyword || (customerNames.get(item.customerId) ?? '').toLocaleLowerCase().includes(keyword.toLocaleLowerCase()))
-  })
+  const appointmentItems = appointments.data?.items ?? []
 
   return <>
     {error && <Alert type="error" showIcon message="Không tải được dữ liệu lịch hẹn" description={errorMessage} style={{ marginBottom: 16 }} />}
@@ -109,10 +121,11 @@ export default function AppointmentsPage() {
         { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
         { title: 'Chi tiết', key: 'details', render: (_, record) => <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button> },
       ]}
-      data={filtered}
-      searchFields={['customerId']}
+      data={appointmentItems}
+      total={appointments.data?.totalCount ?? 0}
+      searchFields={[]}
       onSearch={(value) => { setKeyword(value); setPage(1) }}
-      searchPlaceholder="Tìm theo tên khách"
+      searchPlaceholder="Tìm theo tên khách hoặc SĐT"
       loading={appointments.isLoading || staff.isLoading || customers.isLoading}
       error={error}
       page={page}
@@ -123,11 +136,7 @@ export default function AppointmentsPage() {
       onDelete={() => undefined}
       toolbar={<Space wrap>
         <DatePicker allowClear placeholder="Lọc theo ngày" format="DD/MM/YYYY" value={date} onChange={(value) => { setDate(value); setPage(1) }} />
-        <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190 }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={[
-          { value: 'ChoXacNhan', label: 'Chờ xác nhận' }, { value: 'DaXacNhan', label: 'Đã xác nhận' },
-          { value: 'KhachDaDen', label: 'Khách đã đến' }, { value: 'DangThucHien', label: 'Đang thực hiện' },
-          { value: 'HoanThanh', label: 'Hoàn thành' }, { value: 'DaHuy', label: 'Đã hủy' },
-        ]} />
+        <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190 }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={APPOINTMENT_STATUSES.map((value) => ({ value, label: statusLabels[value] }))} />
         <Select allowClear showSearch optionFilterProp="label" placeholder="Tất cả nhân viên" style={{ width: 190 }} value={staffId} onChange={(value) => { setStaffId(value); setPage(1) }} options={(staff.data ?? []).map((item) => ({ value: item.nhanVienId, label: item.hoTen }))} />
       </Space>}
     />
@@ -144,7 +153,7 @@ export default function AppointmentsPage() {
         {activeAppointment.items.length ? <>{activeAppointment.items.map((item) => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}><span>{item.serviceName}{item.comboId !== null ? ' (combo)' : ''}</span><span>{money(item.expectedPrice)}</span></div>)}<div style={{ borderTop: '1px solid #dedbd6', paddingTop: 12, textAlign: 'right', fontWeight: 500 }}>Tổng tiền: {money(activeAppointment.items.reduce((sum, item) => sum + item.expectedPrice, 0))}</div></> : <Typography.Text type="secondary">Chưa có dịch vụ</Typography.Text>}
         {canWrite && <Space wrap style={{ marginTop: 24 }}>
           {getAllowedNextAppointmentStatuses(activeAppointment.status).map((next) => <Button key={next} loading={pending} onClick={() => confirmStatus(activeAppointment, next)}>{next === 'DaHuy' ? 'Hủy lịch' : `Chuyển: ${statusLabels[next] ?? next}`}</Button>)}
-          {activeAppointment.status !== 'HoanThanh' && activeAppointment.status !== 'DaHuy' && <>
+          {activeAppointment.status !== APPOINTMENT_STATUS.COMPLETED && activeAppointment.status !== APPOINTMENT_STATUS.CANCELLED && <>
             <Button onClick={() => setEditor('reschedule')}>Đổi lịch</Button><Button onClick={() => setEditor('edit')}>Sửa ghi chú / nhân viên</Button>
             <Popconfirm title="Xóa lịch hẹn này?" description="Thao tác này không thể hoàn tác." okText="Xóa" cancelText="Hủy" onConfirm={() => mutations.remove.mutate(activeAppointment.id, { onSuccess: () => { message.success('Xóa lịch hẹn thành công'); setSelected(null) }, onError: handleError })}><Button danger loading={mutations.remove.isPending}>Xóa lịch</Button></Popconfirm>
           </>}

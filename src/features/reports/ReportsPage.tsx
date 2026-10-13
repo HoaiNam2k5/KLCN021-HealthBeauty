@@ -7,6 +7,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
 import { useAuth } from '../../hooks/useAuth'
 import * as reportQueries from './reportQueries'
 import * as reportText from '../../types/reports'
+import { getAppointmentStatusPresentation } from '../appointments/appointmentStatus'
 import type { Service } from '../../types/services'
 
 interface StatusChartItem { status: string; count: number; name: string; color: string }
@@ -38,7 +39,7 @@ function ReportsDashboard({ home }: { home: boolean }) {
  const queryList=[appointmentReport,revenueReport,serviceReport,customerReport,invoiceList,reviewList,appointmentList,serviceList,customerList]
  const isLoading=queryList.some((query)=>query.isLoading)
  const firstError=queryList.find((query)=>query.error)?.error
- const appointmentStatuses=useMemo(()=> (appointmentReport.data??[]).map((item)=>({...item,name:reportText.REPORT_STATUS_LABELS[item.status]??item.status,color:reportText.REPORT_STATUS_COLORS[item.status]??'#888888'})),[appointmentReport.data])
+ const appointmentStatuses=useMemo(()=> (appointmentReport.data??[]).map((item)=>{const presentation=getAppointmentStatusPresentation(item.status);return {...item,name:presentation.label,color:presentation.color}}),[appointmentReport.data])
  const appointmentCount=appointmentStatuses.reduce((count,item)=>count+item.count,0)
  const revenueByDay=useMemo(()=>buildRevenueChart(invoiceList.data??[],dateRange),[invoiceList.data,dateRange])
  const customerDateField=useMemo(()=>reportText.REPORT_CUSTOMER_DATE_FIELDS.find((field)=>(customerList.data??[]).some((customer)=>typeof customer[field]==='string'&&dayjs(customer[field]).isValid())),[customerList.data])

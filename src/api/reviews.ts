@@ -1,4 +1,5 @@
 import api from './client'
+import { getAllAppointments } from './appointments'
 import { asReviewArray, asReviewRelatedArray, type Review, type ReviewAppointment, type ReviewCustomer, type ReviewInvoice, type ReviewStaff } from '../types/reviews'
 
 export async function getReviews(serviceId?: number): Promise<Review[]> {
@@ -12,8 +13,7 @@ export async function getReviewInvoices(): Promise<ReviewInvoice[]> {
 }
 
 export async function getReviewAppointments(): Promise<ReviewAppointment[]> {
-  const { data } = await api.get<unknown>('/appointments')
-  return asReviewRelatedArray<ReviewAppointment>(data)
+  return getAllAppointments()
 }
 
 export async function getReviewCustomers(): Promise<ReviewCustomer[]> {

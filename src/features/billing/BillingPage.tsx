@@ -7,7 +7,8 @@ import type { CreateInvoiceRequest, Invoice, InvoiceLineRequest, PaymentRequest 
 import { getApiErrorMessage } from '../../components/apiError'
 import { ACCOUNT_ROLES } from '../../constants/roles'
 import { useAuth } from '../../hooks/useAuth'
-import { useAppointmentCustomers, useAppointments } from '../appointments/appointmentQueries'
+import { useAllAppointments, useAppointmentCustomers } from '../appointments/appointmentQueries'
+import { APPOINTMENT_STATUS, getAppointmentStatusPresentation } from '../appointments/appointmentStatus'
 import { useCombos, useServices } from '../services/serviceQueries'
 import { useCustomers } from '../customers-staff/customerStaffQueries'
 import { INVOICE_STATUS, INVOICE_STATUS_LABELS, PAYMENT_METHOD, PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_OPTIONS } from './billingConstants'
@@ -24,7 +25,7 @@ export default function BillingPage() {
   const canWrite = writableRoles.includes(session?.account?.role ?? '')
   const invoices = useInvoices()
   const customers = useCustomers('')
-  const appointments = useAppointments()
+  const appointments = useAllAppointments()
   const catalogCustomers = useAppointmentCustomers()
   const services = useServices()
   const combos = useCombos()
@@ -74,7 +75,7 @@ export default function BillingPage() {
 
   const appointmentOptions = (appointments.data ?? []).map((appointment: Appointment) => ({
     value: appointment.id,
-    label: `Lịch #${appointment.id} · ${catalogCustomers.data?.find((customer) => customer.id === appointment.customerId)?.fullName ?? `Khách #${appointment.customerId}`} · ${appointment.status}${appointment.status !== 'HoanThanh' ? ' (chưa hoàn thành)' : ''}`,
+    label: `Lịch #${appointment.id} · ${catalogCustomers.data?.find((customer) => customer.id === appointment.customerId)?.fullName ?? `Khách #${appointment.customerId}`} · ${getAppointmentStatusPresentation(appointment.status).label}${appointment.status !== APPOINTMENT_STATUS.COMPLETED ? ' (chưa hoàn thành)' : ''}`,
   }))
   const columns: ColumnsType<Invoice> = [
     { title: 'Mã hóa đơn', dataIndex: 'id', key: 'id', render: (id: number) => `#${id}` },
@@ -126,7 +127,7 @@ export default function BillingPage() {
     </Drawer>
     <Modal title="Tạo hóa đơn từ lịch hẹn" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createInvoice.isPending} destroyOnClose>
       <Form form={createForm} layout="vertical" onFinish={(values: CreateFields) => void submitCreate(values)}>
-        <Form.Item name="appointmentId" label="Lịch hẹn" rules={[{ required: true, message: 'Vui lòng chọn lịch hẹn' }]}><Select showSearch optionFilterProp="label" options={[...appointmentOptions].sort((a, b) => Number(b.label.includes('HoanThanh')) - Number(a.label.includes('HoanThanh')))} onChange={(id: number) => { const appointment = appointments.data?.find((item) => item.id === id); if (appointment?.status !== 'HoanThanh') message.warning('Lịch hẹn chưa hoàn thành; vẫn có thể tiếp tục.') }} /></Form.Item>
+        <Form.Item name="appointmentId" label="Lịch hẹn" rules={[{ required: true, message: 'Vui lòng chọn lịch hẹn' }]}><Select showSearch optionFilterProp="label" options={[...appointmentOptions].sort((a, b) => Number(b.label.includes(APPOINTMENT_STATUS.COMPLETED)) - Number(a.label.includes(APPOINTMENT_STATUS.COMPLETED)))} onChange={(id: number) => { const appointment = appointments.data?.find((item) => item.id === id); if (appointment?.status !== APPOINTMENT_STATUS.COMPLETED) message.warning('Lịch hẹn chưa hoàn thành; vẫn có thể tiếp tục.') }} /></Form.Item>
         <Form.Item name="voucherCode" label="Mã voucher"><Input /></Form.Item>
         <Form.Item name="pointsToRedeem" label="Điểm muốn đổi" initialValue={0}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
         {(services.isError || combos.isError) && <Alert type="warning" message="Không tải được danh mục dịch vụ/combo." />}

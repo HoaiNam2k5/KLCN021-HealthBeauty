@@ -6,7 +6,8 @@ import { getApiErrorMessage } from '../../components/apiError'
 import { ACCOUNT_ROLES } from '../../constants/roles'
 import { useAuth } from '../../hooks/useAuth'
 import type { Review } from '../../types/reviews'
-import { useReviewAppointments, useReviewCustomers, useReviewInvoices, useReviews, useReviewStaff, useSetReviewVisibility } from './reviewQueries'
+import { useAllAppointments } from '../appointments/appointmentQueries'
+import { useReviewCustomers, useReviewInvoices, useReviews, useReviewStaff, useSetReviewVisibility } from './reviewQueries'
 
 interface ReviewRow extends Review { tenKhach: string; tenNhanVien: string }
 
@@ -18,7 +19,7 @@ export default function ReviewsPage() {
   const canModerate = role === ACCOUNT_ROLES.ADMIN || role === ACCOUNT_ROLES.MANAGER
   const reviews = useReviews()
   const invoices = useReviewInvoices()
-  const appointments = useReviewAppointments()
+  const appointments = useAllAppointments()
   const customers = useReviewCustomers()
   const staff = useReviewStaff()
   const visibility = useSetReviewVisibility()

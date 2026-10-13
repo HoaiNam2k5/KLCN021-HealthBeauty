@@ -1,11 +1,13 @@
 export const APPOINTMENT_STATUS = {
   WAITING: 'ChoXacNhan',
   CONFIRMED: 'DaXacNhan',
-  ARRIVED: 'KhachDaDen',
+  ARRIVED: 'DaDen',
   IN_PROGRESS: 'DangThucHien',
   COMPLETED: 'HoanThanh',
   CANCELLED: 'DaHuy',
 } as const
+
+export const APPOINTMENT_STATUSES = Object.values(APPOINTMENT_STATUS)
 
 const statusPresentation: Record<string, { label: string; color: string; background: string }> = {
   [APPOINTMENT_STATUS.WAITING]: { label: 'Chờ xác nhận', color: '#B7791F', background: '#FAF1E3' },
@@ -16,17 +18,19 @@ const statusPresentation: Record<string, { label: string; color: string; backgro
   [APPOINTMENT_STATUS.CANCELLED]: { label: 'Đã hủy', color: '#C0392B', background: '#fae9e7' },
 }
 
+const statusTransitions: Record<string, string[]> = {
+  [APPOINTMENT_STATUS.WAITING]: [APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.ARRIVED, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.ARRIVED]: [APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.IN_PROGRESS]: [APPOINTMENT_STATUS.COMPLETED],
+  [APPOINTMENT_STATUS.COMPLETED]: [],
+  [APPOINTMENT_STATUS.CANCELLED]: [],
+}
+
 export function getAppointmentStatusPresentation(status: string) {
   return statusPresentation[status] ?? { label: status, color: '#585858', background: '#f0efed' }
 }
 
 export function getAllowedNextAppointmentStatuses(status: string): string[] {
-  const flow: Record<string, string[]> = {
-    [APPOINTMENT_STATUS.WAITING]: [APPOINTMENT_STATUS.CONFIRMED],
-    [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.ARRIVED],
-    [APPOINTMENT_STATUS.ARRIVED]: [APPOINTMENT_STATUS.IN_PROGRESS],
-    [APPOINTMENT_STATUS.IN_PROGRESS]: [APPOINTMENT_STATUS.COMPLETED],
-  }
-  if (status === APPOINTMENT_STATUS.COMPLETED || status === APPOINTMENT_STATUS.CANCELLED || !statusPresentation[status]) return []
-  return [...(flow[status] ?? []), APPOINTMENT_STATUS.CANCELLED]
+  return statusTransitions[status] ?? []
 }

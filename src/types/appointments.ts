@@ -1,3 +1,20 @@
+export interface AppointmentListResponse {
+  items: Appointment[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export interface AppointmentFilters {
+  from?: string
+  to?: string
+  status?: string
+  staffId?: number
+  keyword?: string
+  page?: number
+  pageSize?: number
+}
+
 export interface AppointmentItem {
   id: number
   serviceId: number
@@ -52,5 +69,9 @@ export function asArray<T>(value: unknown): T[] {
 }
 
 export function asAvailableSlots(value: unknown): AvailableSlot[] {
-  return Array.isArray(value) ? value.filter((item): item is AvailableSlot => typeof item === 'object' && item !== null) : []
+  if (Array.isArray(value)) return value.filter((item): item is AvailableSlot => typeof item === 'object' && item !== null)
+  if (typeof value === 'object' && value !== null && 'value' in value && Array.isArray(value.value)) {
+    return value.value.filter((item): item is AvailableSlot => typeof item === 'object' && item !== null)
+  }
+  return []
 }

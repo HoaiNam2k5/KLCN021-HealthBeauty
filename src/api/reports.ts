@@ -1,5 +1,5 @@
 import { getInvoices } from './billing'
-import { getAppointments, getCustomers } from './appointments'
+import { getAllAppointments, getCustomers } from './appointments'
 import { getServices } from './services'
 import type { Service } from '../types/services'
 import type { ReportCustomer as CustomerWithDate } from '../types/reports'
@@ -38,5 +38,5 @@ export async function getCustomerReport(): Promise<CustomerReport[]> {
 export async function getReportInvoices(): Promise<ReportInvoice[]> { return getInvoices() }
 export async function getReportCustomers(): Promise<ReportCustomer[]> { return getCustomers() }
 export async function getReportReviews(): Promise<ReportReview[]> { return getReviews() }
-export async function getReportAppointments(): Promise<ReportAppointment[]> { return getAppointments() }
+export async function getReportAppointments(): Promise<ReportAppointment[]> { return getAllAppointments() }
 export async function getReportServices(): Promise<Service[]> { return getServices() }

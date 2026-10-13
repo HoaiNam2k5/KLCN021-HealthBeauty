@@ -17,7 +17,7 @@ export function asRevenueReport(value: unknown): RevenueReport {
   if (typeof report.invoiceCount !== 'number' || typeof report.revenue !== 'number') throw new Error('Phản hồi thống kê doanh thu không hợp lệ.')
   return { invoiceCount: report.invoiceCount, revenue: report.revenue }
 }
-export const REPORT_STATUS_LABELS: Record<string,string> = { ChoXacNhan:'Chờ xác nhận',DaXacNhan:'Đã xác nhận',KhachDaDen:'Khách đã đến',DangThucHien:'Đang thực hiện',HoanThanh:'Hoàn thành',DaHuy:'Đã hủy' }
+export const REPORT_STATUS_LABELS: Record<string,string> = { ChoXacNhan:'Chờ xác nhận',DaXacNhan:'Đã xác nhận',DaDen:'Khách đã đến',DangThucHien:'Đang thực hiện',HoanThanh:'Hoàn thành',DaHuy:'Đã hủy' }
 export const REPORT_ENDPOINTS = { appointments:'/reports/appointments',revenue:'/reports/revenue',services:'/reports/services',customers:'/reports/customers' } as const
 export const REPORT_CALCULATION_NOTE = 'Số liệu tính ở phía giao diện từ dữ liệu hiện có'
 export const REPORT_CUSTOMER_DATE_NOTE = 'API không trả ngày tạo khách hàng nên không thể xác định số khách mới trong khoảng đã chọn.'
@@ -30,7 +30,7 @@ export const REPORT_STALE_TIME = 60000
 export const REPORT_DATE_RANGE_DAYS = 29
 export const REPORT_SERVICE_LIMIT = 5
 export const REPORT_CHART_HEIGHT = 280
-export const REPORT_STATUS_COLORS: Record<string,string> = { ChoXacNhan:'#B7791F',DaXacNhan:'#0007cb',KhachDaDen:'#0007cb',DangThucHien:'#0007cb',HoanThanh:'#2F7D4F',DaHuy:'#C0392B' }
+export const REPORT_STATUS_COLORS: Record<string,string> = { ChoXacNhan:'#B7791F',DaXacNhan:'#0007cb',DaDen:'#0007cb',DangThucHien:'#0007cb',HoanThanh:'#2F7D4F',DaHuy:'#C0392B' }
 export const REPORT_UNKNOWN_COLOR = '#888888'
 export const REPORT_CHART_COLOR = '#111111'
 export const REPORT_GRID_COLOR = '#dedbd6'

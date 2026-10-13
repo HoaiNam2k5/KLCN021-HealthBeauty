@@ -10,6 +10,7 @@ interface ManagementTableProps<T extends { id: number }> {
   title: string
   columns: ColumnsType<T>
   data: T[]
+  total?: number
   searchFields?: (keyof T)[]
   onSearch?: (value: string) => void
   searchPlaceholder?: string
@@ -27,12 +28,12 @@ interface ManagementTableProps<T extends { id: number }> {
 }
 
 export default function ManagementTable<T extends { id: number }>({
-  title, columns, data, searchFields, loading, error, page, pageSize, onPageChange,
+  title, columns, data, total, searchFields, loading, error, page, pageSize, onPageChange,
   onSearch, searchPlaceholder = 'Tìm kiếm', toolbar, canManage, onEdit, onDelete, onDeleteForbidden, onEditForbidden,
 }: ManagementTableProps<T>) {
   const [searchText, setSearchText] = useState('')
-  const [currentPageSize, setCurrentPageSize] = useState(pageSize)
-  const filteredData = onSearch && searchText ? data.filter((record) => (searchFields ?? []).some((field) => String(record[field] ?? '').toLocaleLowerCase().includes(searchText.toLocaleLowerCase()))) : data
+  const currentPageSize = pageSize
+  const filteredData = onSearch && searchFields?.length && searchText ? data.filter((record) => searchFields.some((field) => String(record[field] ?? '').toLocaleLowerCase().includes(searchText.toLocaleLowerCase()))) : data
   const actions: ColumnsType<T> = canManage ? [{
     title: 'Thao tác', key: 'actions', width: 150, render: (_, record) => (
       <Space size="small">
@@ -63,7 +64,7 @@ export default function ManagementTable<T extends { id: number }>({
           dataSource={filteredData}
           loading={loading}
           locale={{ emptyText: <Empty description="Chưa có dữ liệu" /> }}
-          pagination={{ current: page, pageSize: currentPageSize, total: filteredData.length, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (count) => `Tổng ${count} mục`, onChange: (next, filters) => { setCurrentPageSize(filters); onPageChange(next, filters) } }}
+          pagination={{ current: page, pageSize: currentPageSize, total: total ?? filteredData.length, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (count) => `Tổng ${count} mục`, onChange: (next, filters) => { onPageChange(next, filters) } }}
         />
         </div>
       )}
