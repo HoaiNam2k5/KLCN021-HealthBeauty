@@ -1,4 +1,9 @@
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
+using System.Data;
+using System.Text.Json;
+using HealthBeauty.Api.Services;
+using Microsoft.Data.SqlClient;
 using HealthBeauty.Api.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -61,10 +66,17 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
 }
 
 [ApiController, Authorize, Route("api/v1/staff")]
-public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerBase
+public sealed class StaffController(Klcn021HealthBeautyContext db, IPasswordService passwords) : ControllerBase
 {
     [Authorize(Roles = "Admin,Manager,Reception,Customer"), HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await db.Nhanviens.AsNoTracking().OrderBy(x => x.HoTen).Select(x => new { x.NhanVienId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam }).ToListAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        var management = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
+        return Ok(await db.Nhanviens.AsNoTracking().OrderBy(x => x.HoTen).Select(x => new {
+            x.NhanVienId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam,
+            TaiKhoanId = management ? x.TaiKhoanId : null
+        }).ToListAsync(ct));
+    }
 
     [Authorize(Roles = "Staff"), HttpGet("me/appointments")]
     public async Task<IActionResult> MyAppointments(CancellationToken ct)
@@ -90,14 +102,49 @@ public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerB
             .Select(x => new { x.LichLamViecId, x.NhanVienId, x.NgayLam, x.GioBatDau, x.GioKetThuc, x.TrangThai }).ToListAsync(ct));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost]
-    public async Task<IActionResult> Create(StaffRequest request, CancellationToken ct)
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost]
+    public async Task<IActionResult> Create(CreateStaffRequest request, CancellationToken ct)
     {
-        var item = new Nhanvien { HoTen = request.FullName.Trim(), ChucVu = request.Position?.Trim(), ChuyenMon = request.Specialty?.Trim(), SoDienThoai = request.Phone?.Trim(), NgayVaoLam = request.HireDate };
-        db.Nhanviens.Add(item); await db.SaveChangesAsync(ct); return Created($"api/v1/staff/{item.NhanVienId}", item);
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
+        var email = request.Email?.Trim().ToLowerInvariant() ?? "";
+        var name = request.FullName?.Trim() ?? "";
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        if (email.Length == 0 || email.Length > 255 || !new EmailAddressAttribute().IsValid(email)
+            || string.IsNullOrEmpty(request.Password) || request.Password.Length < 8 || request.Password.Length > 128
+            || name.Length == 0 || name.Length > 100 || request.Position?.Trim().Length > 50
+            || request.Specialty?.Trim().Length > 255 || phone?.Length > 15 || !new PhoneAttribute().IsValid(phone))
+            return BadRequest("Email, password or employee information is invalid.");
+        var role = await db.Vaitros.SingleOrDefaultAsync(x => x.TenVaiTro == "Staff", ct);
+        if (role is null) return BadRequest("Staff role has not been configured.");
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+        if (await db.Taikhoans.AnyAsync(x => x.Email.ToLower() == email, ct)) return Conflict("Email already exists.");
+        var account = new Taikhoan { Email = email, TenTaiKhoan = name, MatKhauHash = passwords.Hash(request.Password),
+            VaiTro = role, VaiTroId = role.VaiTroId, TrangThai = true, NgayTao = DateTime.UtcNow };
+        var item = new Nhanvien { TaiKhoan = account, HoTen = name, ChucVu = request.Position?.Trim(),
+            ChuyenMon = request.Specialty?.Trim(), SoDienThoai = phone, NgayVaoLam = request.HireDate };
+        db.Nhanviens.Add(item);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            var userAgent = Request.Headers.UserAgent.ToString();
+            db.Auditlogs.Add(new Auditlog { TaiKhoanId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!),
+                ActionName = "StaffAccountCreated", EntityName = "NHANVIEN", EntityId = item.NhanVienId.ToString(),
+                NewValues = JsonSerializer.Serialize(new { item.NhanVienId, account.TaiKhoanId, account.Email }),
+                CreatedAt = DateTime.UtcNow, IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                UserAgent = userAgent[..Math.Min(500, userAgent.Length)] });
+            await db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            return Conflict("Email already exists.");
+        }
+        return Created($"/api/v1/staff/{item.NhanVienId}", new {
+            item.NhanVienId, item.TaiKhoanId, item.HoTen, item.ChucVu, item.ChuyenMon, item.SoDienThoai, item.NgayVaoLam
+        });
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, StaffRequest request, CancellationToken ct)
     {
         var item = await db.Nhanviens.FindAsync([id], ct); if (item is null) return NotFound();
@@ -105,7 +152,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerB
         await db.SaveChangesAsync(ct); return Ok(item);
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpGet("schedules")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpGet("schedules")]
     public async Task<IActionResult> Schedules([FromQuery] int? staffId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
     {
         var query = db.Lichlamviecs.AsNoTracking().Include(x => x.NhanVien).AsQueryable();
@@ -115,7 +162,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db) : ControllerB
         return Ok(await query.OrderBy(x => x.NgayLam).ThenBy(x => x.GioBatDau).Select(x => new { x.LichLamViecId, x.NhanVienId, StaffName = x.NhanVien.HoTen, x.NgayLam, x.GioBatDau, x.GioKetThuc, x.TrangThai }).Take(500).ToListAsync(ct));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost("schedules")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("schedules")]
     public async Task<IActionResult> CreateSchedule(WorkScheduleRequest request, CancellationToken ct)
     {
         if (request.StartAt >= request.EndAt) return BadRequest("Giờ bắt đầu phải trước giờ kết thúc.");

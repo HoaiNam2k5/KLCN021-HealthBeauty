@@ -125,7 +125,7 @@ public sealed class AppointmentRegressionTests
     }
 
     [Fact]
-    public void CustomerCanListStaffWhileWritesRemainAdminOnly()
+    public void CustomerCanListStaffWhileWritesRequireManagementRole()
     {
         var method = typeof(StaffController).GetMethod("List")!;
         var roles = method.GetCustomAttributes<AuthorizeAttribute>().Concat(typeof(StaffController).GetCustomAttributes<AuthorizeAttribute>()).ToList();
@@ -135,7 +135,8 @@ public sealed class AppointmentRegressionTests
         {
             var attributes = typeof(StaffController).GetMethod(name)!.GetCustomAttributes<AuthorizeAttribute>()
                 .Concat(typeof(StaffController).GetCustomAttributes<AuthorizeAttribute>()).ToList();
-            Assert.Contains(attributes, a => a.Roles == "Admin,Manager");
+            Assert.Contains(attributes, a => a.Roles == "Admin,Manager,Reception");
+            Assert.DoesNotContain(attributes, a => a.Roles?.Split(',').Contains("Customer") == true || a.Roles?.Split(',').Contains("Staff") == true);
         }
     }
 }

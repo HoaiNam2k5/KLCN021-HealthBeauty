@@ -1,0 +1,160 @@
+* { box-sizing: border-box; }
+:root {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color: #252321;
+  background: #f7f6f3;
+}
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+#root { min-height: 100vh; }
+button, input, select, textarea { font: inherit; }
+.login-page { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #f7f6f3; }
+.login-card { width: min(100%, 440px); border: 1px solid #e6e2dd; border-radius: 18px; box-shadow: 0 12px 40px #25232108; }
+.login-card .ant-card-body { padding: 40px; }
+.login-card h2.ant-typography { margin: 28px 0 6px; font-size: 26px; font-weight: 600; }
+.login-brand, .sider-brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; }
+.brand-mark { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 12px; color: #fff; background: #8c4559; font-size: 21px; }
+.login-alert { margin: 20px 0; }
+.app-layout { min-height: 100vh; min-height: 100dvh; }
+.app-main { min-width: 0; }
+.app-sider { position: sticky !important; top: 0; height: 100vh; height: 100dvh; background: #252321 !important; }
+.sider-inner { display: flex; flex-direction: column; height: 100%; }
+.sider-brand { min-height: 82px; padding: 20px 22px; color: #fff; white-space: nowrap; }
+.sider-navigation { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 16px; scrollbar-width: thin; scrollbar-color: #635853 transparent; }
+.app-sider .ant-menu { border-inline-end: 0; }
+.app-sider .ant-menu-item { margin-inline: 0; width: 100%; margin-block: 5px; height: 44px; line-height: 44px; }
+.sider-footer { display: flex; align-items: center; gap: 10px; padding: 20px 26px; color: #c9c0bb; border-top: 1px solid #ffffff12; font-size: 12px; }
+.status-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #d8aab7; }
+.app-sider.ant-layout-sider-collapsed .brand-label { display: none; }
+.app-sider.ant-layout-sider-collapsed .sider-brand { padding-inline: 21px; }
+.app-sider.ant-layout-sider-collapsed .sider-navigation { padding-inline: 8px; }
+.app-header { position: sticky; top: 0; z-index: 20; height: 72px; line-height: normal; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 28px; background: #fff; border-bottom: 1px solid #e9e5e0; }
+.header-heading { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1; }
+.header-page-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.menu-toggle.ant-btn { flex: 0 0 40px; width: 40px; height: 40px; color: #6a625d; font-size: 18px; }
+.account-menu.ant-btn { height: 48px; padding: 6px 10px; gap: 10px; min-width: 0; flex-shrink: 0; border-radius: 12px; }
+.account-menu .ant-avatar { background: #f1e5e9; color: #8c4559; }
+.account-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.account-chevron { color: #918781; font-size: 10px; }
+.app-content { min-width: 0; padding: 28px; background: #f7f6f3; }
+.content-inner { width: 100%; max-width: 1600px; margin-inline: auto; min-width: 0; }
+.content-inner > section { min-width: 0; }
+.route-loading { min-height: 60vh; display: grid; place-items: center; }
+.page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; width: 100%; gap: 16px; min-width: 0; margin-bottom: 20px; }
+.page-heading .ant-typography { overflow-wrap: anywhere; }
+.page-heading > .ant-space-item, .page-toolbar > .ant-space-item { min-width: 0; max-width: 100%; }
+.page-toolbar { max-width: 100%; gap: 10px !important; }
+.table-search { width: 260px; max-width: 100%; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 12px !important; width: 100%; margin-bottom: 20px; }
+.filter-bar > .ant-space-item { flex: 1 1 180px; min-width: 0; max-width: 100%; }
+.filter-bar > .ant-space-item:first-child { flex: 2 1 260px; }
+.filter-bar .ant-select, .filter-bar .ant-input-affix-wrapper, .filter-bar .ant-input-search, .filter-bar .ant-picker { width: 100% !important; max-width: 100%; }
+.table-scroll-container { width: 100%; min-width: 0; overflow-x: auto; border-radius: 12px; }
+.ant-table-wrapper { min-width: 0; max-width: 100%; }
+.ant-table-wrapper .ant-table-container { border: 1px solid #e9e5e0; border-radius: 12px; }
+.ant-table-wrapper .ant-table-cell { vertical-align: middle; }
+.ant-table-wrapper .ant-table-thead > tr > th { font-size: 12px; font-weight: 600; color: #746a63; }
+.ant-table-wrapper .ant-table-pagination { flex-wrap: wrap; gap: 6px; }
+.ant-card { border-color: #e9e5e0; }
+.ant-card .ant-card-head { border-color: #efebe6; }
+.ant-modal { max-width: calc(100vw - 32px); }
+.ant-modal .ant-modal-title { padding-inline-end: 24px; overflow-wrap: anywhere; }
+.ant-modal .ant-modal-body { max-height: calc(100dvh - 190px); overflow-y: auto; overflow-x: hidden; }
+.ant-drawer-content-wrapper { max-width: 100vw; }
+.responsive-drawer .ant-drawer-title { overflow-wrap: anywhere; }
+.responsive-form { min-width: 0; }
+.responsive-form .ant-select, .responsive-form .ant-input-number, .responsive-form .ant-picker { max-width: 100%; }
+.booking-line { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; margin-bottom: 12px; }
+.booking-line > .ant-space-item { min-width: 0; max-width: 100%; }
+.permission-group { margin-bottom: 20px; min-width: 0; }
+.mobile-navigation .ant-drawer-header { background: #252321; border-bottom-color: #ffffff18; padding: 8px 16px; }
+.mobile-navigation .sider-brand { min-height: 56px; padding: 8px 0; font-size: 18px; }
+.mobile-navigation .ant-drawer-close { color: #fff; }
+.mobile-navigation .ant-drawer-body { background: #252321; }
+.mobile-navigation .ant-menu { padding: 12px 8px 24px; }
+.mobile-navigation .ant-menu-item { min-height: 44px; }
+@media (max-width: 1199px) {
+  .app-content { padding: 24px; }
+  .app-header { padding-inline: 24px; }
+}
+@media (max-width: 991px) {
+  .app-header { height: 64px; padding-inline: 20px; }
+  .app-content { padding: 20px; }
+}
+@media (max-width: 600px) {
+  .login-page { padding: 16px; }
+  .login-card .ant-card-body { padding: 28px 22px; }
+  .app-header { padding: 0 12px; gap: 8px; }
+  .header-heading { gap: 6px; }
+  .header-page-title { font-size: 14px; }
+  .account-menu.ant-btn { padding: 4px; width: 42px; }
+  .account-name, .account-chevron { display: none; }
+  .app-content { padding: 18px 12px; }
+  .page-heading { align-items: flex-start !important; gap: 12px !important; margin-bottom: 16px !important; }
+  .page-heading.ant-space > .ant-space-item { width: 100%; }
+  .page-heading .ant-typography { font-size: 20px; }
+  .page-toolbar { width: 100%; }
+  .page-toolbar > .ant-space-item { flex: 1 1 auto; }
+  .page-toolbar .ant-btn { width: 100%; }
+  .table-search { width: 100%; }
+  .page-heading > .ant-space-item > .ant-btn { width: 100%; }
+  .filter-bar > .ant-space-item, .filter-bar > .ant-space-item:first-child { flex: 1 1 100%; }
+  .ant-table-wrapper .ant-table-thead > tr > th, .ant-table-wrapper .ant-table-tbody > tr > td { padding: 12px; font-size: 13px; }
+  .ant-table-wrapper .ant-table-pagination { justify-content: center; }
+  .ant-pagination-total-text { flex: 0 0 100%; text-align: center; }
+  .ant-card .ant-card-body { padding: 16px; }
+  .ant-card .ant-card-head { padding-inline: 16px; }
+  .ant-modal { top: 16px; margin: 0 auto; max-width: calc(100vw - 24px); padding-bottom: 16px; }
+  .ant-modal .ant-modal-content { padding: 20px 16px; }
+  .ant-modal .ant-modal-body { max-height: calc(100dvh - 150px); }
+  .ant-modal .ant-modal-footer { display: flex; gap: 8px; }
+  .ant-modal .ant-modal-footer > .ant-btn { flex: 1; margin: 0; }
+  .ant-drawer .ant-drawer-body { padding: 16px; }
+  .ant-drawer .ant-drawer-header { padding: 16px; }
+  .ant-descriptions-bordered .ant-descriptions-item-label, .ant-descriptions-bordered .ant-descriptions-item-content { padding: 10px !important; word-break: break-word; }
+  .ant-picker-dropdown { max-width: calc(100vw - 16px); }
+  .ant-picker-dropdown .ant-picker-panels { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+.app-sider:not(.ant-layout-sider-collapsed) .ant-menu-item { height: auto; min-height: 44px; line-height: 20px; padding-block: 10px; }
+.app-sider:not(.ant-layout-sider-collapsed) .ant-menu-title-content { white-space: normal; line-height: 20px; }
+.combo-component-row { margin-inline: 0 !important; width: 100%; }
+.report-filters .filter-bar { align-items: center; margin-bottom: 0; }
+@media (max-width: 600px) {
+  .report-filters .filter-bar > .ant-picker { width: 100%; }
+}
+
+.account-dropdown-summary { display: flex; flex-direction: column; gap: 4px; width: 200px; max-width: calc(100vw - 64px); padding: 6px 2px; color: #252321; overflow-wrap: anywhere; }
+.account-dropdown-summary span { color: #746a63; font-size: 12px; }
+
+@media (max-width: 600px) {
+  .ant-picker-dropdown {
+    position: fixed !important;
+    inset-inline-start: 12px !important;
+    inset-inline-end: auto !important;
+    left: 12px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    padding: 0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 12px 32px #25232126;
+  }
+  .ant-picker-dropdown .ant-picker-panel-container, .ant-picker-dropdown .ant-picker-panel { width: 100%; }
+  .ant-picker-dropdown .ant-picker-date-panel { width: 100%; }
+}
+
+.app-sider .ant-menu, .mobile-navigation .ant-menu { background: #252321 !important; }
+.app-sider .ant-menu-item, .mobile-navigation .ant-menu-item { color: #ded5d0 !important; }
+.app-sider .ant-menu-title-content, .mobile-navigation .ant-menu-title-content { color: inherit; }
+.app-sider .ant-menu-item:hover, .mobile-navigation .ant-menu-item:hover { background: #36312e !important; color: #fff !important; }
+.app-sider .ant-menu-item-selected, .mobile-navigation .ant-menu-item-selected { background: #8c4559 !important; color: #fff !important; }

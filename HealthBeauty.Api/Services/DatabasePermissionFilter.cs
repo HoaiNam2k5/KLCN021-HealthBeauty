@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 namespace HealthBeauty.Api.Services;
 
-// Database grants are an additional gate; existing role allowlists and ownership checks still apply.
+// Database grants gate management roles; Customer and Staff ownership checks still apply.
 public sealed class DatabasePermissionFilter(Klcn021HealthBeautyContext db) : IAsyncAuthorizationFilter
 {
     public static string? RequiredPermission(string controller, string action, ClaimsPrincipal user)
@@ -18,7 +18,7 @@ public sealed class DatabasePermissionFilter(Klcn021HealthBeautyContext db) : IA
             "Administration" => action switch
             {
                 "Roles" or "Permissions" or "RolePermissions" => "ROLE.READ",
-                "SetRolePermission" => "ROLE.WRITE", "SetAccountStatus" => "ACCOUNT.WRITE", _ => "ACCOUNT.READ"
+                "SetRolePermission" => "ROLE.WRITE", "SetAccountStatus" or "CreateAccount" or "AssignAccountRole" => "ACCOUNT.WRITE", _ => "ACCOUNT.READ"
             },
             "Services" => action is "CreateService" or "UpdateService" or "DeactivateService" or "CreateCategory" or "UpdateCategory" or "DeactivateCategory" ? "SERVICE.WRITE" : null,
             "Combos" => action is "Create" or "Update" or "Deactivate" ? "SERVICE.WRITE" : null,
