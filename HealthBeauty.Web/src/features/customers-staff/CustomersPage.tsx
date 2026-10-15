@@ -11,7 +11,8 @@ import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
 import type { Customer, UpdateCustomerRequest } from '../../types/customersStaff'
-import { useCustomers, useUpdateCustomer } from './customerStaffQueries'
+import type { CreateCustomerInput } from '../../api/customersStaff'
+import { useCreateCustomer, useCustomers, useUpdateCustomer } from './customerStaffQueries'
 
 function membership(points: number) {
   if (points >= 2000) return { label: 'Kim Cương', color: 'purple' }
@@ -28,12 +29,15 @@ export default function CustomersPage() {
   const [pageSize, setPageSize] = useState(10)
   const [keyword, setKeyword] = useState('')
   const [editing, setEditing] = useState<Customer | null>(null)
+  const [creating, setCreating] = useState(false)
   const [form] = Form.useForm<UpdateCustomerRequest>()
+  const [createForm] = Form.useForm<CreateCustomerInput>()
   const { message } = App.useApp()
   const { has } = usePermissions()
   const canEdit = has('CUSTOMER.WRITE')
   const query = useCustomers(keyword)
   const update = useUpdateCustomer()
+  const createMutation = useCreateCustomer()
   const appointmentsQuery = useAllAppointments()
   const invoicesQuery = useInvoices()
   const customerAppointments = useMemo(() => (appointmentsQuery.data ?? []).filter((item: Appointment) => item.customerId === selectedCustomer?.id).sort((a, b) => dayjs(b.appointmentAt).valueOf() - dayjs(a.appointmentAt).valueOf()), [appointmentsQuery.data, selectedCustomer?.id])
@@ -73,6 +77,16 @@ export default function CustomersPage() {
     } catch (error) { message.error(getApiErrorMessage(error, 'Không thể cập nhật khách hàng.')) }
   }
 
+  async function submitCreate(body: CreateCustomerInput) {
+    if (!canEdit) return
+    try {
+      await createMutation.mutateAsync(body)
+      message.success('Thêm khách hàng mới thành công.')
+      setCreating(false)
+      createForm.resetFields()
+    } catch (error) { message.error(getApiErrorMessage(error, 'Không thể thêm khách hàng mới.')) }
+  }
+
   return <>
     {query.isError && <Alert type="error" showIcon message="Không tải được danh sách khách hàng" description={getApiErrorMessage(query.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     <ManagementTable<Customer>
@@ -89,7 +103,16 @@ export default function CustomersPage() {
       page={page} pageSize={pageSize} onPageChange={(next, size) => { setPage(next); setPageSize(size) }}
       onSearch={(value) => { setKeyword(value); setPage(1) }} searchPlaceholder="Tìm theo tên hoặc số điện thoại"
       canManage={false} onEdit={edit} onDelete={() => undefined}
+      toolbar={canEdit && <Button type="primary" onClick={() => setCreating(true)}>Thêm khách hàng</Button>}
     />
+    <Modal className="responsive-modal" title="Thêm khách hàng mới" open={creating && canEdit} onCancel={() => { setCreating(false); createForm.resetFields() }} onOk={() => createForm.submit()} confirmLoading={createMutation.isPending} okText="Tạo khách hàng" cancelText="Hủy">
+      <Form className="responsive-form" form={createForm} layout="vertical" onFinish={(body) => void submitCreate(body)}>
+        <Form.Item name="fullName" label="Họ tên" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập họ tên.' }]}><Input /></Form.Item>
+        <Form.Item name="phone" label="Số điện thoại" rules={[{ required: true, message: 'Vui lòng nhập số điện thoại.' }, { pattern: /^\\+?[0-9][0-9\\s().-]*$/, message: 'Số điện thoại không hợp lệ.' }]}><Input /></Form.Item>
+        <Form.Item name="gender" label="Giới tính"><Select allowClear options={[{ value: 'Nam', label: 'Nam' }, { value: 'Nữ', label: 'Nữ' }, { value: 'Khác', label: 'Khác' }]} /></Form.Item>
+        <Form.Item name="email" label="Email"><Input type="email" placeholder="Ví dụ: khachhang@gmail.com (để trống sẽ tự tạo)" /></Form.Item>
+      </Form>
+    </Modal>
     <Drawer title="Hồ sơ & Lịch sử khách hàng" open={selectedCustomer !== null} onClose={() => setSelectedCustomer(null)} width={680} size="large">
       {selectedCustomer && <Tabs items={historyTabs} />}
     </Drawer>

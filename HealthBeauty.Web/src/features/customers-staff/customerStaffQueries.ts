@@ -11,6 +11,17 @@ export function useCustomers(keyword: string, enabled = true) {
   return useQuery({ queryKey: [...customerStaffKeys.customers, keyword], queryFn: () => api.getCustomers(keyword), enabled })
 }
 
+export function useCreateCustomer() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: api.createCustomer,
+    onSuccess: () => Promise.all([
+      client.invalidateQueries({ queryKey: customerStaffKeys.customers }),
+      client.invalidateQueries({ queryKey: ['appointment-customers'] }),
+    ]),
+  })
+}
+
 export function useUpdateCustomer() {
   const client = useQueryClient()
   return useMutation({

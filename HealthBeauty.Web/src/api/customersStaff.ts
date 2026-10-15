@@ -10,6 +10,26 @@ export async function updateCustomer(id: number, body: UpdateCustomerRequest): P
   await api.put(`/customers/${id}`, { ...body, fullName: body.fullName.trim(), phone: body.phone?.trim() || null, gender: body.gender?.trim() || null })
 }
 
+export interface CreateCustomerInput {
+  fullName: string
+  phone: string
+  gender?: string
+  email?: string
+  password?: string
+}
+
+export async function createCustomer(body: CreateCustomerInput): Promise<void> {
+  const cleanPhone = body.phone.replace(/\D/g, '')
+  const email = body.email?.trim() || `kh.${cleanPhone || Date.now()}@healthbeauty.local`
+  const password = body.password || 'HealthBeauty@123'
+  await api.post('/auth/register', {
+    email,
+    password,
+    hoTen: body.fullName.trim(),
+    soDienThoai: body.phone.trim() || null,
+  })
+}
+
 export async function getStaff(): Promise<Staff[]> {
   const { data } = await api.get<unknown>('/staff')
   return mapStaffList(data)
