@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Card, Col, DatePicker, Empty, Result, Row, Spin, Statistic, Typography } from 'antd'
-import { CalendarOutlined, StarFilled } from '@ant-design/icons'
+import { Alert, App, Button, Card, Col, DatePicker, Empty, Result, Row, Spin, Statistic, Typography } from 'antd'
+import { CalendarOutlined, DownloadOutlined, PrinterOutlined, StarFilled } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -23,6 +23,7 @@ export default function ReportsPage({ home = false }: { home?: boolean }) {
   return <ReportsDashboard home={home} />
 }
 function ReportsDashboard({ home }: { home: boolean }) {
+ const { message } = App.useApp()
  const { has } = usePermissions()
  const [dateRange,setDateRange]=useState<[Dayjs,Dayjs]>(()=>[dayjs().subtract(29,'day').startOf('day'),dayjs().endOf('day')])
  const from=dateRange[0].format(reportText.REPORT_TIME_FORMAT)
@@ -49,13 +50,38 @@ function ReportsDashboard({ home }: { home: boolean }) {
  const serviceNames=useMemo(()=>new Map<number,string>((serviceList.data??[]).map((service:Service)=>[service.id,service.name??'Dịch vụ'])),[serviceList.data])
  const topServices=useMemo(()=>buildTopServices(appointmentList.data??[],serviceNames),[appointmentList.data,serviceNames])
  const handleDateRangeChange=(value:[Dayjs|null,Dayjs|null]|null)=>{if(value?.[0]&&value[1])setDateRange([value[0].startOf('day'),value[1].endOf('day')])}
- return (
-  <section>
+  const reportRevenue = revenueReport.data?.revenue ?? 0
+  const exportToCsv = () => {
+   const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`
+   const rows: (string | number)[][] = [
+    ['=== BÁO CÁO HOẠT ĐỘNG HEALTHBEAUTY SPA & CLINIC ==='],
+    [`Thời gian báo cáo: Từ ${dateRange[0].format('DD/MM/YYYY')} đến ${dateRange[1].format('DD/MM/YYYY')}`],
+    [`Ngày xuất: ${dayjs().format('DD/MM/YYYY HH:mm')}`], [],
+    ['--- 1. TỔNG QUAN CHỈ SỐ ---'], ['Chỉ số', 'Giá trị'],
+    ['Tổng doanh thu', formatMoney(reportRevenue)], ['Tổng số lịch hẹn', appointmentCount], ['Khách hàng mới', newCustomerCount ?? 'Không có dữ liệu'],
+    ['Điểm đánh giá trung bình', `${averageRating === null ? '—' : averageRating.toFixed(1)}/5`], [],
+    ['--- 2. LỊCH HẸN THEO TRẠNG THÁI ---'], ['Trạng thái', 'Số lượng'], ...appointmentStatuses.map((item) => [item.name, item.count]), [],
+    ['--- 3. DOANH THU THEO NGÀY ---'], ['Ngày', 'Doanh thu (₫)'], ...revenueByDay.map((item) => [item.date, item.revenue]), [],
+    ['--- 4. TOP DỊCH VỤ ĐƯỢC ĐẶT NHIỀU NHẤT ---'], ['Tên dịch vụ', 'Số lượt đặt'],
+    ...(serviceReport.data?.length ? serviceReport.data.slice(0, reportText.REPORT_SERVICE_LIMIT).map((item) => [item.name || reportText.REPORT_UNKNOWN_SERVICE, item.quantity]) : topServices.map((item) => [item.name, item.quantity])),
+   ]
+   const csv = '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
+   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+   const link = document.createElement('a')
+   link.href = url
+   link.download = `Bao_Cao_HealthBeauty_${dateRange[0].format('YYYY-MM-DD')}_${dateRange[1].format('YYYY-MM-DD')}.csv`
+   document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
+   message.success('Xuất file báo cáo thành công!')
+  }
+  const handlePrint = () => window.print()
+  return (
+   <section className="healthbeauty-report-page">
+    <style>{`@media print { @page { size: A4; margin: 14mm; } body * { visibility: hidden !important; } .healthbeauty-report-page, .healthbeauty-report-page * { visibility: visible !important; } .healthbeauty-report-page { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; } .report-no-print, .report-filters, .ant-layout-sider, .ant-menu, .page-heading button { display: none !important; } .healthbeauty-report-page .ant-card { break-inside: avoid; box-shadow: none !important; } }`}</style>
    <div className="page-heading">
     <div><Typography.Title level={3} style={{margin:0}}>{home?'Tổng quan':reportText.REPORT_PAGE_TITLE}</Typography.Title></div>
     {!home&&<Button onClick={()=>navigate('/')}>Trang chủ</Button>}
    </div>
-   <Card className="report-filters" size="small" style={{marginBottom:16}}><div className="filter-bar"><Typography.Text strong>{reportText.REPORT_DATE_FILTER_LABEL} </Typography.Text><DatePicker.RangePicker value={dateRange} onChange={handleDateRangeChange} allowClear={false} format="DD/MM/YYYY" style={{maxWidth:'100%'}}/></div></Card>
+   <Card className="report-filters" size="small" style={{marginBottom:16}}><div className="filter-bar"><Typography.Text strong>{reportText.REPORT_DATE_FILTER_LABEL} </Typography.Text><DatePicker.RangePicker value={dateRange} onChange={handleDateRangeChange} allowClear={false} format="DD/MM/YYYY" style={{maxWidth:'100%'}}/><Button className="report-no-print" icon={<DownloadOutlined />} disabled={isLoading} onClick={exportToCsv}>Xuất Excel</Button><Button className="report-no-print" icon={<PrinterOutlined />} disabled={isLoading} onClick={handlePrint}>In báo cáo</Button></div></Card>
    {firstError&&<Alert type="error" showIcon message={reportText.REPORT_FETCH_ERROR} description={String(firstError)} style={{marginBottom:16}}/>}
    {isLoading?<Spin tip={reportText.REPORT_LOADING}/>:<>
     <OverviewCards appointmentCount={appointmentCount} customerCount={customerReport.data?.length??0} revenue={revenueReport.data?.revenue??0} newCustomerCount={newCustomerCount} averageRating={averageRating}/>
