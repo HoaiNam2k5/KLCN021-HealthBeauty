@@ -1,4 +1,4 @@
-import { Alert, Button, Empty, Input, Popconfirm, Space, Table, Typography } from 'antd'
+import { Alert, Button, Empty, Input, Modal, Space, Table, Typography } from 'antd'
 import { useState } from 'react'
 import type { TableProps } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
@@ -38,9 +38,18 @@ export default function ManagementTable<T extends { id: number }>({
     title: 'Thao tác', key: 'actions', width: 150, render: (_, record) => (
       <Space size="small">
         <Button type="link" onClick={() => { try { onEdit(record) } catch { onEditForbidden?.() } }}>Sửa</Button>
-        <Popconfirm title="Xác nhận xóa mục này?" description="Thao tác này không thể hoàn tác." okText="Xóa" cancelText="Hủy" onConfirm={async () => { try { await onDelete(record) } catch (error: unknown) { if (axios.isAxiosError(error) && error.response?.status === 403) onDeleteForbidden?.() } }}>
-          <Button type="link" danger>Xóa</Button>
-        </Popconfirm>
+        <Button type="link" danger onClick={() => Modal.confirm({
+          title: 'Xác nhận xóa mục này?',
+          content: 'Thao tác này không thể hoàn tác. Bạn có chắc chắn muốn xóa?',
+          okText: 'Xóa',
+          okType: 'danger',
+          cancelText: 'Hủy',
+          centered: true,
+          async onOk() {
+            try { await onDelete(record) }
+            catch (error: unknown) { if (axios.isAxiosError(error) && error.response?.status === 403) onDeleteForbidden?.() }
+          },
+        })}>Xóa</Button>
       </Space>
     ),
   }] : []

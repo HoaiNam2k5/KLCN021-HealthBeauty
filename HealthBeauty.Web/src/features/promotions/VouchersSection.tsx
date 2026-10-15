@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, App, Button, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, App, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -82,7 +82,7 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
       ...(canManage ? [{ title: 'Thao tác', key: 'actions', render: (_: unknown, voucher: Voucher) => <Space>
         <Button type="link" onClick={() => openForm(voucher)}>Sửa</Button>
         <Button type="link" loading={toggle.isPending && toggle.variables?.id === voucher.id} onClick={() => void changeStatus(voucher)}>{voucher.active ? 'Tắt' : 'Bật'}</Button>
-        {voucher.active && <Popconfirm title="Ngừng sử dụng voucher?" description="Thông tin voucher sẽ được giữ lại." okText="Ngừng sử dụng" cancelText="Hủy" onConfirm={() => disable(voucher)}><Button type="link" danger>Ngừng sử dụng</Button></Popconfirm>}
+        {voucher.active && <Button type="link" danger onClick={() => Modal.confirm({ title: 'Ngừng sử dụng voucher?', content: 'Thông tin voucher sẽ được giữ lại.', okText: 'Ngừng sử dụng', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => disable(voucher) })}>Ngừng sử dụng</Button>}
       </Space> }] : []),
     ]} />
     <Modal className="responsive-modal" title={editing ? 'Sửa voucher' : 'Thêm voucher'} open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={save.isPending} okText="Lưu" cancelText="Hủy">

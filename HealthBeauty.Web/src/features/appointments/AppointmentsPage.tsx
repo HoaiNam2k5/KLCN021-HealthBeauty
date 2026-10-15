@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useEffect, useMemo, useState } from 'react'
-import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Row, Select, Space, Tag, TimePicker, Typography } from 'antd'
+import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Form, Input, Modal, Row, Select, Space, Tag, TimePicker, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -272,9 +272,7 @@ export default function AppointmentsPage() {
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent', fontWeight: 500 }}>{presentation.label}</Tag> } },
         { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
         { title: 'Thao tác', key: 'details', render: (_, record) => <Space size="small" wrap>
-          {canWrite && quickAction[record.status] && <Popconfirm title={`Xác nhận “${quickAction[record.status].label}” cho lịch #${record.id}?`} okText="Xác nhận" cancelText="Hủy" onConfirm={() => confirmStatus(record, quickAction[record.status].next)}>
-            <Button size="small" type={record.status === 'ChoXacNhan' ? 'primary' : 'default'} loading={mutations.status.isPending}>{quickAction[record.status].label}</Button>
-          </Popconfirm>}
+          {canWrite && quickAction[record.status] && <Button size="small" type={record.status === 'ChoXacNhan' ? 'primary' : 'default'} loading={mutations.status.isPending} onClick={() => modal.confirm({ title: `Xác nhận “${quickAction[record.status].label}” cho lịch #${record.id}?`, content: 'Xác nhận cập nhật trạng thái lịch hẹn.', okText: 'Xác nhận', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => confirmStatus(record, quickAction[record.status].next) })}>{quickAction[record.status].label}</Button>}
           <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button>
         </Space> },
       ]}
@@ -319,7 +317,7 @@ export default function AppointmentsPage() {
             <Button onClick={() => setEditor('reschedule')}>Đổi lịch</Button><Button onClick={() => setEditor('edit')}>Sửa ghi chú / nhân viên</Button>
           </>}
           {canCancel(activeAppointment.status) && <>
-            <Popconfirm title="Xóa lịch hẹn này?" description="Thao tác này không thể hoàn tác." okText="Xóa" cancelText="Hủy" onConfirm={() => mutations.remove.mutate(activeAppointment.id, { onSuccess: () => { message.success('Xóa lịch hẹn thành công'); setSelected(null) }, onError: handleError })}><Button danger loading={mutations.remove.isPending}>Xóa lịch</Button></Popconfirm>
+            <Button danger loading={mutations.remove.isPending} onClick={() => modal.confirm({ title: 'Xác nhận xóa lịch hẹn?', content: 'Thao tác này không thể hoàn tác. Bạn có chắc chắn muốn xóa lịch hẹn này?', okText: 'Xóa', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => mutations.remove.mutateAsync(activeAppointment.id).then(() => { message.success('Xóa lịch hẹn thành công'); setSelected(null) }).catch((error: unknown) => { handleError(error); throw error }) })}>Xóa lịch</Button>
           </>}
         </Space>}
       </>}

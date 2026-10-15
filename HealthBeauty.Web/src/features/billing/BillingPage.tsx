@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography, Row, Col } from 'antd'
-import { PrinterOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { Appointment } from '../../types/appointments'
-import type { CreateInvoiceRequest, Invoice, PaymentRequest } from '../../types/billing'
+import type { CreateInvoiceRequest, Invoice, InvoiceLineRequest, PaymentRequest } from '../../types/billing'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../hooks/useAuth'
@@ -19,6 +19,7 @@ import { buildInvoiceDraft, eligibleInvoiceAppointments } from './invoiceDraft'
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
 type CreateFields = { appointmentId: number; voucherCode?: string; pointsToRedeem?: number }
 type PaymentFields = { method: string; status: string }
+type EditableInvoiceLine = { key: string; name: string; serviceId: number | null; comboId: number | null; quantity: number; unitPrice: number }
 
 export default function BillingPage() {
   const { message } = App.useApp()
@@ -40,6 +41,9 @@ export default function BillingPage() {
   const [selected, setSelected] = useState<Invoice | null>(null)
   const [receiptInvoice, setReceiptInvoice] = useState<Invoice | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [invoiceLines, setInvoiceLines] = useState<EditableInvoiceLine[]>([])
+  const [newItemKey, setNewItemKey] = useState<string>()
+  const [newItemQuantity, setNewItemQuantity] = useState(1)
   const [createForm] = Form.useForm<CreateFields>()
   const [paymentForm] = Form.useForm<PaymentFields>()
   const selectedAppointmentId = Form.useWatch('appointmentId', createForm)
@@ -56,6 +60,13 @@ export default function BillingPage() {
     try { return { value: buildInvoiceDraft(appointment, services.data ?? [], combos.data ?? []), error: null } }
     catch (error) { return { value: null, error: error instanceof Error ? error.message : 'Không thể tính hóa đơn cho lịch hẹn này.' } }
   }, [eligibleAppointments, selectedAppointmentId, services.data, combos.data])
+  useEffect(() => {
+    setInvoiceLines(draft.value?.lines.map((line) => {
+      const [kind, idText] = line.key.split(':')
+      const id = Number(idText)
+      return { ...line, serviceId: kind === 'service' ? id : null, comboId: kind === 'combo' ? id : null }
+    }) ?? [])
+  }, [selectedAppointmentId, draft.value])
   const paidRevenue = list.filter((invoice) => invoice.status === INVOICE_STATUS.PAID).reduce((sum, invoice) => sum + invoice.total, 0)
   const unpaidCount = list.filter((invoice) => invoice.status === INVOICE_STATUS.UNPAID).length
   const printReceipt = (invoice: Invoice) => { setSelected(invoice); setReceiptInvoice(invoice) }
@@ -71,12 +82,34 @@ export default function BillingPage() {
     if (!canWrite || invoices.isError || appointments.isError || services.isError || combos.isError) return
     const appointment = eligibleAppointments.find((item) => item.id === values.appointmentId)
     if (!appointment || !draft.value) { message.error(draft.error ?? 'Chọn lịch hẹn đã hoàn thành và chưa có hóa đơn.'); return }
-    const items = draft.value.items
+    if (!invoiceLines.length) { message.error('Hóa đơn phải có ít nhất một dòng dịch vụ hoặc combo.'); return }
+    const items: InvoiceLineRequest[] = invoiceLines.map(({ serviceId, comboId, quantity }) => ({ serviceId, comboId, quantity }))
     const body: CreateInvoiceRequest = { appointmentId: appointment.id, items, voucherCode: values.voucherCode?.trim() || null, pointsToRedeem: values.pointsToRedeem ?? 0 }
     try {
       await createInvoice.mutateAsync(body)
       message.success('Tạo hóa đơn thành công'); setCreateOpen(false); createForm.resetFields()
     } catch (error) { message.error(getApiErrorMessage(error, 'Không thể tạo hóa đơn')) }
+  }
+
+  function addInvoiceLine() {
+    if (!newItemKey) { message.warning('Chọn dịch vụ hoặc combo cần thêm.'); return }
+    const [kind, idText] = newItemKey.split(':')
+    const id = Number(idText)
+    const service = kind === 'service' ? services.data?.find((item) => item.id === id) : undefined
+    const combo = kind === 'combo' ? combos.data?.find((item) => item.id === id) : undefined
+    if (!service && !combo) { message.error('Không tìm thấy dịch vụ hoặc combo đã chọn.'); return }
+    const serviceId = service?.id ?? null
+    const comboId = combo?.id ?? null
+    const key = `${kind}:${id}`
+    const name = service?.name ?? combo?.name ?? `${kind === 'service' ? 'Dịch vụ' : 'Combo'} #${id}`
+    const unitPrice = service?.price ?? combo?.price ?? 0
+    setInvoiceLines((lines) => {
+      const existing = lines.find((line) => line.key === key)
+      if (existing) return lines.map((line) => line.key === key ? { ...line, quantity: Math.min(99, line.quantity + newItemQuantity) } : line)
+      return [...lines, { key, name, serviceId, comboId, quantity: newItemQuantity, unitPrice }]
+    })
+    setNewItemKey(undefined)
+    setNewItemQuantity(1)
   }
 
   async function submitPayment(values: PaymentFields) {
@@ -187,14 +220,28 @@ export default function BillingPage() {
         </footer>
       </article>}
     </Modal>
-    <Modal className="responsive-modal" title="Tạo hóa đơn từ lịch hẹn" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createInvoice.isPending} okButtonProps={{ disabled: !draft.value || invoices.isError || appointments.isError || services.isError || combos.isError || services.isLoading || combos.isLoading || appointments.isLoading || invoices.isLoading }} destroyOnClose>
+    <Modal className="responsive-modal" title="Tạo hóa đơn từ lịch hẹn" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createInvoice.isPending} okButtonProps={{ disabled: !draft.value || invoiceLines.length === 0 || invoices.isError || appointments.isError || services.isError || combos.isError || services.isLoading || combos.isLoading || appointments.isLoading || invoices.isLoading }} destroyOnClose>
       <Form className="responsive-form" form={createForm} layout="vertical" onFinish={(values: CreateFields) => void submitCreate(values)}>
         <Form.Item name="appointmentId" label="Lịch hẹn đã hoàn thành" rules={[{ required: true, message: 'Vui lòng chọn lịch hẹn' }]}><Select showSearch optionFilterProp="label" options={appointmentOptions} loading={appointments.isLoading || invoices.isLoading} placeholder="Chọn lịch hẹn chưa có hóa đơn" /></Form.Item>
         {!eligibleAppointments.length && !appointments.isLoading && <Alert type="info" showIcon message="Chưa có lịch hẹn đã hoàn thành để tạo hóa đơn." style={{ marginBottom: 16 }} />}
         {draft.error && <Alert type="error" showIcon message={draft.error} style={{ marginBottom: 16 }} />}
         {draft.value && <>
-          <Table className="responsive-table" size="small" rowKey="key" pagination={false} dataSource={draft.value.lines} columns={[{ title: 'Dịch vụ / combo', dataIndex: 'name' }, { title: 'SL', dataIndex: 'quantity' }, { title: 'Đơn giá', dataIndex: 'unitPrice', render: (value: number) => money(value) }]} />
-          <Typography.Paragraph style={{ marginTop: 12 }}>Tạm tính: <strong>{money(draft.value.subtotal)}</strong></Typography.Paragraph>
+          <Table<EditableInvoiceLine> className="responsive-table" size="small" rowKey="key" pagination={false} dataSource={invoiceLines} columns={[
+            { title: 'Dịch vụ / combo', dataIndex: 'name' },
+            { title: 'SL', key: 'quantity', render: (_, line) => <InputNumber min={1} max={99} precision={0} value={line.quantity} onChange={(value) => { if (value !== null) setInvoiceLines((lines) => lines.map((item) => item.key === line.key ? { ...item, quantity: value } : item)) }} style={{ width: 70 }} /> },
+            { title: 'Đơn giá', dataIndex: 'unitPrice', render: (value: number) => money(value) },
+            { title: 'Thành tiền', key: 'amount', align: 'right', render: (_, line) => money(line.quantity * line.unitPrice) },
+            { title: 'Thao tác', key: 'actions', render: (_, line) => <Button type="text" danger icon={<DeleteOutlined />} aria-label={`Xóa ${line.name}`} disabled={invoiceLines.length <= 1} onClick={() => setInvoiceLines((lines) => lines.filter((item) => item.key !== line.key))} /> },
+          ]} />
+          <Space wrap style={{ display: 'flex', marginTop: 12 }}>
+            <Select placeholder="Chọn dịch vụ hoặc combo" value={newItemKey} onChange={setNewItemKey} style={{ minWidth: 240, flex: 1 }} options={[
+              ...(services.data ?? []).map((service) => ({ value: `service:${service.id}`, label: `Dịch vụ · ${service.name ?? `#${service.id}`} · ${money(service.price)}` })),
+              ...(combos.data ?? []).map((combo) => ({ value: `combo:${combo.id}`, label: `Combo · ${combo.name ?? `#${combo.id}`} · ${money(combo.price)}` })),
+            ]} />
+            <InputNumber min={1} max={99} precision={0} value={newItemQuantity} onChange={(value) => setNewItemQuantity(value ?? 1)} aria-label="Số lượng dịch vụ thêm" style={{ width: 90 }} />
+            <Button icon={<PlusOutlined />} onClick={addInvoiceLine}>Thêm</Button>
+          </Space>
+          <Typography.Paragraph style={{ marginTop: 12 }}>Tạm tính: <strong>{money(invoiceLines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0))}</strong></Typography.Paragraph>
         </>}
         <Form.Item name="voucherCode" label="Mã voucher"><Input /></Form.Item>
         <Form.Item name="pointsToRedeem" label="Điểm muốn đổi" initialValue={0}><InputNumber min={0} max={Math.min(1000000, draftCustomer?.rewardPoints ?? 1000000)} precision={0} style={{ width: '100%' }} /></Form.Item>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, App, Button, Card, Col, Form, Input, Modal, Popconfirm, Rate, Row, Segmented, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, Col, Form, Input, Modal, Rate, Row, Segmented, Select, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -96,8 +96,8 @@ export default function ReviewsPage() {
     { title: 'Bình luận', dataIndex: 'binhLuan', key: 'comment', render: (value: string | null, record: ReviewRow) => <Space direction="vertical" size={4}><span>{value || '—'}</span>{replies[record.danhGiaId] && <Typography.Text type="secondary">[Phản hồi từ Spa]: “{replies[record.danhGiaId]}”</Typography.Text>}</Space> },
     { title: 'Ngày đánh giá', dataIndex: 'ngayDanhGia', key: 'date', render: (value: string) => value && dayjs(value).isValid() ? dayjs(value).format('DD/MM/YYYY HH:mm') : '—' },
     ...(canModerate ? [{ title: 'Thao tác', key: 'actions', render: (_value: unknown, record: ReviewRow) => <Space>
-      <Popconfirm title="Ẩn đánh giá này?" okText="Ẩn" cancelText="Hủy" onConfirm={() => void moderate(record, false)}><Button loading={visibility.isPending}>Ẩn</Button></Popconfirm>
-      {record.trangThai === 'ChoDuyet' && <Popconfirm title="Duyệt hiển thị đánh giá này?" okText="Duyệt" cancelText="Hủy" onConfirm={() => void moderate(record, true)}><Button type="primary" loading={visibility.isPending}>Duyệt</Button></Popconfirm>}
+      <Button loading={visibility.isPending} onClick={() => Modal.confirm({ title: 'Ẩn đánh giá này?', content: 'Đánh giá sẽ không còn hiển thị công khai.', okText: 'Ẩn', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => moderate(record, false) })}>Ẩn</Button>
+      {record.trangThai === 'ChoDuyet' && <Button type="primary" loading={visibility.isPending} onClick={() => Modal.confirm({ title: 'Duyệt hiển thị đánh giá này?', content: 'Đánh giá sẽ được hiển thị công khai.', okText: 'Duyệt', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => moderate(record, true) })}>Duyệt</Button>}
       <Button onClick={() => { replyForm.setFieldsValue({ reply: replies[record.danhGiaId] ?? '' }); setReplyingTo(record) }}>Phản hồi</Button>
     </Space> }] : []),
   ]
