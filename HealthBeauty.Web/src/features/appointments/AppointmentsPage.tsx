@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useEffect, useMemo, useState } from 'react'
-import { App as AntApp, Alert, Button, DatePicker, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Tag, TimePicker, Typography } from 'antd'
+import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Row, Select, Space, Tag, TimePicker, Typography } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import * as appointmentsApi from '../../api/appointments'
@@ -200,9 +201,67 @@ export default function AppointmentsPage() {
   const staffNames = useMemo(() => new Map((staff.data ?? []).map((item) => [item.nhanVienId, item.hoTen])), [staff.data])
   const customerNames = useMemo(() => new Map((customers.data ?? []).map((item) => [item.id, item.fullName])), [customers.data])
   const appointmentItems = appointments.data?.items ?? []
+  const statusCounts = appointmentItems.reduce<Record<string, number>>((counts, appointment) => {
+    counts[appointment.status] = (counts[appointment.status] ?? 0) + 1
+    return counts
+  }, {})
+  const exportAppointments = () => {
+    if (!appointmentItems.length) {
+      message.info('Không có lịch hẹn để xuất.')
+      return
+    }
+    const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const rows = [
+      ['Mã lịch', 'Ngày giờ hẹn', 'Tên khách hàng', 'Nhân viên phụ trách', 'Dịch vụ/Combo', 'Trạng thái', 'Ghi chú'],
+      ...appointmentItems.map((appointment) => [
+        appointment.id,
+        dayjs(appointment.appointmentAt).format('DD/MM/YYYY HH:mm'),
+        customerNames.get(appointment.customerId) ?? `Khách #${appointment.customerId}`,
+        appointment.staffId === null ? 'Chưa phân công' : staffNames.get(appointment.staffId) ?? `Nhân viên #${appointment.staffId}`,
+        appointment.items.map((item) => `${item.serviceName}${item.comboId !== null ? ' (combo)' : ''}`).join(', '),
+        statusLabels[appointment.status] ?? appointment.status,
+        appointment.note ?? '',
+      ]),
+    ]
+    const csv = `\\uFEFF${rows.map((row) => row.map(escapeCsv).join(',')).join('\\r\\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `Danh_sach_lich_hen_${date?.format('YYYY-MM-DD') ?? dayjs().format('YYYY-MM-DD')}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    if ((appointments.data?.totalCount ?? appointmentItems.length) > appointmentItems.length) {
+      message.info(`Đã xuất ${appointmentItems.length} lịch đang hiển thị. Hãy xuất từng trang để lấy đầy đủ kết quả.`)
+    } else {
+      message.success('Xuất danh sách lịch hẹn thành công!')
+    }
+  }
+
+  const kpiCards = [
+    { title: 'Tất cả lịch hẹn', count: appointments.data?.totalCount ?? 0, status: undefined, color: '#d9d9d9' },
+    { title: 'Chờ xác nhận', count: statusCounts.ChoXacNhan ?? 0, status: 'ChoXacNhan', color: '#faad14' },
+    { title: 'Đang phục vụ', count: (statusCounts.DangThucHien ?? 0) + (statusCounts.DaDen ?? 0), status: 'DaDen', color: '#1677ff' },
+    { title: 'Đã hoàn thành', count: statusCounts.HoanThanh ?? 0, status: 'HoanThanh', color: '#52c41a' },
+  ]
+  const quickAction: Record<string, { label: string; next: string }> = {
+    ChoXacNhan: { label: 'Xác nhận', next: 'DaXacNhan' },
+    DaXacNhan: { label: 'Khách đến', next: 'DaDen' },
+    DaDen: { label: 'Bắt đầu làm', next: 'DangThucHien' },
+    DangThucHien: { label: 'Hoàn thành', next: 'HoanThanh' },
+  }
 
   return <>
     {error && <Alert type="error" showIcon message="Không tải được dữ liệu lịch hẹn" description={errorMessage} style={{ marginBottom: 16 }} />}
+    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+      {kpiCards.map((card) => <Col xs={12} sm={12} md={6} key={card.title}>
+        <Card size="small" hoverable style={{ borderTop: `3px solid ${card.color}`, cursor: 'pointer' }} onClick={() => { setStatus(card.status); setPage(1) }}>
+          <Typography.Text type="secondary">{card.title}</Typography.Text>
+          <Typography.Title level={3} style={{ margin: '4px 0 0' }}>{card.count}</Typography.Title>
+        </Card>
+      </Col>)}
+    </Row>
     <ManagementTable<Appointment>
       title="Lịch hẹn"
       columns={[
@@ -212,7 +271,12 @@ export default function AppointmentsPage() {
         { title: 'Dịch vụ', dataIndex: 'items', key: 'items', render: (items: Appointment['items']) => items.map((item) => item.serviceName).join(', ') || '—' },
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent', fontWeight: 500 }}>{presentation.label}</Tag> } },
         { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
-        { title: 'Chi tiết', key: 'details', render: (_, record) => <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button> },
+        { title: 'Thao tác', key: 'details', render: (_, record) => <Space size="small" wrap>
+          {canWrite && quickAction[record.status] && <Popconfirm title={`Xác nhận “${quickAction[record.status].label}” cho lịch #${record.id}?`} okText="Xác nhận" cancelText="Hủy" onConfirm={() => confirmStatus(record, quickAction[record.status].next)}>
+            <Button size="small" type={record.status === 'ChoXacNhan' ? 'primary' : 'default'} loading={mutations.status.isPending}>{quickAction[record.status].label}</Button>
+          </Popconfirm>}
+          <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button>
+        </Space> },
       ]}
       data={appointmentItems}
       total={appointments.data?.totalCount ?? 0}
@@ -229,6 +293,8 @@ export default function AppointmentsPage() {
       onDelete={() => undefined}
       toolbar={<Space className="filter-bar" wrap>
         {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
+        <Button onClick={() => { setDate(dayjs()); setPage(1) }}>Hôm nay</Button>
+        <Button icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách</Button>
         <DatePicker allowClear placeholder="Lọc theo ngày" format="DD/MM/YYYY" value={date} onChange={(value) => { setDate(value); setPage(1) }} />
         <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={APPOINTMENT_STATUSES.map((value) => ({ value, label: statusLabels[value] }))} />
         {canReadStaff && <Select allowClear showSearch optionFilterProp="label" placeholder="Tất cả nhân viên" style={{ width: 190, maxWidth: '100%' }} value={staffId} onChange={(value) => { setStaffId(value); setPage(1) }} options={(staff.data ?? []).map((item) => ({ value: item.nhanVienId, label: item.hoTen }))} />}
