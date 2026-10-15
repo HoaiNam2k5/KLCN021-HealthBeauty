@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography, Row, Col } from 'antd'
 import { PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -121,11 +121,11 @@ export default function BillingPage() {
         {canWrite && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo hóa đơn</Button>}
       </Space>
     </div>
-    <Space className="billing-summary" size="middle" wrap style={{ display: 'flex', marginBottom: 20 }}>
-      <Card size="small"><Statistic title="Tổng doanh thu đã thu" value={money(paidRevenue)} /></Card>
-      <Card size="small"><Statistic title="Chờ thanh toán" value={unpaidCount} /></Card>
-      <Card size="small"><Statistic title="Tổng hóa đơn" value={list.length} /></Card>
-    </Space>
+    <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+      <Col xs={24} sm={8}><Card size="small"><Statistic title="Tổng doanh thu đã thu" value={paidRevenue} formatter={(value) => money(Number(value))} /></Card></Col>
+      <Col xs={24} sm={8}><Card size="small"><Statistic title="Chờ thanh toán" value={unpaidCount} /></Card></Col>
+      <Col xs={24} sm={8}><Card size="small"><Statistic title="Tổng hóa đơn" value={list.length} /></Card></Col>
+    </Row>
     {invoices.isError && <Alert type="error" showIcon message="Không tải được danh sách hóa đơn" description={getApiErrorMessage(invoices.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     {customers.isError && <Alert type="warning" message="Không tải được tên khách hàng." style={{ marginBottom: 16 }} />}
     <div className="table-scroll-container"><Table<Invoice> className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" columns={columns} dataSource={filtered} loading={invoices.isLoading || customers.isLoading} onRow={(invoice) => ({ onClick: () => setSelected(invoice), style: { cursor: 'pointer' } })} locale={{ emptyText: <Empty description={invoices.isError ? 'Không có dữ liệu để hiển thị' : 'Chưa có hóa đơn'} /> }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (count) => `Tổng ${count} hóa đơn` }} /></div>

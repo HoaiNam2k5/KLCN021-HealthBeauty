@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { App as AntApp, Button, DatePicker, Form, Modal, Select, Space, Tag, TimePicker, Typography } from 'antd'
+import { App as AntApp, Button, DatePicker, Form, Modal, Select, Space, Tag, TimePicker } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -84,10 +84,14 @@ export default function WorkSchedulesPage() {
       { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (value: string) => value === 'NghiPhep' ? <Tag color="warning">Nghỉ phép</Tag> : value === 'Vang' ? <Tag color="error">Vắng / Nghỉ</Tag> : <Tag color="success">Hoạt động</Tag> },
     ]} data={data} loading={query.isLoading || staffQuery.isLoading} error={query.isError || staffQuery.isError} page={page} pageSize={pageSize} onPageChange={(next, size) => { setPage(next); setPageSize(size) }} canManage={canManage} onEdit={openForm} onDelete={deleteRecord}
     onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')} onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
-    toolbar={<Space className="filter-bar" wrap>
-      <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={statusFilter} options={scheduleStatuses} onChange={(value: string | undefined) => { setStatusFilter(value); setPage(1) }} />
-      {!own && <Select allowClear placeholder="Tất cả nhân viên" style={{ width: 210, maxWidth: '100%' }} value={staffId} options={staffOptions} onChange={(value: number | undefined) => { setStaffId(value); setPage(1) }} />}
-      <Space className="page-toolbar" wrap><Button onClick={() => setWeek((current) => current.subtract(1, 'week'))}>Tuần trước</Button><Typography.Text>{week.startOf('week').format('DD/MM')} – {week.endOf('week').format('DD/MM/YYYY')}</Typography.Text><Button onClick={() => setWeek((current) => current.add(1, 'week'))}>Tuần sau</Button></Space>
+    toolbar={<Space wrap size={10} align="center">
+      {!own && <Select allowClear placeholder="Tất cả nhân viên" style={{ width: 190, maxWidth: '100%' }} value={staffId} options={staffOptions} onChange={(value: number | undefined) => { setStaffId(value); setPage(1) }} />}
+      <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 170, maxWidth: '100%' }} value={statusFilter} options={scheduleStatuses} onChange={(value: string | undefined) => { setStatusFilter(value); setPage(1) }} />
+      <Space.Compact>
+        <Button onClick={() => setWeek((current) => current.subtract(1, 'week'))}>Tuần trước</Button>
+        <Button disabled style={{ color: '#252321', fontWeight: 500 }}>{week.startOf('week').format('DD/MM')} – {week.endOf('week').format('DD/MM/YYYY')}</Button>
+        <Button onClick={() => setWeek((current) => current.add(1, 'week'))}>Tuần sau</Button>
+      </Space.Compact>
       {canManage && <Button type="primary" onClick={() => openForm()}>Thêm ca làm</Button>}
     </Space>} />
     {(query.isError || staffQuery.isError) && <div role="alert">{getApiErrorMessage(query.error ?? staffQuery.error, 'Không tải được lịch làm việc.')}</div>}

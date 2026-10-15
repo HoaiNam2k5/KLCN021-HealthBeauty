@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, App, Button, Card, Col, Form, Input, Modal, Popconfirm, Rate, Row, Segmented, Select, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -111,10 +112,10 @@ export default function ReviewsPage() {
         <Col xs={24} sm={12} md={8}><Card size="small"><Typography.Text type="secondary">Điểm trung bình</Typography.Text><Typography.Title level={3} style={{ margin: 0 }}>{average.toFixed(1)} / 5</Typography.Title></Card></Col>
         {[1, 2, 3, 4, 5].map((stars) => <Col xs={12} sm={6} md={3} key={stars}><Card size="small"><Typography.Text>{stars} sao</Typography.Text><Typography.Title level={4} style={{ margin: 0 }}>{counts[stars - 1]}</Typography.Title></Card></Col>)}
       </Row>
-      <Space className="filter-bar" wrap>
+      <Space wrap size={10} align="center">
         {canModerate && <Segmented value={view} onChange={(value) => setView(value as 'HienThi' | 'ChoDuyet')} options={[{ label: `Chờ duyệt (${pending.data?.length ?? 0})`, value: 'ChoDuyet' }, { label: 'Đang hiển thị', value: 'HienThi' }]} />}
+        <Input allowClear prefix={<SearchOutlined />} placeholder="Tìm theo tên khách" value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} style={{ width: 240, maxWidth: '100%' }} />
         <Select allowClear placeholder="Lọc theo số sao" value={rating} onChange={(value: number | undefined) => setRating(value)} options={[1, 2, 3, 4, 5].map((value) => ({ value, label: `${value} sao` }))} style={{ width: 170, maxWidth: '100%' }} />
-        <input aria-label="Tìm theo tên khách" placeholder="Tìm theo tên khách" value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} style={{ maxWidth: '100%', padding: '6px 10px', border: '1px solid #dedbd6', borderRadius: 4, font: 'inherit' }} />
       </Space>
       {reviews.isLoading ? <div role="status">Đang tải đánh giá…</div> : <Table<ReviewRow> className="responsive-table" rowKey="danhGiaId" scroll={{ x: 'max-content' }} columns={columns} dataSource={filtered} loading={reviews.isFetching} locale={{ emptyText: 'Chưa có đánh giá' }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true }} />}</Space>
     <Modal className="responsive-modal" title={`Phản hồi đánh giá của khách hàng ${replyingTo?.tenKhach ?? ''}`} open={Boolean(replyingTo)} onCancel={() => { setReplyingTo(null); replyForm.resetFields() }} footer={null} destroyOnClose>

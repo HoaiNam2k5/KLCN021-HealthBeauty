@@ -25,6 +25,7 @@ export default function PromotionsPage() {
   const [editing, setEditing] = useState<Promotion | null>(null)
   const [open, setOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const { message } = App.useApp()
@@ -33,7 +34,7 @@ export default function PromotionsPage() {
   const query = usePromotions()
   const save = useSavePromotion()
   const remove = useDeletePromotion()
-  const filtered = (query.data ?? []).filter((item) => statusFilter === 'all' || promotionStatus(item) === statusFilter)
+  const filtered = (query.data ?? []).filter((item) => (statusFilter === 'all' || promotionStatus(item) === statusFilter) && (item.name ?? '').toLocaleLowerCase().includes(keyword.trim().toLocaleLowerCase()))
 
   function openForm(record?: Promotion) {
     if (!canManage) return
@@ -91,12 +92,13 @@ export default function PromotionsPage() {
           return <Tag color={value === 'active' ? 'green' : value === 'upcoming' ? 'blue' : 'default'}>{value === 'active' ? 'Đang diễn ra' : value === 'upcoming' ? 'Sắp diễn ra' : 'Hết hạn'}</Tag>
         } },
       ]}
-      data={filtered} searchFields={['name', 'condition']} loading={query.isLoading} error={query.isError}
+      data={filtered} searchFields={[]} loading={query.isLoading} error={query.isError}
+      onSearch={(value) => { setKeyword(value); setPage(1) }} searchPlaceholder="Tìm theo tên khuyến mãi"
       page={page} pageSize={pageSize} onPageChange={(next, size) => { setPage(next); setPageSize(size) }}
       canManage={canManage} onEdit={openForm} onDelete={deletePromotion}
       onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
       onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
-      toolbar={<Space className="filter-bar" wrap>
+      toolbar={<Space wrap size={10} align="center">
         <Select aria-label="Lọc trạng thái khuyến mãi" value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(1) }} options={[{ value: 'all', label: 'Tất cả trạng thái' }, { value: 'active', label: 'Đang diễn ra' }, { value: 'upcoming', label: 'Sắp diễn ra' }, { value: 'expired', label: 'Hết hạn' }]} style={{ width: 180, maxWidth: '100%' }} />
         {canManage && <Button type="primary" onClick={() => openForm()}>Thêm khuyến mãi</Button>}
       </Space>}

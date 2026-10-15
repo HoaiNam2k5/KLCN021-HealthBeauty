@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Alert, App, Button, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -62,16 +63,17 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
   }
 
   return <section style={{ marginTop: 28 }}>
-    <Space className="page-heading" wrap>
+    <div className="page-heading">
       <Typography.Title level={4} style={{ margin: 0 }}>Voucher</Typography.Title>
-      <Space className="filter-bar" wrap>
-        <Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm mã, khuyến mãi hoặc khách hàng" style={{ width: 280, maxWidth: '100%' }} />
+      <Space wrap size={10} align="center">
+        <Input allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm mã, khuyến mãi hoặc khách hàng" style={{ width: 280, maxWidth: '100%' }} />
         <Select value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: 'Tất cả trạng thái' }, { value: 'active', label: 'Đang bật' }, { value: 'inactive', label: 'Đã tắt / đã dùng' }]} style={{ width: 180, maxWidth: '100%' }} />
         {canManage && <Button type="primary" onClick={() => openForm()}>Thêm voucher</Button>}
       </Space>
-    </Space>
+    </div>
     {query.isError && <Alert type="error" showIcon message="Không tải được danh sách voucher" description={getApiErrorMessage(query.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     <Table<Voucher> className="responsive-table" rowKey="id" dataSource={query.data ?? []} loading={query.isLoading} scroll={{ x: 'max-content' }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true }} columns={[
+      { title: 'STT', key: 'stt', width: 65, align: 'center', render: (_value, _record, index) => index + 1 },
       { title: 'Mã', dataIndex: 'code' }, { title: 'Khuyến mãi', dataIndex: 'promotionName' },
       { title: 'Khách hàng', dataIndex: 'customerName', render: (name: string | null) => name ?? 'Tất cả khách hàng' },
       { title: 'Giá trị giảm tối đa', dataIndex: 'discountValue', render: (value: number) => `${value.toLocaleString('vi-VN')} ₫` },
