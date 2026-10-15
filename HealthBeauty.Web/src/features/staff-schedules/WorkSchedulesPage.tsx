@@ -3,6 +3,8 @@ import { App as AntApp, Button, DatePicker, Form, Modal, Select, Space, Tag, Tim
 import dayjs, { type Dayjs } from 'dayjs'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
+import { useAllAppointments } from '../appointments/appointmentQueries'
+import { APPOINTMENT_STATUS } from '../appointments/appointmentStatus'
 import { ACCOUNT_ROLES } from '../../constants/roles'
 import { useAuth } from '../../hooks/useAuth'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -31,6 +33,7 @@ export default function WorkSchedulesPage() {
   const staffQuery = useScheduleStaff(!own && has('STAFF.READ'))
   const filters = useMemo(() => ({ staffId, from: week.startOf('week').format('YYYY-MM-DD'), to: week.endOf('week').format('YYYY-MM-DD') }), [staffId, week])
   const query = useWorkSchedules(filters, own)
+  const appointmentsQuery = useAllAppointments()
   const save = useSaveWorkSchedule()
   const remove = useDeleteWorkSchedule()
   const schedules = query.data ?? []
@@ -44,6 +47,14 @@ export default function WorkSchedulesPage() {
     setOpen(true)
   }
 
+  async function proceedSave(body: WorkScheduleRequest) {
+    try {
+      await save.mutateAsync({ id: editing?.id, body })
+      message.success(editing ? 'Cập nhật ca làm thành công.' : 'Thêm ca làm thành công.')
+      setOpen(false)
+    } catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể lưu ca làm. Vui lòng thử lại.')) }
+  }
+
   async function submit(values: FormValues) {
     if (!canManage) return
     const startAt = values.startAt.format('HH:mm:ss')
@@ -52,16 +63,31 @@ export default function WorkSchedulesPage() {
       form.setFields([{ name: 'endAt', errors: ['Giờ kết thúc phải sau giờ bắt đầu.'] }])
       return
     }
-    const body: WorkScheduleRequest = { staffId: values.staffId, workDate: values.workDate.format('YYYY-MM-DD'), startAt, endAt, status: values.status || 'HoatDong' }
+    const workDate = values.workDate.format('YYYY-MM-DD')
+    const body: WorkScheduleRequest = { staffId: values.staffId, workDate, startAt, endAt, status: values.status || 'HoatDong' }
     if (hasScheduleConflict(schedules, body, editing?.id)) {
       message.error('Ca làm bị trùng với một ca khác của nhân viên trong ngày này.')
       return
     }
-    try {
-      await save.mutateAsync({ id: editing?.id, body })
-      message.success(editing ? 'Cập nhật ca làm thành công.' : 'Thêm ca làm thành công.')
-      setOpen(false)
-    } catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể lưu ca làm. Vui lòng thử lại.')) }
+    if (body.status === 'NghiPhep' || body.status === 'Vang') {
+      const conflictCount = (appointmentsQuery.data ?? []).filter((appointment) =>
+        appointment.staffId === values.staffId
+        && dayjs(appointment.appointmentAt).format('YYYY-MM-DD') === workDate
+        && (appointment.status === APPOINTMENT_STATUS.WAITING || appointment.status === APPOINTMENT_STATUS.CONFIRMED),
+      ).length
+      if (conflictCount > 0) {
+        Modal.confirm({
+          centered: true,
+          title: 'Cảnh báo lịch hẹn bị ảnh hưởng',
+          content: `Nhân viên này đang có ${conflictCount} lịch hẹn của khách trong ngày ${values.workDate.format('DD/MM/YYYY')}. Bạn có chắc chắn muốn đổi trạng thái ca sang "${body.status === 'NghiPhep' ? 'Nghỉ phép' : 'Vắng'}"? Hãy nhớ phân công nhân viên khác thay thế!`,
+          okText: 'Vẫn lưu ca làm',
+          cancelText: 'Xem lại',
+          onOk: () => proceedSave(body),
+        })
+        return
+      }
+    }
+    await proceedSave(body)
   }
 
   async function deleteRecord(record: WorkSchedule) {
