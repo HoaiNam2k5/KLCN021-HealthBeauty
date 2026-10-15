@@ -133,14 +133,22 @@ export default function BillingPage() {
     { title: 'Tạm tính', dataIndex: 'subtotal', key: 'subtotal', align: 'right', render: (value: number) => money(value) },
     { title: 'Tổng tiền', dataIndex: 'total', key: 'total', align: 'right', render: (value: number) => money(value) },
     { title: 'Thanh toán', dataIndex: 'status', key: 'status', render: (value: string) => <Tag color={value === INVOICE_STATUS.PAID ? 'success' : value === INVOICE_STATUS.UNPAID ? 'warning' : undefined}>{INVOICE_STATUS_LABELS[value] ?? value}</Tag> },
-    { title: 'Phương thức', key: 'method', render: (_, invoice) => invoice.payments.length ? invoice.payments.map((payment) => PAYMENT_METHOD_LABELS[payment.method] ?? payment.method).join(', ') : '—' },
+    { title: 'Phương thức', key: 'method', render: (_, invoice) => {
+      const successfulPayments = invoice.status === INVOICE_STATUS.PAID
+        ? invoice.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS)
+        : []
+      return successfulPayments.length
+        ? <Space size={[4, 4]} wrap>{successfulPayments.map((payment) => <Tag key={payment.id}>{PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}</Tag>)}</Space>
+        : '—'
+    } },
     { title: 'Thao tác', key: 'actions', render: (_, invoice) => <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button> },
   ]
 
   const receiptCustomer = receiptInvoice ? customers.data?.find((customer) => customer.id === receiptInvoice.customerId) : undefined
   const receiptPaid = receiptInvoice?.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS).reduce((sum, payment) => sum + payment.amount, 0) ?? 0
   const receiptDiscount = receiptInvoice ? Math.max(0, receiptInvoice.subtotal - receiptInvoice.total) : 0
-  const receiptMethods = receiptInvoice?.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS).map((payment) => PAYMENT_METHOD_LABELS[payment.method] ?? payment.method).filter((value, index, values) => values.indexOf(value) === index).join(', ') || 'Chưa ghi nhận'
+  const receiptMethod = receiptInvoice?.payments.find((payment) => payment.status === PAYMENT_STATUS.SUCCESS)?.method
+  const receiptMethodLabel = receiptMethod ? PAYMENT_METHOD_LABELS[receiptMethod] || receiptMethod : 'Tiền mặt'
   const printNow = () => window.print()
 
   return <section>
@@ -211,7 +219,8 @@ export default function BillingPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tạm tính:</span><span>{money(receiptInvoice.subtotal)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Giảm giá voucher / Đổi điểm thưởng:</span><span>-{money(receiptDiscount)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #b88b62', paddingTop: 5, fontSize: 18, fontWeight: 700 }}><span>TỔNG TIỀN PHẢI TRẢ:</span><span>{money(receiptInvoice.total)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Đã thanh toán:</span><span>{money(receiptPaid)} ({receiptMethods})</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Đã thanh toán:</span><span>{money(receiptPaid)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Phương thức thanh toán:</span><span>{receiptMethodLabel}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>Trạng thái:</span><Tag color={receiptInvoice.status === INVOICE_STATUS.PAID ? 'success' : 'warning'}>{(INVOICE_STATUS_LABELS[receiptInvoice.status] ?? receiptInvoice.status).toLocaleUpperCase('vi-VN')}</Tag></div>
         </section>
         <footer style={{ marginTop: 34, textAlign: 'center' }}>

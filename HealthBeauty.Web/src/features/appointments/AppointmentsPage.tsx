@@ -272,7 +272,7 @@ export default function AppointmentsPage() {
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent', fontWeight: 500 }}>{presentation.label}</Tag> } },
         { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
         { title: 'Thao tác', key: 'details', render: (_, record) => <Space size="small" wrap>
-          {canWrite && quickAction[record.status] && <Button size="small" type={record.status === 'ChoXacNhan' ? 'primary' : 'default'} loading={mutations.status.isPending} onClick={() => modal.confirm({ title: `Xác nhận “${quickAction[record.status].label}” cho lịch #${record.id}?`, content: 'Xác nhận cập nhật trạng thái lịch hẹn.', okText: 'Xác nhận', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => confirmStatus(record, quickAction[record.status].next) })}>{quickAction[record.status].label}</Button>}
+          {canWrite && quickAction[record.status] && <Button size="small" type={record.status === 'ChoXacNhan' ? 'primary' : 'default'} loading={mutations.status.isPending} onClick={() => modal.confirm({ title: `Xác nhận “${quickAction[record.status].label}” cho lịch #${record.id}?`, content: 'Xác nhận cập nhật trạng thái lịch hẹn.', okText: 'Xác nhận', okType: 'primary', cancelText: 'Hủy', centered: true, onOk: () => confirmStatus(record, quickAction[record.status].next) })}>{quickAction[record.status].label}</Button>}
           <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button>
         </Space> },
       ]}
