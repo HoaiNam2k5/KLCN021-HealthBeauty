@@ -61,11 +61,7 @@ export default function BillingPage() {
     catch (error) { return { value: null, error: error instanceof Error ? error.message : 'Không thể tính hóa đơn cho lịch hẹn này.' } }
   }, [eligibleAppointments, selectedAppointmentId, services.data, combos.data])
   useEffect(() => {
-    setInvoiceLines(draft.value?.lines.map((line) => {
-      const [kind, idText] = line.key.split(':')
-      const id = Number(idText)
-      return { ...line, serviceId: kind === 'service' ? id : null, comboId: kind === 'combo' ? id : null }
-    }) ?? [])
+    setInvoiceLines(draft.value?.lines.map((line) => ({ ...line, serviceId: line.serviceId, comboId: line.comboId })) ?? [])
   }, [selectedAppointmentId, draft.value])
   const paidRevenue = list.filter((invoice) => invoice.status === INVOICE_STATUS.PAID).reduce((sum, invoice) => sum + invoice.total, 0)
   const unpaidCount = list.filter((invoice) => invoice.status === INVOICE_STATUS.UNPAID).length
@@ -84,6 +80,10 @@ export default function BillingPage() {
     if (!appointment || !draft.value) { message.error(draft.error ?? 'Chọn lịch hẹn đã hoàn thành và chưa có hóa đơn.'); return }
     if (!invoiceLines.length) { message.error('Hóa đơn phải có ít nhất một dòng dịch vụ hoặc combo.'); return }
     const items: InvoiceLineRequest[] = invoiceLines.map(({ serviceId, comboId, quantity }) => ({ serviceId, comboId, quantity }))
+    if (items.some((item) => (item.serviceId === null) === (item.comboId === null))) {
+      message.error('Mỗi dòng hóa đơn phải thuộc một dịch vụ hoặc một combo hợp lệ.')
+      return
+    }
     const body: CreateInvoiceRequest = { appointmentId: appointment.id, items, voucherCode: values.voucherCode?.trim() || null, pointsToRedeem: values.pointsToRedeem ?? 0 }
     try {
       await createInvoice.mutateAsync(body)
@@ -220,7 +220,7 @@ export default function BillingPage() {
         </footer>
       </article>}
     </Modal>
-    <Modal className="responsive-modal" title="Tạo hóa đơn từ lịch hẹn" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createInvoice.isPending} okButtonProps={{ disabled: !draft.value || invoiceLines.length === 0 || invoices.isError || appointments.isError || services.isError || combos.isError || services.isLoading || combos.isLoading || appointments.isLoading || invoices.isLoading }} destroyOnClose>
+    <Modal className="responsive-modal" title="Tạo hóa đơn từ lịch hẹn" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText="Tạo hóa đơn" cancelText="Hủy" confirmLoading={createInvoice.isPending} okButtonProps={{ disabled: !draft.value || invoiceLines.length === 0 || invoices.isError || appointments.isError || services.isError || combos.isError || services.isLoading || combos.isLoading || appointments.isLoading || invoices.isLoading }} destroyOnClose>
       <Form className="responsive-form" form={createForm} layout="vertical" onFinish={(values: CreateFields) => void submitCreate(values)}>
         <Form.Item name="appointmentId" label="Lịch hẹn đã hoàn thành" rules={[{ required: true, message: 'Vui lòng chọn lịch hẹn' }]}><Select showSearch optionFilterProp="label" options={appointmentOptions} loading={appointments.isLoading || invoices.isLoading} placeholder="Chọn lịch hẹn chưa có hóa đơn" /></Form.Item>
         {!eligibleAppointments.length && !appointments.isLoading && <Alert type="info" showIcon message="Chưa có lịch hẹn đã hoàn thành để tạo hóa đơn." style={{ marginBottom: 16 }} />}

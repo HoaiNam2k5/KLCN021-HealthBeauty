@@ -5,7 +5,7 @@ import type { Combo, Service } from '../../types/services'
 export interface InvoiceDraft {
   items: InvoiceLineRequest[]
   subtotal: number
-  lines: { key: string; name: string; quantity: number; unitPrice: number }[]
+  lines: { key: string; name: string; quantity: number; unitPrice: number; serviceId: number | null; comboId: number | null }[]
 }
 
 export function eligibleInvoiceAppointments(appointments: Appointment[], invoices: Invoice[]): Appointment[] {
@@ -28,7 +28,7 @@ export function buildInvoiceDraft(appointment: Appointment, services: Service[],
   }
   const draft: InvoiceDraft = { items: [], subtotal: 0, lines: [] }
   function addLine(serviceId: number | null, comboId: number | null, name: string, quantity: number, unitPrice: number) {
-    draft.lines.push({ key: `${serviceId ?? 'combo'}:${comboId ?? 'service'}`, name, quantity, unitPrice })
+    draft.lines.push({ key: serviceId !== null ? `service:${serviceId}` : `combo:${comboId}`, name, quantity, unitPrice, serviceId, comboId })
     draft.subtotal += quantity * unitPrice
     for (let remaining = quantity; remaining > 0; remaining -= 100) {
       draft.items.push({ serviceId, comboId, quantity: Math.min(100, remaining) })

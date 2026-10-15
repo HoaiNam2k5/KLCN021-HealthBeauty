@@ -3,6 +3,9 @@ import { App as AntApp, Button, Result, Spin } from 'antd'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ConfigProvider } from 'antd'
+import viVN from 'antd/locale/vi_VN'
+import dayjs from 'dayjs'
+import 'dayjs/locale/vi'
 import theme from './theme/theme'
 import { refreshSession } from './api/client'
 import { getRefreshToken, getSession } from './api/session'
@@ -25,6 +28,8 @@ const ReportsPage = lazy(() => import('./features/reports/ReportsPage'))
 const AuditLogsPage = lazy(() => import('./features/audit-logs/AuditLogsPage'))
 const AccountsPage = lazy(() => import('./features/accounts/AccountsPage'))
 const PermissionsPage = lazy(() => import('./features/permissions/PermissionsPage'))
+
+dayjs.locale('vi')
 
 const queryClient = new QueryClient()
 const pageTitles: Record<string, string> = {
@@ -134,7 +139,7 @@ function ApplicationRoutes() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={theme}>
+      <ConfigProvider locale={viVN} theme={theme}>
         <AntApp>
           <BrowserRouter><ApplicationRoutes /></BrowserRouter>
         </AntApp>
