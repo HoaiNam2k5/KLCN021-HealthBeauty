@@ -12,13 +12,14 @@ export default function ServiceCategoriesPage() {
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [keyword, setKeyword] = useState('')
   const { message } = AntApp.useApp()
   const { has } = usePermissions()
   const canManage = has('SERVICE.WRITE')
   const query = useCategories()
   const save = useSaveCategory()
   const remove = useDeleteCategory()
-  const data = query.data ?? []
+  const data = (query.data ?? []).filter((category) => (category.name ?? '').toLocaleLowerCase().includes(keyword.trim().toLocaleLowerCase()))
 
   function openForm(record?: ServiceCategory) {
     if (!canManage) return
@@ -55,7 +56,7 @@ export default function ServiceCategoriesPage() {
         { title: 'Tên loại', dataIndex: 'name', key: 'name' },
         { title: 'Mô tả', dataIndex: 'description', key: 'description', render: (value: string | null) => value || '—' },
       ]} data={data} searchFields={['name']} loading={query.isLoading} error={query.isError} page={page} pageSize={pageSize}
-      onPageChange={(next, size) => { setPageSize(size); setPage(next) }} canManage={canManage} onEdit={openForm} onDelete={removeRecord}
+      onPageChange={(next, size) => { setPageSize(size); setPage(next) }} onSearch={(value) => { setKeyword(value); setPage(1) }} searchPlaceholder="Tìm theo tên loại dịch vụ" canManage={canManage} onEdit={openForm} onDelete={removeRecord}
       onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')} onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
       toolbar={canManage ? <Button type="primary" onClick={() => openForm()}>Thêm loại dịch vụ</Button> : undefined}
     />

@@ -30,6 +30,7 @@ export default function AuditLogsPage() {
   const search = keyword.trim().toLocaleLowerCase()
   const rows = data.filter((row) => (!action || row.actionName === action) && (!search || [row.auditLogId, row.taiKhoanId, row.taiKhoanId == null ? '' : names.get(row.taiKhoanId), row.actionName, actionLabels[row.actionName], row.entityName, row.entityId, row.ipAddress].some((value) => value != null && String(value).toLocaleLowerCase().includes(search))))
   const columns: TableColumnsType<AuditLog> = [
+    { title: 'STT', key: 'stt', width: 60, align: 'center', render: (_value, _record, index) => index + 1 },
     { title: 'Thời gian', dataIndex: 'createdAt', width: 180, render: displayDate },
     { title: 'Người thực hiện', width: 220, render: (_, row) => row.taiKhoanId == null ? 'Hệ thống' : <><div>{names.get(row.taiKhoanId) ?? 'Tài khoản'}</div><Typography.Text type="secondary">#{row.taiKhoanId}</Typography.Text></> },
     { title: 'Hoạt động', dataIndex: 'actionName', width: 200, render: (value: string) => <Space direction="vertical" size={0}><Tag>{actionLabels[value] ?? value}</Tag><Typography.Text type="secondary">{value}</Typography.Text></Space> },

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { App as AntApp, Button, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Space, Tag } from 'antd'
+import { App as AntApp, Button, Col, DatePicker, Form, Image, Input, InputNumber, Modal, Row, Select, Space, Tag, Typography } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -8,14 +8,19 @@ import type { Combo, ComboRequest } from '../../types/services'
 import { useCombos, useDeleteCombo, useSaveCombo, useServices } from './serviceQueries'
 
 const money = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
-interface ComboForm { name: string; price: number; validity: [Dayjs, Dayjs]; items: { serviceId: number; quantity: number }[] }
+const comboImageKey = (id: number) => `hb_combo_img_${id}`
+const defaultComboImage = 'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?auto=format&fit=crop&w=256&h=192&q=85'
+const readComboImage = (id: number) => { try { return localStorage.getItem(comboImageKey(id)) || '' } catch { return '' } }
+interface ComboForm { name: string; price: number; validity: [Dayjs, Dayjs]; items: { serviceId: number; quantity: number }[]; imageUrl?: string }
 
 export default function CombosPage() {
   const [form] = Form.useForm<ComboForm>()
+  const imageUrl = Form.useWatch('imageUrl', form)
   const [editing, setEditing] = useState<Combo | null>(null)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [keyword, setKeyword] = useState('')
   const { message } = AntApp.useApp()
   const { has } = usePermissions()
   const canManage = has('SERVICE.WRITE')
@@ -23,28 +28,34 @@ export default function CombosPage() {
   const services = useServices()
   const save = useSaveCombo()
   const remove = useDeleteCombo()
-  const data = query.data ?? []
+  const data = (query.data ?? []).filter((combo) => (combo.name ?? '').toLocaleLowerCase().includes(keyword.trim().toLocaleLowerCase()))
   const serviceName = (id: number) => services.data?.find((service) => service.id === id)?.name ?? `Dịch vụ #${id}`
 
   function openForm(record?: Combo) {
     if (!canManage) return
     setEditing(record ?? null)
     const validity = record ? [dayjs(record.validFrom), dayjs(record.validTo)] as [Dayjs, Dayjs] : [dayjs(), dayjs().add(1, 'month')] as [Dayjs, Dayjs]
-    form.setFieldsValue({ name: record?.name ?? '', price: record?.price ?? 0, validity, items: record?.items?.map((item) => ({ ...item })) ?? [{ serviceId: undefined, quantity: 1 }] })
+    form.setFieldsValue({ name: record?.name ?? '', price: record?.price ?? 0, validity, items: record?.items?.map((item) => ({ ...item })) ?? [{ serviceId: undefined, quantity: 1 }], imageUrl: record ? readComboImage(record.id) : '' })
     setOpen(true)
   }
 
   async function submit(values: ComboForm) {
     if (!canManage) return
+    const { imageUrl: _imageUrl, ...comboValues } = values
     const body: ComboRequest = {
-      name: values.name,
-      price: values.price,
-      validFrom: values.validity[0].format('YYYY-MM-DD'),
-      validTo: values.validity[1].format('YYYY-MM-DD'),
-      items: values.items,
+      name: comboValues.name,
+      price: comboValues.price,
+      validFrom: comboValues.validity[0].format('YYYY-MM-DD'),
+      validTo: comboValues.validity[1].format('YYYY-MM-DD'),
+      items: comboValues.items,
     }
     try {
       await save.mutateAsync({ id: editing?.id, body })
+      const comboId = editing?.id ?? (await query.refetch()).data?.find((combo) => combo.name === body.name && combo.validFrom === body.validFrom && combo.validTo === body.validTo && combo.price === body.price)?.id
+      if (comboId !== undefined) {
+        if (values.imageUrl?.trim()) localStorage.setItem(comboImageKey(comboId), values.imageUrl.trim())
+        else localStorage.removeItem(comboImageKey(comboId))
+      }
       message.success(editing ? 'Cập nhật combo thành công.' : 'Thêm combo thành công.')
       setOpen(false)
     } catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể lưu combo. Vui lòng thử lại.')) }
@@ -64,12 +75,13 @@ export default function CombosPage() {
   return <>
     <ManagementTable<Combo>
       title="Combo" columns={[
+        { title: 'Hình ảnh', key: 'image', render: (_, record) => <Image width={64} height={48} src={readComboImage(record.id) || defaultComboImage} style={{ borderRadius: 8, objectFit: 'cover' }} preview={{ mask: 'Xem' }} alt={record.name ?? 'Combo'} /> },
         { title: 'Tên combo', dataIndex: 'name', key: 'name' },
         { title: 'Giá', dataIndex: 'price', key: 'price', render: (value: number) => money(value) },
         { title: 'Hiệu lực', key: 'validity', render: (_, record) => `${record.validFrom} – ${record.validTo}` },
         { title: 'Dịch vụ thành phần', key: 'items', render: (_, record) => <Space wrap>{(record.items ?? []).map((item) => <Tag key={item.serviceId}>{serviceName(item.serviceId)} × {item.quantity}</Tag>)}</Space> },
       ]} data={data} searchFields={['name']} loading={query.isLoading} error={query.isError} page={page} pageSize={pageSize}
-      onPageChange={(next, size) => { setPageSize(size); setPage(next) }} canManage={canManage} onEdit={openForm} onDelete={removeRecord}
+      onPageChange={(next, size) => { setPageSize(size); setPage(next) }} onSearch={(value) => { setKeyword(value); setPage(1) }} searchPlaceholder="Tìm theo tên combo" canManage={canManage} onEdit={openForm} onDelete={removeRecord}
       onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')} onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
       toolbar={canManage ? <Button type="primary" onClick={() => openForm()}>Thêm combo</Button> : undefined}
     />
@@ -78,6 +90,8 @@ export default function CombosPage() {
         <Form.Item name="name" label="Tên combo" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên combo.' }]}><Input maxLength={150} /></Form.Item>
         <Form.Item name="price" label="Giá (₫)" rules={[{ required: true, message: 'Vui lòng nhập giá.' }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="validity" label="Thời gian hiệu lực" rules={[{ required: true, message: 'Vui lòng chọn thời gian hiệu lực.' }]}><DatePicker.RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
+        <Form.Item name="imageUrl" label="Link ảnh đại diện combo"><Input type="url" placeholder="https://images.unsplash.com/... hoặc để trống để dùng ảnh mẫu" /></Form.Item>
+        {imageUrl && <div style={{ marginBottom: 16 }}><Typography.Text type="secondary">Xem trước</Typography.Text><br /><Image src={imageUrl} width={128} height={80} style={{ objectFit: 'cover', borderRadius: 8 }} fallback={defaultComboImage} /></div>}
         <Form.List name="items" rules={[{ validator: async (_, items: ComboForm['items'] | undefined) => { if (!items?.length) throw new Error('Combo cần ít nhất một dịch vụ.') } }]}>
           {(fields, { add, remove: removeItem }, { errors }) => <>
             <Space direction="vertical" style={{ width: '100%' }}>

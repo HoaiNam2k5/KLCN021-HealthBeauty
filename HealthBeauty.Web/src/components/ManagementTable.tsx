@@ -44,13 +44,20 @@ export default function ManagementTable<T extends { id: number }>({
       </Space>
     ),
   }] : []
-  const tableColumns = [...columns, ...actions] as TableProps<T>['columns']
+  const sttColumn: ColumnsType<T> = [{
+    title: 'STT',
+    key: 'stt',
+    width: 65,
+    align: 'center',
+    render: (_value, _record, index) => (page - 1) * pageSize + index + 1,
+  }]
+  const tableColumns = [...sttColumn, ...columns, ...actions] as TableProps<T>['columns']
 
   return (
     <section className="management-section">
       <div className="page-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         <Typography.Title level={4} style={{ margin: 0 }}>{title}</Typography.Title>
-        <Space wrap className="page-toolbar">
+        <Space wrap size={10} align="center" className="page-toolbar">
           {onSearch && <Input allowClear prefix={<SearchOutlined />} placeholder={searchPlaceholder} value={searchText} onChange={(event) => { setSearchText(event.target.value); onSearch(event.target.value) }} className="table-search" />}
           {toolbar}
         </Space>

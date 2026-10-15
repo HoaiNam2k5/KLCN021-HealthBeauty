@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { App as AntApp, Button, DatePicker, Form, Input, Modal, Select, Space } from 'antd'
+import { App as AntApp, Avatar, Button, DatePicker, Form, Image, Input, Modal, Select, Typography } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -8,10 +8,14 @@ import type { Staff, StaffRequest } from '../../types/customersStaff'
 import { isValidPhone, mapCreateStaffRequest, mapStaffRequest } from '../../types/customersStaff'
 import { useDeleteStaff, useSaveStaff, useStaff } from './customerStaffQueries'
 
-interface StaffFormValues { fullName: string; position: string; specialty: string; phone: string; hireDate: Dayjs; email: string; password: string }
+interface StaffFormValues { fullName: string; position: string; specialty: string; phone: string; hireDate: Dayjs; email: string; password: string; avatarUrl?: string }
+const staffAvatarKey = (id: number) => `hb_staff_avatar_${id}`
+const readStaffAvatar = (id: number) => { try { return localStorage.getItem(staffAvatarKey(id)) || '' } catch { return '' } }
+const staffInitials = (name?: string | null) => name?.trim().split(/\s+/).map((part) => part[0]).slice(-2).join('').toLocaleUpperCase() || '?'
 
 export default function StaffPage() {
   const [form] = Form.useForm<StaffFormValues>()
+  const avatarUrl = Form.useWatch('avatarUrl', form)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [open, setOpen] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -32,7 +36,7 @@ export default function StaffPage() {
     if (!canManage) return
     setEditing(record ?? null)
     form.resetFields()
-    form.setFieldsValue({ fullName: record?.hoTen ?? '', position: record?.chucVu ?? '', specialty: record?.chuyenMon ?? '', phone: record?.soDienThoai ?? '', hireDate: record ? dayjs(record.ngayVaoLam) : dayjs() })
+    form.setFieldsValue({ fullName: record?.hoTen ?? '', position: record?.chucVu ?? '', specialty: record?.chuyenMon ?? '', phone: record?.soDienThoai ?? '', hireDate: record ? dayjs(record.ngayVaoLam) : dayjs(), avatarUrl: record ? readStaffAvatar(record.nhanVienId) : '' })
     setOpen(true)
   }
 
@@ -42,7 +46,12 @@ export default function StaffPage() {
     const request = editing ? body : mapCreateStaffRequest({ ...body, email: values.email, password: values.password })
     try {
       await save.mutateAsync({ id: editing?.nhanVienId, body: request })
-      await query.refetch()
+      const refreshed = await query.refetch()
+      const staffId = editing?.nhanVienId ?? refreshed.data?.find((item) => item.hoTen === values.fullName)?.nhanVienId
+      if (staffId !== undefined) {
+        if (values.avatarUrl?.trim()) localStorage.setItem(staffAvatarKey(staffId), values.avatarUrl.trim())
+        else localStorage.removeItem(staffAvatarKey(staffId))
+      }
       message.success(editing ? 'Cập nhật nhân viên thành công.' : 'Thêm nhân viên thành công.')
       setOpen(false)
       form.resetFields()
@@ -63,6 +72,7 @@ export default function StaffPage() {
   return <>
     <ManagementTable<Staff>
       title="Nhân viên" columns={[
+        { title: 'Avatar', key: 'avatar', render: (_, record) => <Avatar size={42} src={readStaffAvatar(record.nhanVienId) || undefined} style={{ backgroundColor: '#b58a70', color: '#fff' }}>{staffInitials(record.hoTen)}</Avatar> },
         { title: 'Họ tên', dataIndex: 'hoTen', key: 'hoTen', render: (value: string | null) => value || '—' },
         { title: 'Mã tài khoản', dataIndex: 'taiKhoanId', key: 'taiKhoanId', render: (value: number | null | undefined) => value ?? 'Chưa có' },
         { title: 'Chức vụ', dataIndex: 'chucVu', key: 'chucVu', render: (value: string | null) => value || '—' },
@@ -75,10 +85,10 @@ export default function StaffPage() {
       canManage={canManage} onEdit={openForm} onDelete={deleteRecord}
       onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
       onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
-      toolbar={<Space className="filter-bar" wrap>
+      toolbar={<>
         <Select allowClear placeholder="Tất cả chức vụ" style={{ width: 190, maxWidth: '100%' }} value={position} onChange={(value: string | undefined) => { setPosition(value); setPage(1) }} options={positions} />
         {canManage && <Button type="primary" onClick={() => openForm()}>Thêm nhân viên</Button>}
-      </Space>}
+      </>}
     />
     {query.isError && <div role="alert">{getApiErrorMessage(query.error, 'Không tải được danh sách nhân viên.')}</div>}
     <Modal className="responsive-modal" title={editing ? 'Sửa nhân viên' : 'Thêm nhân viên'} open={open && canManage} onCancel={() => { if (!save.isPending) { setOpen(false); form.resetFields() } }} maskClosable={!save.isPending} onOk={() => form.submit()} confirmLoading={save.isPending} okText="Lưu" cancelText="Hủy">
@@ -92,6 +102,8 @@ export default function StaffPage() {
           <Form.Item name="password" label="Mật khẩu ban đầu" rules={[{ required: true, message: 'Nhập mật khẩu.' }, { min: 8, message: 'Mật khẩu tối thiểu 8 ký tự.' }, { max: 128 }]}><Input.Password autoComplete="new-password" maxLength={128} /></Form.Item>
         </>}
         <Form.Item name="hireDate" label="Ngày vào làm" rules={[{ required: true, message: 'Vui lòng chọn ngày vào làm.' }]}><DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} /></Form.Item>
+        <Form.Item name="avatarUrl" label="Link ảnh đại diện (tùy chọn)"><Input type="url" placeholder="https://..." /></Form.Item>
+        {avatarUrl && <div style={{ marginBottom: 16 }}><Typography.Text type="secondary">Xem trước</Typography.Text><br /><Image src={avatarUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: '50%' }} fallback="" /></div>}
       </Form>
     </Modal>
   </>

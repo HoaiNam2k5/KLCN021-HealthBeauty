@@ -291,14 +291,14 @@ export default function AppointmentsPage() {
       canManage={false}
       onEdit={() => undefined}
       onDelete={() => undefined}
-      toolbar={<Space className="filter-bar" wrap>
-        {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
-        <Button onClick={() => { setDate(dayjs()); setPage(1) }}>Hôm nay</Button>
-        <Button icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách</Button>
+      toolbar={<>
         <DatePicker allowClear placeholder="Lọc theo ngày" format="DD/MM/YYYY" value={date} onChange={(value) => { setDate(value); setPage(1) }} />
         <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={APPOINTMENT_STATUSES.map((value) => ({ value, label: statusLabels[value] }))} />
         {canReadStaff && <Select allowClear showSearch optionFilterProp="label" placeholder="Tất cả nhân viên" style={{ width: 190, maxWidth: '100%' }} value={staffId} onChange={(value) => { setStaffId(value); setPage(1) }} options={(staff.data ?? []).map((item) => ({ value: item.nhanVienId, label: item.hoTen }))} />}
-      </Space>}
+        <Button onClick={() => { setDate(dayjs()); setPage(1) }}>Hôm nay</Button>
+        <Button icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách</Button>
+        {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
+      </>}
     />
     {canCreate && <AppointmentCreateDrawer open={createOpen} staff={staff.data ?? []} form={createForm} onClose={() => setCreateOpen(false)} onSubmit={createAppointment} busy={mutations.create.isPending} />}
     <Drawer className="responsive-drawer" title={`Chi tiết lịch hẹn #${activeAppointment?.id ?? ''}`} open={Boolean(activeAppointment)} onClose={() => setSelected(null)} width={560}>

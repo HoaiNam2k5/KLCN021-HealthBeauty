@@ -87,6 +87,7 @@ export default function ReviewsPage() {
   }
 
   const columns: ColumnsType<ReviewRow> = [
+    { title: 'STT', key: 'stt', width: 60, align: 'center', render: (_value, _record, index) => index + 1 },
     { title: 'Khách hàng', dataIndex: 'tenKhach', key: 'customer' },
     { title: 'Nhân viên', dataIndex: 'tenNhanVien', key: 'staff' },
     { title: 'Trạng thái', dataIndex: 'trangThai', key: 'status', render: (value: string) => <Tag color={value === 'ChoDuyet' ? 'gold' : 'green'}>{value === 'ChoDuyet' ? 'Chờ duyệt' : 'Đang hiển thị'}</Tag> },

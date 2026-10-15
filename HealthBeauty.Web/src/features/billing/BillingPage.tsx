@@ -92,6 +92,7 @@ export default function BillingPage() {
     label: `Lịch #${appointment.id} · ${catalogCustomers.data?.find((customer) => customer.id === appointment.customerId)?.fullName ?? `Khách #${appointment.customerId}`} · ${getAppointmentStatusPresentation(appointment.status).label}${appointment.status !== APPOINTMENT_STATUS.COMPLETED ? ' (chưa hoàn thành)' : ''}`,
   }))
   const columns: ColumnsType<Invoice> = [
+    { title: 'STT', key: 'stt', width: 60, align: 'center', render: (_value, _record, index) => index + 1 },
     { title: 'Mã hóa đơn', dataIndex: 'id', key: 'id', render: (id: number) => `#${id}` },
     { title: 'Mã lịch hẹn', dataIndex: 'appointmentId', key: 'appointmentId', render: (id: number) => `#${id}` },
     { title: 'Khách hàng', dataIndex: 'customerId', key: 'customerId', render: (id: number) => customerNames.get(id) ?? `#${id}` },
