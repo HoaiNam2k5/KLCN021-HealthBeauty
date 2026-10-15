@@ -15,7 +15,23 @@ button, input, select, textarea { font: inherit; }
 .login-card .ant-card-body { padding: 40px; }
 .login-card h2.ant-typography { margin: 28px 0 6px; font-size: 26px; font-weight: 600; }
 .login-brand, .sider-brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; }
-.brand-mark { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 12px; color: #fff; background: #8c4559; font-size: 21px; }
+.brand-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #a34e66 0%, #6d2f40 100%);
+  box-shadow: 0 4px 12px rgba(140, 69, 89, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.brand-label { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; }
+.brand-subtitle { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #df9cb0; margin-top: 2px; }
+.login-brand .brand-title { color: #252321; }
+.login-brand .brand-subtitle { color: #8c4559; }
 .login-alert { margin: 20px 0; }
 .app-layout { min-height: 100vh; min-height: 100dvh; }
 .app-main { min-width: 0; }
