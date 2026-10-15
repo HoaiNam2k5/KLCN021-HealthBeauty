@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Alert, App, Button, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography } from 'antd'
+import { PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { Appointment } from '../../types/appointments'
 import type { CreateInvoiceRequest, Invoice, PaymentRequest } from '../../types/billing'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useAuth } from '../../hooks/useAuth'
 import { useAllAppointments, useAppointmentCustomers } from '../appointments/appointmentQueries'
 import { APPOINTMENT_STATUS, getAppointmentStatusPresentation } from '../appointments/appointmentStatus'
 import { useCombos, useServices } from '../services/serviceQueries'
@@ -21,6 +23,7 @@ type PaymentFields = { method: string; status: string }
 export default function BillingPage() {
   const { message } = App.useApp()
   const { has } = usePermissions()
+  const cashierName = useAuth()?.account?.name ?? 'HealthBeauty Spa & Clinic'
   const canWrite = has('INVOICE.WRITE') && has('APPOINTMENT.READ')
   const canPay = has('PAYMENT.WRITE')
   const invoices = useInvoices()
@@ -35,6 +38,7 @@ export default function BillingPage() {
   const [status, setStatus] = useState<string>()
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [selected, setSelected] = useState<Invoice | null>(null)
+  const [receiptInvoice, setReceiptInvoice] = useState<Invoice | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm] = Form.useForm<CreateFields>()
   const [paymentForm] = Form.useForm<PaymentFields>()
@@ -52,6 +56,9 @@ export default function BillingPage() {
     try { return { value: buildInvoiceDraft(appointment, services.data ?? [], combos.data ?? []), error: null } }
     catch (error) { return { value: null, error: error instanceof Error ? error.message : 'Không thể tính hóa đơn cho lịch hẹn này.' } }
   }, [eligibleAppointments, selectedAppointmentId, services.data, combos.data])
+  const paidRevenue = list.filter((invoice) => invoice.status === INVOICE_STATUS.PAID).reduce((sum, invoice) => sum + invoice.total, 0)
+  const unpaidCount = list.filter((invoice) => invoice.status === INVOICE_STATUS.UNPAID).length
+  const printReceipt = (invoice: Invoice) => { setSelected(invoice); setReceiptInvoice(invoice) }
   const filtered = useMemo(() => list.filter((invoice) => {
     const matchesCustomer = !keyword || (customerNames.get(invoice.customerId) ?? '').toLocaleLowerCase().includes(keyword.trim().toLocaleLowerCase())
     const matchesStatus = !status || invoice.status === status
@@ -92,10 +99,18 @@ export default function BillingPage() {
     { title: 'Tạm tính', dataIndex: 'subtotal', key: 'subtotal', align: 'right', render: (value: number) => money(value) },
     { title: 'Tổng tiền', dataIndex: 'total', key: 'total', align: 'right', render: (value: number) => money(value) },
     { title: 'Thanh toán', dataIndex: 'status', key: 'status', render: (value: string) => <Tag color={value === INVOICE_STATUS.PAID ? 'success' : value === INVOICE_STATUS.UNPAID ? 'warning' : undefined}>{INVOICE_STATUS_LABELS[value] ?? value}</Tag> },
-    { title: 'Phương thức', key: 'method', render: (_, invoice) => invoice.payments.length ? invoice.payments.map((payment) => payment.method).join(', ') : '—' },
+    { title: 'Phương thức', key: 'method', render: (_, invoice) => invoice.payments.length ? invoice.payments.map((payment) => PAYMENT_METHOD_LABELS[payment.method] ?? payment.method).join(', ') : '—' },
+    { title: 'Thao tác', key: 'actions', render: (_, invoice) => <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button> },
   ]
 
+  const receiptCustomer = receiptInvoice ? customers.data?.find((customer) => customer.id === receiptInvoice.customerId) : undefined
+  const receiptPaid = receiptInvoice?.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS).reduce((sum, payment) => sum + payment.amount, 0) ?? 0
+  const receiptDiscount = receiptInvoice ? Math.max(0, receiptInvoice.subtotal - receiptInvoice.total) : 0
+  const receiptMethods = receiptInvoice?.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS).map((payment) => PAYMENT_METHOD_LABELS[payment.method] ?? payment.method).filter((value, index, values) => values.indexOf(value) === index).join(', ') || 'Chưa ghi nhận'
+  const printNow = () => window.print()
+
   return <section>
+    <style>{`@media print { body * { visibility: hidden !important; } #healthbeauty-receipt, #healthbeauty-receipt * { visibility: visible !important; } #healthbeauty-receipt { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 20mm !important; box-shadow: none !important; color: #222 !important; background: #fff !important; } .receipt-no-print { display: none !important; } @page { size: A4; margin: 0; } }`}</style>
     <div className="page-heading">
       <Typography.Title level={4} style={{ margin: 0 }}>Hóa đơn và thanh toán</Typography.Title>
       <Space className="filter-bar" wrap>
@@ -105,11 +120,17 @@ export default function BillingPage() {
         {canWrite && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo hóa đơn</Button>}
       </Space>
     </div>
+    <Space className="billing-summary" size="middle" wrap style={{ display: 'flex', marginBottom: 20 }}>
+      <Card size="small"><Statistic title="Tổng doanh thu đã thu" value={money(paidRevenue)} /></Card>
+      <Card size="small"><Statistic title="Chờ thanh toán" value={unpaidCount} /></Card>
+      <Card size="small"><Statistic title="Tổng hóa đơn" value={list.length} /></Card>
+    </Space>
     {invoices.isError && <Alert type="error" showIcon message="Không tải được danh sách hóa đơn" description={getApiErrorMessage(invoices.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     {customers.isError && <Alert type="warning" message="Không tải được tên khách hàng." style={{ marginBottom: 16 }} />}
     <div className="table-scroll-container"><Table<Invoice> className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" columns={columns} dataSource={filtered} loading={invoices.isLoading || customers.isLoading} onRow={(invoice) => ({ onClick: () => setSelected(invoice), style: { cursor: 'pointer' } })} locale={{ emptyText: <Empty description={invoices.isError ? 'Không có dữ liệu để hiển thị' : 'Chưa có hóa đơn'} /> }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (count) => `Tổng ${count} hóa đơn` }} /></div>
     <Drawer className="responsive-drawer" title={`Chi tiết hóa đơn #${selected?.id ?? ''}`} open={Boolean(selected)} onClose={() => setSelected(null)} width={640}>
       {selected && <>
+        <Space className="receipt-no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}><Button icon={<PrinterOutlined />} onClick={() => printReceipt(selected)}>In hóa đơn</Button></Space>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Lịch hẹn">#{selected.appointmentId}</Descriptions.Item>
           <Descriptions.Item label="Khách hàng">{customerNames.get(selected.customerId) ?? `#${selected.customerId}`}</Descriptions.Item>
@@ -132,6 +153,39 @@ export default function BillingPage() {
         </Form>}
       </>}
     </Drawer>
+    <Modal className="responsive-modal receipt-preview-modal" title="Xem trước phiếu thanh toán" open={receiptInvoice !== null} onCancel={() => setReceiptInvoice(null)} width={760} footer={<Space className="receipt-no-print"><Button onClick={() => setReceiptInvoice(null)}>Đóng</Button><Button type="primary" icon={<PrinterOutlined />} onClick={printNow}>In ngay (Print / PDF)</Button></Space>}>
+      {receiptInvoice && <article id="healthbeauty-receipt" style={{ maxWidth: 680, margin: '0 auto', padding: 28, color: '#333', background: '#fff', border: '1px solid #eadfd5', borderRadius: 8, fontFamily: 'Arial, sans-serif' }}>
+        <header style={{ textAlign: 'center', borderBottom: '2px solid #b88b62', paddingBottom: 18, marginBottom: 20 }}>
+          <div style={{ color: '#8b6448', fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>HEALTHBEAUTY SPA &amp; CLINIC</div>
+          <div style={{ marginTop: 6 }}>140 Lê Trọng Tấn, Tây Thạnh, Tân Phú, TP. Hồ Chí Minh</div>
+          <div>Hotline: 1900 6868 | Email: cskh@healthbeauty.vn</div>
+          <h1 style={{ fontSize: 21, margin: '24px 0 8px', letterSpacing: 1 }}>PHIẾU THANH TOÁN DỊCH VỤ</h1>
+          <div>Số hóa đơn: <strong>#HD-{receiptInvoice.id}</strong>　|　Ngày lập: {dayjs(receiptInvoice.createdAt).format('DD/MM/YYYY HH:mm')}</div>
+        </header>
+        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 18 }}>
+          <div><strong>Khách hàng:</strong> {receiptCustomer?.fullName ?? customerNames.get(receiptInvoice.customerId) ?? `#${receiptInvoice.customerId}`}</div><div><strong>Số điện thoại:</strong> {receiptCustomer?.phone || '—'}</div>
+          <div><strong>Mã lịch hẹn:</strong> #{receiptInvoice.appointmentId}</div><div><strong>Thu ngân / Người lập:</strong> {cashierName}</div>
+        </section>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18 }}>
+          <thead><tr>{['STT', 'Tên dịch vụ / combo', 'Số lượng', 'Đơn giá', 'Thành tiền'].map((header) => <th key={header} style={{ borderBottom: '1px solid #b88b62', padding: 9, textAlign: header === 'Tên dịch vụ / combo' ? 'left' : 'right' }}>{header}</th>)}</tr></thead>
+          <tbody>{receiptInvoice.items.map((item, index) => {
+            const name = item.serviceName ?? item.comboName ?? (item.serviceId !== null ? services.data?.find((service) => service.id === item.serviceId)?.name : null) ?? (item.comboId !== null ? combos.data?.find((combo) => combo.id === item.comboId)?.name : null) ?? 'Dịch vụ / combo'
+            return <tr key={item.id}><td style={{ borderBottom: '1px solid #eee', padding: 9, textAlign: 'right' }}>{index + 1}</td><td style={{ borderBottom: '1px solid #eee', padding: 9 }}>{name}</td><td style={{ borderBottom: '1px solid #eee', padding: 9, textAlign: 'right' }}>{item.quantity}</td><td style={{ borderBottom: '1px solid #eee', padding: 9, textAlign: 'right' }}>{money(item.unitPrice)}</td><td style={{ borderBottom: '1px solid #eee', padding: 9, textAlign: 'right' }}>{money(item.quantity * item.unitPrice)}</td></tr>
+          })}</tbody>
+        </table>
+        <section style={{ marginLeft: 'auto', maxWidth: 340, lineHeight: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tạm tính:</span><span>{money(receiptInvoice.subtotal)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Giảm giá voucher / Đổi điểm thưởng:</span><span>-{money(receiptDiscount)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #b88b62', paddingTop: 5, fontSize: 18, fontWeight: 700 }}><span>TỔNG TIỀN PHẢI TRẢ:</span><span>{money(receiptInvoice.total)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Đã thanh toán:</span><span>{money(receiptPaid)} ({receiptMethods})</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>Trạng thái:</span><Tag color={receiptInvoice.status === INVOICE_STATUS.PAID ? 'success' : 'warning'}>{(INVOICE_STATUS_LABELS[receiptInvoice.status] ?? receiptInvoice.status).toLocaleUpperCase('vi-VN')}</Tag></div>
+        </section>
+        <footer style={{ marginTop: 34, textAlign: 'center' }}>
+          <em>Cảm ơn quý khách đã tin tưởng và đồng hành cùng HealthBeauty!</em>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 28 }}><div><strong>Khách hàng</strong><div style={{ color: '#777', marginTop: 5 }}>(Ký, ghi rõ họ tên)</div><div style={{ height: 70 }} /></div><div><strong>Thu ngân/Lễ tân</strong><div style={{ color: '#777', marginTop: 5 }}>(Ký, ghi rõ họ tên)</div><div style={{ height: 70 }} /><strong>{cashierName}</strong></div></div>
+        </footer>
+      </article>}
+    </Modal>
     <Modal className="responsive-modal" title="Tạo hóa đơn từ lịch hẹn" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createInvoice.isPending} okButtonProps={{ disabled: !draft.value || invoices.isError || appointments.isError || services.isError || combos.isError || services.isLoading || combos.isLoading || appointments.isLoading || invoices.isLoading }} destroyOnClose>
       <Form className="responsive-form" form={createForm} layout="vertical" onFinish={(values: CreateFields) => void submitCreate(values)}>
         <Form.Item name="appointmentId" label="Lịch hẹn đã hoàn thành" rules={[{ required: true, message: 'Vui lòng chọn lịch hẹn' }]}><Select showSearch optionFilterProp="label" options={appointmentOptions} loading={appointments.isLoading || invoices.isLoading} placeholder="Chọn lịch hẹn chưa có hóa đơn" /></Form.Item>
