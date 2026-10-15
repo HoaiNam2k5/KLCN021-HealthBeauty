@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { App as AntApp, Button, DatePicker, Form, Modal, Select, Space, TimePicker, Typography } from 'antd'
+import { App as AntApp, Button, DatePicker, Form, Modal, Select, Space, Tag, TimePicker, Typography } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -10,7 +10,8 @@ import type { WorkSchedule, WorkScheduleRequest } from '../../types/workSchedule
 import { hasScheduleConflict } from '../../types/workSchedules'
 import { useDeleteWorkSchedule, useSaveWorkSchedule, useScheduleStaff, useWorkSchedules } from './scheduleQueries'
 
-interface FormValues { staffId: number; workDate: Dayjs; startAt: Dayjs; endAt: Dayjs }
+interface FormValues { staffId: number; workDate: Dayjs; startAt: Dayjs; endAt: Dayjs; status: string }
+const scheduleStatuses = [{ value: 'HoatDong', label: 'Hoạt động' }, { value: 'NghiPhep', label: 'Nghỉ phép' }, { value: 'Vang', label: 'Vắng' }]
 const weekStart = dayjs().startOf('week')
 
 export default function WorkSchedulesPage() {
@@ -18,6 +19,7 @@ export default function WorkSchedulesPage() {
   const [editing, setEditing] = useState<WorkSchedule | null>(null)
   const [open, setOpen] = useState(false)
   const [staffId, setStaffId] = useState<number | undefined>()
+  const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const [week, setWeek] = useState(weekStart)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -32,13 +34,13 @@ export default function WorkSchedulesPage() {
   const save = useSaveWorkSchedule()
   const remove = useDeleteWorkSchedule()
   const schedules = query.data ?? []
-  const data = [...schedules].sort((a, b) => a.ngayLam.localeCompare(b.ngayLam) || a.gioBatDau.localeCompare(b.gioBatDau))
+  const data = [...schedules].filter((schedule) => !statusFilter || (schedule.trangThai || 'HoatDong') === statusFilter).sort((a, b) => a.ngayLam.localeCompare(b.ngayLam) || a.gioBatDau.localeCompare(b.gioBatDau))
   const staffOptions = (staffQuery.data ?? []).map((staff) => ({ value: staff.nhanVienId, label: staff.hoTen }))
 
   function openForm(record?: WorkSchedule) {
     if (!canManage) return
     setEditing(record ?? null)
-    form.setFieldsValue({ staffId: record?.nhanVienId ?? staffId, workDate: dayjs(record?.ngayLam ?? week.format('YYYY-MM-DD')), startAt: dayjs(`2000-01-01T${record?.gioBatDau ?? '09:00:00'}`), endAt: dayjs(`2000-01-01T${record?.gioKetThuc ?? '18:00:00'}`) })
+    form.setFieldsValue({ staffId: record?.nhanVienId ?? staffId, workDate: dayjs(record?.ngayLam ?? week.format('YYYY-MM-DD')), startAt: dayjs(`2000-01-01T${record?.gioBatDau ?? '09:00:00'}`), endAt: dayjs(`2000-01-01T${record?.gioKetThuc ?? '18:00:00'}`), status: record?.trangThai || 'HoatDong' })
     setOpen(true)
   }
 
@@ -50,7 +52,7 @@ export default function WorkSchedulesPage() {
       form.setFields([{ name: 'endAt', errors: ['Giờ kết thúc phải sau giờ bắt đầu.'] }])
       return
     }
-    const body: WorkScheduleRequest = { staffId: values.staffId, workDate: values.workDate.format('YYYY-MM-DD'), startAt, endAt, status: editing?.trangThai || 'HoatDong' }
+    const body: WorkScheduleRequest = { staffId: values.staffId, workDate: values.workDate.format('YYYY-MM-DD'), startAt, endAt, status: values.status || 'HoatDong' }
     if (hasScheduleConflict(schedules, body, editing?.id)) {
       message.error('Ca làm bị trùng với một ca khác của nhân viên trong ngày này.')
       return
@@ -79,10 +81,11 @@ export default function WorkSchedulesPage() {
       { title: 'Nhân viên', dataIndex: 'staffName', key: 'staffName' },
       { title: 'Giờ bắt đầu', dataIndex: 'gioBatDau', key: 'gioBatDau', render: (value: string) => value.slice(0, 5) },
       { title: 'Giờ kết thúc', dataIndex: 'gioKetThuc', key: 'gioKetThuc', render: (value: string) => value.slice(0, 5) },
-      { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai' },
+      { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (value: string) => value === 'NghiPhep' ? <Tag color="warning">Nghỉ phép</Tag> : value === 'Vang' ? <Tag color="error">Vắng / Nghỉ</Tag> : <Tag color="success">Hoạt động</Tag> },
     ]} data={data} loading={query.isLoading || staffQuery.isLoading} error={query.isError || staffQuery.isError} page={page} pageSize={pageSize} onPageChange={(next, size) => { setPage(next); setPageSize(size) }} canManage={canManage} onEdit={openForm} onDelete={deleteRecord}
     onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')} onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}
     toolbar={<Space className="filter-bar" wrap>
+      <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={statusFilter} options={scheduleStatuses} onChange={(value: string | undefined) => { setStatusFilter(value); setPage(1) }} />
       {!own && <Select allowClear placeholder="Tất cả nhân viên" style={{ width: 210, maxWidth: '100%' }} value={staffId} options={staffOptions} onChange={(value: number | undefined) => { setStaffId(value); setPage(1) }} />}
       <Space className="page-toolbar" wrap><Button onClick={() => setWeek((current) => current.subtract(1, 'week'))}>Tuần trước</Button><Typography.Text>{week.startOf('week').format('DD/MM')} – {week.endOf('week').format('DD/MM/YYYY')}</Typography.Text><Button onClick={() => setWeek((current) => current.add(1, 'week'))}>Tuần sau</Button></Space>
       {canManage && <Button type="primary" onClick={() => openForm()}>Thêm ca làm</Button>}
@@ -94,6 +97,11 @@ export default function WorkSchedulesPage() {
         <Form.Item name="workDate" label="Ngày làm" rules={[{ required: true, message: 'Vui lòng chọn ngày làm.' }]}><DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="startAt" label="Giờ bắt đầu" rules={[{ required: true, message: 'Vui lòng chọn giờ bắt đầu.' }]}><TimePicker format="HH:mm" minuteStep={15} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="endAt" label="Giờ kết thúc" rules={[{ required: true, message: 'Vui lòng chọn giờ kết thúc.' }]}><TimePicker format="HH:mm" minuteStep={15} style={{ width: '100%' }} /></Form.Item>
+        <Form.Item name="status" label="Trạng thái ca làm" rules={[{ required: true, message: 'Vui lòng chọn trạng thái ca làm.' }]}><Select options={[
+          { value: 'HoatDong', label: 'Hoạt động (Làm việc bình thường)' },
+          { value: 'NghiPhep', label: 'Nghỉ phép' },
+          { value: 'Vang', label: 'Vắng / Nghỉ' },
+        ]} /></Form.Item>
       </Form>
     </Modal>
   </>

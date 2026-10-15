@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Alert, App, Button, Card, Col, Popconfirm, Rate, Row, Segmented, Select, Space, Table, Tag, Typography } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Alert, App, Button, Card, Col, Form, Input, Modal, Popconfirm, Rate, Row, Segmented, Select, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -9,11 +9,15 @@ import { useAllAppointments } from '../appointments/appointmentQueries'
 import { usePendingReviews, useReviewCustomers, useReviewInvoices, useReviews, useReviewStaff, useSetReviewVisibility } from './reviewQueries'
 
 interface ReviewRow extends Review { tenKhach: string; tenNhanVien: string }
+const reviewRepliesKey = 'healthbeauty.reviewReplies'
 
 export default function ReviewsPage() {
   const [view, setView] = useState<'HienThi' | 'ChoDuyet'>('ChoDuyet')
   const [rating, setRating] = useState<number | undefined>()
   const [customerSearch, setCustomerSearch] = useState('')
+  const [replies, setReplies] = useState<Record<number, string>>({})
+  const [replyingTo, setReplyingTo] = useState<ReviewRow | null>(null)
+  const [replyForm] = Form.useForm<{ reply: string }>()
   const { message } = App.useApp()
   const { has } = usePermissions()
   const canModerate = has('REVIEW.MODERATE')
@@ -25,6 +29,21 @@ export default function ReviewsPage() {
   const customers = useReviewCustomers(has('CUSTOMER.READ'))
   const staff = useReviewStaff(has('STAFF.READ'))
   const visibility = useSetReviewVisibility()
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(reviewRepliesKey)
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored)
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          const entries = Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+          setReplies(Object.fromEntries(entries.map(([id, text]) => [Number(id), text])))
+        }
+      }
+    } catch {
+      setReplies({})
+    }
+  }, [])
 
   const rows = useMemo<ReviewRow[]>(() => {
     const invoiceMap = new Map((invoices.data ?? []).map((item) => [item.id, item]))
@@ -43,6 +62,20 @@ export default function ReviewsPage() {
   const average = rows.length ? rows.reduce((sum, review) => sum + review.soSao, 0) / rows.length : 0
   const hasError = reviews.isError || invoices.isError || appointments.isError || customers.isError || staff.isError
 
+  function submitReply(values: { reply: string }) {
+    if (!replyingTo) return
+    const next = { ...replies, [replyingTo.danhGiaId]: values.reply.trim() }
+    try {
+      localStorage.setItem(reviewRepliesKey, JSON.stringify(next))
+      setReplies(next)
+      setReplyingTo(null)
+      replyForm.resetFields()
+      message.success('Đã gửi phản hồi đánh giá thành công!')
+    } catch {
+      message.error('Không thể lưu phản hồi trên trình duyệt này.')
+    }
+  }
+
   async function moderate(record: ReviewRow, visible: boolean) {
     if (!canModerate) return
     try {
@@ -58,11 +91,12 @@ export default function ReviewsPage() {
     { title: 'Nhân viên', dataIndex: 'tenNhanVien', key: 'staff' },
     { title: 'Trạng thái', dataIndex: 'trangThai', key: 'status', render: (value: string) => <Tag color={value === 'ChoDuyet' ? 'gold' : 'green'}>{value === 'ChoDuyet' ? 'Chờ duyệt' : 'Đang hiển thị'}</Tag> },
     { title: 'Số sao', dataIndex: 'soSao', key: 'stars', render: (value: number) => <Rate disabled value={value} /> },
-    { title: 'Bình luận', dataIndex: 'binhLuan', key: 'comment', render: (value: string | null) => value || '—' },
+    { title: 'Bình luận', dataIndex: 'binhLuan', key: 'comment', render: (value: string | null, record: ReviewRow) => <Space direction="vertical" size={4}><span>{value || '—'}</span>{replies[record.danhGiaId] && <Typography.Text type="secondary">[Phản hồi từ Spa]: “{replies[record.danhGiaId]}”</Typography.Text>}</Space> },
     { title: 'Ngày đánh giá', dataIndex: 'ngayDanhGia', key: 'date', render: (value: string) => value && dayjs(value).isValid() ? dayjs(value).format('DD/MM/YYYY HH:mm') : '—' },
     ...(canModerate ? [{ title: 'Thao tác', key: 'actions', render: (_value: unknown, record: ReviewRow) => <Space>
       <Popconfirm title="Ẩn đánh giá này?" okText="Ẩn" cancelText="Hủy" onConfirm={() => void moderate(record, false)}><Button loading={visibility.isPending}>Ẩn</Button></Popconfirm>
       {record.trangThai === 'ChoDuyet' && <Popconfirm title="Duyệt hiển thị đánh giá này?" okText="Duyệt" cancelText="Hủy" onConfirm={() => void moderate(record, true)}><Button type="primary" loading={visibility.isPending}>Duyệt</Button></Popconfirm>}
+      <Button onClick={() => { replyForm.setFieldsValue({ reply: replies[record.danhGiaId] ?? '' }); setReplyingTo(record) }}>Phản hồi</Button>
     </Space> }] : []),
   ]
 
@@ -81,5 +115,20 @@ export default function ReviewsPage() {
         <Select allowClear placeholder="Lọc theo số sao" value={rating} onChange={(value: number | undefined) => setRating(value)} options={[1, 2, 3, 4, 5].map((value) => ({ value, label: `${value} sao` }))} style={{ width: 170, maxWidth: '100%' }} />
         <input aria-label="Tìm theo tên khách" placeholder="Tìm theo tên khách" value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} style={{ maxWidth: '100%', padding: '6px 10px', border: '1px solid #dedbd6', borderRadius: 4, font: 'inherit' }} />
       </Space>
-      {reviews.isLoading ? <div role="status">Đang tải đánh giá…</div> : <Table<ReviewRow> className="responsive-table" rowKey="danhGiaId" scroll={{ x: 'max-content' }} columns={columns} dataSource={filtered} loading={reviews.isFetching} locale={{ emptyText: 'Chưa có đánh giá' }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true }} />}</Space></section>
+      {reviews.isLoading ? <div role="status">Đang tải đánh giá…</div> : <Table<ReviewRow> className="responsive-table" rowKey="danhGiaId" scroll={{ x: 'max-content' }} columns={columns} dataSource={filtered} loading={reviews.isFetching} locale={{ emptyText: 'Chưa có đánh giá' }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true }} />}</Space>
+    <Modal className="responsive-modal" title={`Phản hồi đánh giá của khách hàng ${replyingTo?.tenKhach ?? ''}`} open={Boolean(replyingTo)} onCancel={() => { setReplyingTo(null); replyForm.resetFields() }} footer={null} destroyOnClose>
+      {replyingTo && <>
+        <Space direction="vertical" style={{ display: 'flex', marginBottom: 16 }}>
+          <Typography.Text>Số sao của khách: <Rate disabled value={replyingTo.soSao} /></Typography.Text>
+          <Typography.Text type="secondary">Bình luận: {replyingTo.binhLuan || 'Không có bình luận'}</Typography.Text>
+        </Space>
+        <Form form={replyForm} layout="vertical" onFinish={submitReply}>
+          <Form.Item name="reply" label="Nội dung phản hồi của HealthBeauty Spa & Clinic" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập nội dung phản hồi.' }]}>
+            <Input.TextArea rows={4} maxLength={2000} showCount placeholder="Dạ HealthBeauty cảm ơn quý khách đã tin tưởng và sử dụng dịch vụ..." />
+          </Form.Item>
+          <Space><Button type="primary" htmlType="submit">Gửi phản hồi</Button><Button onClick={() => { setReplyingTo(null); replyForm.resetFields() }}>Hủy</Button></Space>
+        </Form>
+      </>}
+    </Modal>
+    </section>
 }
