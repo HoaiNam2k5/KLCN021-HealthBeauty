@@ -171,7 +171,7 @@ public sealed class BookingValidationRegressionTests
         db.Lichhens.AddRange(new Lichhen { LichHenId = 1, KhachHangId = 1, NhanVienId = 1, NgayGioHen = Day, TrangThai = "ChoXacNhan" },
             new Lichhen { LichHenId = 2, KhachHangId = 1, NhanVienId = 2, NgayGioHen = Day, TrangThai = "ChoXacNhan" });
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-        var controller = AsUser(new StaffController(db), missingProfile ? 999 : 3, "Staff");
+        var controller = AsUser(new StaffController(db, new HealthBeauty.Api.Services.PasswordService()), missingProfile ? 999 : 3, "Staff");
         var appointments = await controller.MyAppointments(default);
         var schedules = await controller.MySchedules(null, null, default);
         if (missingProfile)

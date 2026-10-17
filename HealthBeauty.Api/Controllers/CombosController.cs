@@ -25,7 +25,7 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
         return item is null ? NotFound() : Ok(Map(item));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost]
     public async Task<IActionResult> Create(ComboRequest request, CancellationToken ct)
     {
         if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidTo < request.ValidFrom) return BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
@@ -41,7 +41,7 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
         return CreatedAtAction(nameof(Get), new { id = item.ComboId }, Map(item));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, ComboRequest request, CancellationToken ct)
     {
         var item = await db.Combodichvus.Include(x => x.Chitietcombos).FirstOrDefaultAsync(x => x.ComboId == id, ct); if (item is null) return NotFound();
@@ -65,7 +65,7 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
         return Ok(Map(updated));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("{id:int}")]
     public async Task<IActionResult> Deactivate(int id, CancellationToken ct)
     {
         var item = await db.Combodichvus.FindAsync([id], ct); if (item is null) return NotFound(); item.TrangThai = false; await db.SaveChangesAsync(ct); return NoContent();

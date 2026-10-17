@@ -11,6 +11,18 @@ namespace HealthBeauty.Api.Controllers;
 [ApiController, Route("api/v1/auth")]
 public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordService passwords, ITokenService tokens, IConfiguration config) : ControllerBase
 {
+    [Authorize, HttpGet("permissions")]
+    public async Task<IActionResult> CurrentPermissions(CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId)) return Unauthorized();
+        var now = DateTime.UtcNow;
+        var account = await db.Taikhoans.AsNoTracking().Include(x => x.VaiTro).FirstOrDefaultAsync(x => x.TaiKhoanId == accountId && x.TrangThai && (!x.KhoaDen.HasValue || x.KhoaDen <= now), ct);
+        if (account is null) return Unauthorized();
+        var codes = await db.VaitroQuyens.AsNoTracking().Where(x => x.VaiTroId == account.VaiTroId && x.DuocCap && x.Quyen.TrangThai)
+            .Select(x => x.Quyen.MaQuyen).Distinct().OrderBy(x => x).ToListAsync(ct);
+        return Ok(new CurrentPermissionsResponse(account.VaiTro.TenVaiTro, codes));
+    }
+
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
     {

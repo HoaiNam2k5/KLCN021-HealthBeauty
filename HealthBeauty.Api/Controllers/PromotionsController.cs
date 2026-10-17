@@ -15,7 +15,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await db.Khuyenmais.AsNoTracking().Where(x => (!x.NgayBatDauHieuLuc.HasValue || x.NgayBatDauHieuLuc <= DateTime.Now) && (!x.NgayKetThucHieuLuc.HasValue || x.NgayKetThucHieuLuc >= DateTime.Now))
         .OrderBy(x => x.NgayKetThucHieuLuc).Select(x => new { x.KhuyenMaiId, x.TenKhuyenMai, x.LoaiGiam, x.MucGiam, x.DieuKienApDung, x.NgayBatDauHieuLuc, x.NgayKetThucHieuLuc }).ToListAsync(ct));
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost]
     public async Task<IActionResult> Create(PromotionRequest request, CancellationToken ct)
     {
         if (request.StartsAt.HasValue && request.EndsAt.HasValue && request.EndsAt < request.StartsAt) return BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
@@ -24,7 +24,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         db.Khuyenmais.Add(item); await db.SaveChangesAsync(ct); return Created($"api/v1/promotions/{item.KhuyenMaiId}", item);
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, PromotionRequest request, CancellationToken ct)
     {
         var item = await db.Khuyenmais.FindAsync([id], ct); if (item is null) return NotFound();
@@ -34,7 +34,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         await db.SaveChangesAsync(ct); return Ok(item);
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct) { var item=await db.Khuyenmais.FindAsync([id],ct); if(item is null)return NotFound(); if(await db.Vouchers.AnyAsync(x=>x.KhuyenMaiId==id,ct))return Conflict("Khuyến mãi còn voucher tham chiếu."); db.Khuyenmais.Remove(item); await db.SaveChangesAsync(ct); return NoContent(); }
 
     [Authorize, HttpPost("vouchers/validate")]
@@ -46,7 +46,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         return voucher is null ? NotFound(new { Valid = false }) : Ok(new { Valid = true, voucher.MaCode, voucher.GiaTriGiam, voucher.HanSuDung, voucher.KhuyenMai.TenKhuyenMai });
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost("vouchers")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("vouchers")]
     public async Task<IActionResult> CreateVoucher(VoucherRequest request, CancellationToken ct)
     {
         var validation = await ValidateVoucherRequest(request, null, ct);
@@ -56,7 +56,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         db.Vouchers.Add(voucher); await db.SaveChangesAsync(ct); return Created("api/v1/promotions/vouchers/" + voucher.VoucherId, new { voucher.VoucherId,voucher.MaCode,voucher.KhuyenMaiId,voucher.KhachHangId,voucher.GiaTriGiam,voucher.HanSuDung,voucher.TrangThai });
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpGet("~/api/v1/vouchers")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpGet("~/api/v1/vouchers")]
     public async Task<IActionResult> ListVouchers([FromQuery] string? keyword, [FromQuery] bool? active, CancellationToken ct)
     {
         var query = db.Vouchers.AsNoTracking().Include(x => x.KhuyenMai).Include(x => x.KhachHang).AsQueryable();
@@ -67,7 +67,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
             .ToListAsync(ct));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("vouchers/{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("vouchers/{id:int}")]
     public async Task<IActionResult> UpdateVoucher(int id, VoucherRequest request, CancellationToken ct)
     {
         var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound();
@@ -85,9 +85,9 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db) : Contro
         if(await db.Vouchers.AnyAsync(x=>x.MaCode==code && (!excludedId.HasValue || x.VoucherId!=excludedId.Value),ct)) return Conflict("Voucher code already exists.");
         return null;
     }
-    [Authorize(Roles = "Admin,Manager"), HttpPatch("vouchers/{id:int}/status")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPatch("vouchers/{id:int}/status")]
     public async Task<IActionResult> VoucherStatus(int id, [FromQuery] bool active, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=active; await db.SaveChangesAsync(ct); return NoContent(); }
-    [Authorize(Roles = "Admin,Manager"), HttpDelete("vouchers/{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("vouchers/{id:int}")]
     public async Task<IActionResult> DeleteVoucher(int id, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
 }
 
@@ -115,12 +115,12 @@ public sealed class ReviewsController(Klcn021HealthBeautyContext db) : Controlle
         db.Danhgia.Add(review); await db.SaveChangesAsync(ct); return Created($"api/v1/reviews/{review.DanhGiaId}", new { review.DanhGiaId, review.HoaDonId, review.SoSao, review.BinhLuan, review.TrangThai });
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpGet("pending")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpGet("pending")]
     public async Task<IActionResult> Pending(CancellationToken ct) => Ok(await db.Danhgia.AsNoTracking()
         .Where(x => x.TrangThai == "ChoDuyet").OrderBy(x => x.NgayDanhGia)
         .Select(x => new { x.DanhGiaId,x.HoaDonId,x.SoSao,x.BinhLuan,x.NgayDanhGia,x.TrangThai }).Take(200).ToListAsync(ct));
 
-    [Authorize(Roles = "Admin,Manager"), HttpPatch("{id:int}/moderation")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPatch("{id:int}/moderation")]
     public async Task<IActionResult> Moderate(int id, [FromQuery] bool visible, CancellationToken ct)
     {
         var review = await db.Danhgia.FindAsync([id], ct); if (review is null) return NotFound(); review.TrangThai = visible ? "HienThi" : "An"; await db.SaveChangesAsync(ct); return NoContent();
