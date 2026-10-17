@@ -76,7 +76,7 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
     {
         var hash = tokens.HashRefreshToken(request.RefreshToken);
         var stored = await db.Refreshtokens.Include(x => x.TaiKhoan).ThenInclude(x => x.VaiTro).FirstOrDefaultAsync(x => x.TokenHash == hash && x.RevokedAt == null, cancellationToken);
-        if (stored is null || stored.ExpiresAt <= DateTime.UtcNow || !stored.TaiKhoan.TrangThai || stored.TaiKhoan.KhoaDen > DateTime.UtcNow) return Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
+        if (stored is null || stored.ExpiresAt <= DateTime.UtcNow || stored.SecurityStamp != stored.TaiKhoan.SecurityStamp || !stored.TaiKhoan.TrangThai || stored.TaiKhoan.KhoaDen > DateTime.UtcNow) return Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
         stored.RevokedAt = DateTime.UtcNow; stored.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
         await db.SaveChangesAsync(cancellationToken);
         return Ok(await IssueTokens(stored.TaiKhoan, cancellationToken));
@@ -96,7 +96,7 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
     {
         var access = tokens.CreateAccessToken(account); var refresh = tokens.CreateRefreshToken();
         var days = config.GetSection("Jwt").GetValue<int>("RefreshTokenDays", 14);
-        db.Refreshtokens.Add(new Refreshtoken { TaiKhoanId = account.TaiKhoanId, TokenHash = tokens.HashRefreshToken(refresh), CreatedAt = DateTime.UtcNow, ExpiresAt = DateTime.UtcNow.AddDays(days), CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString() });
+        db.Refreshtokens.Add(new Refreshtoken { TaiKhoanId = account.TaiKhoanId, SecurityStamp = account.SecurityStamp, TokenHash = tokens.HashRefreshToken(refresh), CreatedAt = DateTime.UtcNow, ExpiresAt = DateTime.UtcNow.AddDays(days), CreatedByIp = HttpContext.Connection.RemoteIpAddress?.ToString() });
         await db.SaveChangesAsync(cancellationToken);
         return new AuthResponse(access.Token, refresh, access.ExpiresAt, new AccountResponse(account.TaiKhoanId, account.Email, account.TenTaiKhoan, account.VaiTro?.TenVaiTro ?? "Customer"));
     }

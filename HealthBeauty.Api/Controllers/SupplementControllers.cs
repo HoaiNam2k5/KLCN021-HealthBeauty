@@ -9,8 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace HealthBeauty.Api.Controllers;
 
 [ApiController, Authorize, Route("api/v1/appointments")]
-public sealed class AppointmentManagementController(Klcn021HealthBeautyContext db) : ControllerBase
+public sealed class AppointmentManagementController(Klcn021HealthBeautyContext db, INotificationService? notifications = null) : ControllerBase
 {
+    private INotificationService Notifications => notifications ?? new NotificationService(db);
     [HttpGet("{id:int}")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
@@ -41,7 +42,9 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             return Conflict("Khách hàng hoặc nhân viên đã có lịch hẹn trong khoảng thời gian này.");
         if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, ct))
             return BadRequest("The entire appointment must be within the selected staff member's working shift.");
-        item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim(); await db.SaveChangesAsync(ct); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
+        item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim();
+        await NotificationEvents.AppointmentAsync(Notifications, item, "Rescheduled", ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
     }
 
     [HttpPatch("{id:int}/status")]
@@ -64,7 +67,9 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             _ => Array.Empty<string>()
         };
         if (!nextStatuses.Contains(request.Status)) return Conflict("Invalid appointment status transition.");
-        item.TrangThai = request.Status; await db.SaveChangesAsync(ct); return NoContent();
+        item.TrangThai = request.Status;
+        await NotificationEvents.AppointmentAsync(Notifications, item, request.Status, ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return NoContent();
     }
 
     [HttpPost("{id:int}/reschedule")]
@@ -84,7 +89,8 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, ct))
             return BadRequest("The entire appointment must be within the selected staff member's working shift.");
         item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim();
-        await db.SaveChangesAsync(ct); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
+        await NotificationEvents.AppointmentAsync(Notifications, item, "Rescheduled", ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
     }
 
     [HttpDelete("{id:int}")]
@@ -94,7 +100,9 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!); var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
         if (customerId != item.KhachHangId && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
         if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan" or "DaDen")) return Conflict("This appointment can no longer be cancelled.");
-        item.TrangThai = "DaHuy"; await db.SaveChangesAsync(ct); return NoContent();
+        item.TrangThai = "DaHuy";
+        await NotificationEvents.AppointmentAsync(Notifications, item, "DaHuy", ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return NoContent();
     }
 
     [AllowAnonymous, HttpGet("available-slots"), HttpGet("availability")]

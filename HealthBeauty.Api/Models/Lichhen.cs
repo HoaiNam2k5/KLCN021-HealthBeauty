@@ -1,10 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
 
 public partial class Lichhen
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public byte[]? RowVersion { get; set; }
+
     public int LichHenId { get; set; }
 
     public int KhachHangId { get; set; }

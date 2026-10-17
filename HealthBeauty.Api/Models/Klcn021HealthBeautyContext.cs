@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +14,8 @@ public partial class Klcn021HealthBeautyContext : DbContext
         : base(options)
     {
     }
+
+    public virtual DbSet<PasswordResetChallenge> PasswordResetChallenges { get; set; }
 
     public virtual DbSet<Auditlog> Auditlogs { get; set; }
 
@@ -216,6 +218,8 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.HasKey(e => e.DanhGiaId);
 
             entity.ToTable("DANHGIA");
+
+            entity.HasIndex(e => e.HoaDonId, "UX_DANHGIA_HoaDonID").IsUnique();
 
             entity.Property(e => e.DanhGiaId).HasColumnName("DanhGiaID");
             entity.Property(e => e.BinhLuan).HasMaxLength(1000);
@@ -467,6 +471,7 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.HasIndex(e => e.TokenHash, "UQ_REFRESHTOKEN_Hash").IsUnique();
 
             entity.Property(e => e.RefreshTokenId).HasColumnName("RefreshTokenID");
+            entity.Property(e => e.SecurityStamp).HasMaxLength(32).IsUnicode(false);
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysdatetime())");
@@ -492,6 +497,21 @@ public partial class Klcn021HealthBeautyContext : DbContext
                 .HasConstraintName("FK_REFRESHTOKEN_TAIKHOAN");
         });
 
+        modelBuilder.Entity<PasswordResetChallenge>(entity =>
+        {
+            entity.ToTable("PASSWORDRESETCHALLENGE", table => {
+                table.HasCheckConstraint("CK_PASSWORDRESET_Attempts", "[Attempts] BETWEEN 0 AND 5");
+                table.HasCheckConstraint("CK_PASSWORDRESET_SendCount", "[SendCount] BETWEEN 0 AND 5");
+            });
+            entity.HasKey(x => x.TaiKhoanId);
+            entity.Property(x => x.TaiKhoanId).HasColumnName("TaiKhoanID").ValueGeneratedNever();
+            entity.Property(x => x.ChallengeId).HasMaxLength(32).IsUnicode(false);
+            entity.Property(x => x.Version).HasMaxLength(32).IsUnicode(false).IsConcurrencyToken();
+            entity.Property(x => x.OtpHash).HasMaxLength(64).IsUnicode(false);
+            entity.Property(x => x.SecurityStampAtIssue).HasMaxLength(32).IsUnicode(false);
+            entity.HasOne(x => x.TaiKhoan).WithOne().HasForeignKey<PasswordResetChallenge>(x => x.TaiKhoanId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Taikhoan>(entity =>
         {
             entity.ToTable("TAIKHOAN");
@@ -511,6 +531,7 @@ public partial class Klcn021HealthBeautyContext : DbContext
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.TenTaiKhoan).HasMaxLength(100);
+            entity.Property(e => e.SecurityStamp).HasMaxLength(32).IsUnicode(false);
             entity.Property(e => e.TrangThai).HasDefaultValue(true);
             entity.Property(e => e.VaiTroId).HasColumnName("VaiTroID");
 

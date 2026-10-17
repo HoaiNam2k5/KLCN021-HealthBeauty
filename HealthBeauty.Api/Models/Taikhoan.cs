@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
@@ -10,6 +10,8 @@ public partial class Taikhoan
     public int VaiTroId { get; set; }
 
     public string? TenTaiKhoan { get; set; }
+
+    public string? SecurityStamp { get; set; }
 
     public string MatKhauHash { get; set; } = null!;
 

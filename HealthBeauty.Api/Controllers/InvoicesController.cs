@@ -9,8 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace HealthBeauty.Api.Controllers;
 
 [ApiController, Authorize, Route("api/v1/invoices")]
-public sealed class InvoicesController(Klcn021HealthBeautyContext db) : ControllerBase
+public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificationService? notifications = null) : ControllerBase
 {
+    private INotificationService Notifications => notifications ?? new NotificationService(db);
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -89,7 +90,8 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db) : Controll
         if (invoice.TongTienSauGiam == 0)
         {
             invoice.TrangThai = "DaThanhToan";
-            await db.SaveChangesAsync(ct);
+            await NotificationEvents.PaidAsync(Notifications, invoice, 0, ct);
+            if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Hóa đơn vừa được cập nhật hoặc thanh toán. Vui lòng tải lại dữ liệu.");
             return Ok(new { InvoiceId = invoice.HoaDonId, Status = invoice.TrangThai, Amount = 0m, PaymentRequired = false });
         }
         var payment = new Thanhtoan { HoaDonId = invoice.HoaDonId, PhuongThuc = request.Method.Trim(), SoTien = invoice.TongTienSauGiam, NgayGioThanhToan = DateTime.Now, TrangThai = "ThanhCong" };
@@ -97,7 +99,8 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db) : Controll
         var customer = await db.Khachhangs.FirstAsync(x => x.KhachHangId == invoice.KhachHangId, ct);
         var earned = decimal.ToInt32(decimal.Floor(invoice.TongTienSauGiam / 10000m));
         if (earned > 0) { customer.DiemThuong += earned; db.Giaodichdiems.Add(new Giaodichdiem { KhachHangId = customer.KhachHangId, HoaDonId = invoice.HoaDonId, SoDiem = earned, LoaiGiaoDich = "TichLuy", NgayGiaoDich = DateTime.Now, GhiChu = "Tích điểm thanh toán" }); }
-        await db.SaveChangesAsync(ct);
+        await NotificationEvents.PaidAsync(Notifications, invoice, earned, ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Hóa đơn vừa được cập nhật hoặc thanh toán. Vui lòng tải lại dữ liệu.");
         return Ok(new PaymentResponse(payment.ThanhToanId, payment.PhuongThuc, payment.SoTien, payment.NgayGioThanhToan, payment.TrangThai));
     }
 
