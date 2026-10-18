@@ -18,7 +18,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(cancellationToken);
         var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
-        var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).AsQueryable();
+        var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).Include(x => x.Hoadons).ThenInclude(x => x.Danhgia).AsSplitQuery().AsQueryable();
         if (!isStaff && User.IsInRole("Staff"))
         {
             var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(cancellationToken);
@@ -36,7 +36,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.KhachHang.HoTen.Contains(keyword) || (x.KhachHang.SoDienThoai != null && x.KhachHang.SoDienThoai.Contains(keyword)));
         var totalCount = await query.CountAsync(cancellationToken);
-        var list = await query.OrderByDescending(x => x.NgayGioHen).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var list = await query.OrderByDescending(x => x.NgayGioHen).ThenByDescending(x => x.LichHenId).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return Ok(new { items = list.Select(Map), totalCount, page, pageSize });
     }
 
@@ -104,5 +104,15 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         return CreatedAtAction(nameof(GetMine), new { id = appointment.LichHenId }, Map(appointment));
     }
 
-    private static AppointmentResponse Map(Lichhen item) => new(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen, item.TrangThai, item.GhiChu, item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId, x.DichVu?.TenDichVu ?? string.Empty, x.ComboId, x.GiaDuKien, AppointmentTiming.ItemDurationMinutes(x))).ToList());
+    private static AppointmentResponse Map(Lichhen item)
+    {
+        var invoice = item.Hoadons.OrderByDescending(x => x.NgayLap).ThenByDescending(x => x.HoaDonId).FirstOrDefault();
+        var review = invoice?.Danhgia.OrderByDescending(x => x.NgayDanhGia).ThenByDescending(x => x.DanhGiaId).FirstOrDefault();
+        return new AppointmentResponse(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen,
+            item.TrangThai, item.GhiChu,
+            item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId,
+                x.DichVu?.TenDichVu ?? string.Empty, x.ComboId, x.GiaDuKien, AppointmentTiming.ItemDurationMinutes(x))).ToList(),
+            InvoiceId: invoice?.HoaDonId, InvoiceStatus: invoice?.TrangThai,
+            HasReviewed: review is not null, ReviewStars: review?.SoSao);
+    }
 }

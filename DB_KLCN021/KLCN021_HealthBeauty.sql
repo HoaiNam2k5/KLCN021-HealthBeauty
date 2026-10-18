@@ -262,6 +262,8 @@ CREATE TABLE dbo.DANHGIA (
     HoaDonID int NOT NULL, SoSao tinyint NOT NULL, BinhLuan nvarchar(1000) NULL, NgayDanhGia datetime2(0) NOT NULL DEFAULT SYSDATETIME(), TrangThai nvarchar(30) NOT NULL DEFAULT N'ChoDuyet',
     CONSTRAINT FK_DANHGIA_HOADON FOREIGN KEY (HoaDonID) REFERENCES dbo.HOADON(HoaDonID), CONSTRAINT CK_DG_SoSao CHECK (SoSao BETWEEN 1 AND 5)
 );
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.DANHGIA') AND name = N'UX_DANHGIA_HoaDonID')
+    CREATE UNIQUE INDEX UX_DANHGIA_HoaDonID ON dbo.DANHGIA(HoaDonID);
 IF OBJECT_ID(N'dbo.GIAODICHDIEM',N'U') IS NULL
 CREATE TABLE dbo.GIAODICHDIEM (
     GiaoDichID int IDENTITY(1,1) NOT NULL CONSTRAINT PK_GIAODICHDIEM PRIMARY KEY,
@@ -280,4 +282,226 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_DICHVU_Loai' AND obje
     CREATE INDEX IX_DICHVU_Loai ON dbo.DICHVU(LoaiDichVuID,TrangThai);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_GD_DIEM_Khach' AND object_id = OBJECT_ID(N'dbo.GIAODICHDIEM'))
     CREATE INDEX IX_GD_DIEM_Khach ON dbo.GIAODICHDIEM(KhachHangID,NgayGiaoDich);
+GO
+
+
+IF COL_LENGTH(N'dbo.TAIKHOAN', N'SecurityStamp') IS NULL
+    ALTER TABLE dbo.TAIKHOAN ADD SecurityStamp varchar(32) NULL;
+IF COL_LENGTH(N'dbo.REFRESHTOKEN', N'SecurityStamp') IS NULL
+    ALTER TABLE dbo.REFRESHTOKEN ADD SecurityStamp varchar(32) NULL;
+IF OBJECT_ID(N'dbo.PASSWORDRESETCHALLENGE', N'U') IS NULL
+CREATE TABLE dbo.PASSWORDRESETCHALLENGE (
+    TaiKhoanID int NOT NULL CONSTRAINT PK_PASSWORDRESETCHALLENGE PRIMARY KEY,
+    ChallengeId varchar(32) NOT NULL,
+    Version varchar(32) NOT NULL,
+    OtpHash varchar(64) NULL,
+    ExpiresAt datetime2(7) NOT NULL,
+    Attempts int NOT NULL,
+    LastRequestedAt datetime2(7) NOT NULL,
+    SendWindowStartedAt datetime2(7) NOT NULL,
+    SendCount int NOT NULL,
+    UsedAt datetime2(7) NULL,
+    SecurityStampAtIssue varchar(32) NULL,
+    CONSTRAINT FK_PASSWORDRESET_TAIKHOAN FOREIGN KEY (TaiKhoanID) REFERENCES dbo.TAIKHOAN(TaiKhoanID) ON DELETE CASCADE,
+    CONSTRAINT CK_PASSWORDRESET_Attempts CHECK (Attempts BETWEEN 0 AND 5),
+    CONSTRAINT CK_PASSWORDRESET_SendCount CHECK (SendCount BETWEEN 0 AND 5)
+);
+GO
+
+GO
+-- Notifications upgrade (also safe on an existing database).
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF OBJECT_ID(N'dbo.ThietBiKhachHang', N'U') IS NULL
+CREATE TABLE dbo.ThietBiKhachHang (
+    Id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ThietBiKhachHang PRIMARY KEY,
+    TaiKhoanId int NOT NULL, KhachHangId int NULL,
+    FcmToken nvarchar(500) COLLATE Latin1_General_100_BIN2 NOT NULL,
+    LoaiThietBi nvarchar(50) NULL,
+    NgayCapNhat datetime2(7) NOT NULL CONSTRAINT DF_ThietBi_CapNhat DEFAULT SYSUTCDATETIME(),
+    TrangThai bit NOT NULL CONSTRAINT DF_ThietBi_TrangThai DEFAULT 1,
+    CONSTRAINT FK_ThietBi_TaiKhoan FOREIGN KEY(TaiKhoanId) REFERENCES dbo.TAIKHOAN(TaiKhoanID),
+    CONSTRAINT FK_ThietBi_KhachHang FOREIGN KEY(KhachHangId) REFERENCES dbo.KHACHHANG(KhachHangID)
+);
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.ThietBiKhachHang') AND name=N'FcmToken' AND collation_name <> N'Latin1_General_100_BIN2')
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThietBiKhachHang') AND name=N'IX_ThietBi_Token')
+        DROP INDEX IX_ThietBi_Token ON dbo.ThietBiKhachHang;
+    ALTER TABLE dbo.ThietBiKhachHang ALTER COLUMN FcmToken nvarchar(500) COLLATE Latin1_General_100_BIN2 NOT NULL;
+END;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThietBiKhachHang') AND name=N'IX_ThietBi_Token')
+    CREATE UNIQUE INDEX IX_ThietBi_Token ON dbo.ThietBiKhachHang(FcmToken);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThietBiKhachHang') AND name=N'IX_ThietBi_TaiKhoan')
+    CREATE INDEX IX_ThietBi_TaiKhoan ON dbo.ThietBiKhachHang(TaiKhoanId);
+
+IF OBJECT_ID(N'dbo.ThongBao', N'U') IS NULL
+CREATE TABLE dbo.ThongBao (
+    ThongBaoId int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ThongBao PRIMARY KEY,
+    TaiKhoanId int NULL, KhachHangId int NULL,
+    TieuDe nvarchar(250) NOT NULL, NoiDung nvarchar(1000) NOT NULL,
+    LoaiThongBao nvarchar(50) NOT NULL, DuLieuKemTheo nvarchar(max) NULL,
+    NgayTao datetime2(7) NOT NULL CONSTRAINT DF_ThongBao_NgayTao DEFAULT SYSUTCDATETIME(),
+    PushStatus varchar(20) NOT NULL CONSTRAINT DF_ThongBao_PushStatus DEFAULT 'Pending',
+    PushAttempts int NOT NULL CONSTRAINT DF_ThongBao_PushAttempts DEFAULT 0,
+    NextPushAt datetime2(7) NOT NULL CONSTRAINT DF_ThongBao_NextPushAt DEFAULT SYSUTCDATETIME(),
+    PushLeaseId varchar(32) NULL, PushLeaseUntil datetime2(7) NULL,
+    CONSTRAINT FK_ThongBao_TaiKhoan FOREIGN KEY(TaiKhoanId) REFERENCES dbo.TAIKHOAN(TaiKhoanID),
+    CONSTRAINT FK_ThongBao_KhachHang FOREIGN KEY(KhachHangId) REFERENCES dbo.KHACHHANG(KhachHangID)
+);
+-- Upgrade an existing copy of the proposal's schema without re-pushing old inbox entries.
+IF COL_LENGTH(N'dbo.ThongBao', N'PushStatus') IS NULL
+BEGIN
+    ALTER TABLE dbo.ThongBao ADD PushStatus varchar(20) NOT NULL CONSTRAINT DF_ThongBao_PushStatus DEFAULT 'Skipped' WITH VALUES;
+    ALTER TABLE dbo.ThongBao DROP CONSTRAINT DF_ThongBao_PushStatus;
+    ALTER TABLE dbo.ThongBao ADD CONSTRAINT DF_ThongBao_PushStatus DEFAULT 'Pending' FOR PushStatus;
+END;
+IF COL_LENGTH(N'dbo.ThongBao', N'PushAttempts') IS NULL
+    ALTER TABLE dbo.ThongBao ADD PushAttempts int NOT NULL CONSTRAINT DF_ThongBao_PushAttempts DEFAULT 0;
+IF COL_LENGTH(N'dbo.ThongBao', N'NextPushAt') IS NULL
+    ALTER TABLE dbo.ThongBao ADD NextPushAt datetime2(7) NOT NULL CONSTRAINT DF_ThongBao_NextPushAt DEFAULT SYSUTCDATETIME();
+IF COL_LENGTH(N'dbo.ThongBao', N'PushLeaseId') IS NULL
+    ALTER TABLE dbo.ThongBao ADD PushLeaseId varchar(32) NULL;
+IF COL_LENGTH(N'dbo.ThongBao', N'PushLeaseUntil') IS NULL
+    ALTER TABLE dbo.ThongBao ADD PushLeaseUntil datetime2(7) NULL;
+-- Dynamic SQL compiles after new columns have been added on existing databases.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThongBao') AND name=N'IX_ThongBao_Push')
+    EXEC(N'CREATE INDEX IX_ThongBao_Push ON dbo.ThongBao(PushStatus, NextPushAt)');
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThongBao') AND name=N'IX_ThongBao_TaiKhoan')
+    CREATE INDEX IX_ThongBao_TaiKhoan ON dbo.ThongBao(TaiKhoanId, NgayTao DESC);
+
+IF OBJECT_ID(N'dbo.ThongBaoDaDoc', N'U') IS NULL
+CREATE TABLE dbo.ThongBaoDaDoc (
+    ThongBaoId int NOT NULL, TaiKhoanId int NOT NULL,
+    NgayDoc datetime2(7) NOT NULL CONSTRAINT DF_ThongBaoDaDoc_NgayDoc DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_ThongBaoDaDoc PRIMARY KEY(ThongBaoId, TaiKhoanId),
+    CONSTRAINT FK_ThongBaoDaDoc_ThongBao FOREIGN KEY(ThongBaoId) REFERENCES dbo.ThongBao(ThongBaoId) ON DELETE CASCADE,
+    CONSTRAINT FK_ThongBaoDaDoc_TaiKhoan FOREIGN KEY(TaiKhoanId) REFERENCES dbo.TAIKHOAN(TaiKhoanID)
+);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThongBaoDaDoc') AND name=N'IX_ThongBaoDaDoc_TaiKhoan')
+    CREATE INDEX IX_ThongBaoDaDoc_TaiKhoan ON dbo.ThongBaoDaDoc(TaiKhoanId, ThongBaoId);
+-- Preserve legacy private read flags. A broadcast flag is not a per-account receipt.
+IF COL_LENGTH(N'dbo.ThongBao', N'DaDoc') IS NOT NULL
+    EXEC(N'INSERT dbo.ThongBaoDaDoc(ThongBaoId,TaiKhoanId,NgayDoc)
+        SELECT n.ThongBaoId,n.TaiKhoanId,SYSUTCDATETIME() FROM dbo.ThongBao n
+        WHERE n.DaDoc=1 AND n.TaiKhoanId IS NOT NULL
+        AND NOT EXISTS(SELECT 1 FROM dbo.ThongBaoDaDoc r WHERE r.ThongBaoId=n.ThongBaoId AND r.TaiKhoanId=n.TaiKhoanId)');
+-- Optimistic concurrency keeps one committed business change and its notification together.
+IF COL_LENGTH(N'dbo.LICHHEN', N'RowVersion') IS NULL
+    ALTER TABLE dbo.LICHHEN ADD RowVersion rowversion NOT NULL;
+IF COL_LENGTH(N'dbo.HOADON', N'RowVersion') IS NULL
+    ALTER TABLE dbo.HOADON ADD RowVersion rowversion NOT NULL;
+COMMIT TRANSACTION;
+GO
+
+-- Integrated migration: 07_ServiceImages.sql
+USE [KLCN021_HealthBeauty];
+GO
+-- Anh minh hoa dich vu/combo. Chay lai an toan; khong sua du lieu hien co.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH(N'dbo.DICHVU', N'ImageUrl') IS NULL
+    ALTER TABLE dbo.DICHVU ADD ImageUrl nvarchar(2048) NULL;
+IF COL_LENGTH(N'dbo.COMBODICHVU', N'ImageUrl') IS NULL
+    ALTER TABLE dbo.COMBODICHVU ADD ImageUrl nvarchar(2048) NULL;
+COMMIT TRANSACTION;
+
+GO
+
+-- Integrated migration: 08_AppointmentReminders.sql
+-- Nhắc lịch tự động: khóa sự kiện chống trùng khi chạy lại/nhiều worker.
+-- Chạy sau 06_Notifications.sql; không chèn hoặc xóa dữ liệu nghiệp vụ.
+USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF OBJECT_ID(N'dbo.ThongBao', N'U') IS NULL
+    THROW 51000, 'Run 06_Notifications.sql first.', 1;
+IF COL_LENGTH(N'dbo.ThongBao', N'EventKey') IS NULL
+    ALTER TABLE dbo.ThongBao ADD EventKey varchar(150) NULL;
+-- Dynamic SQL allows first-time column addition and index creation in the same batch.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThongBao') AND name=N'UX_ThongBao_EventKey')
+    EXEC(N'CREATE UNIQUE INDEX UX_ThongBao_EventKey ON dbo.ThongBao(EventKey) WHERE EventKey IS NOT NULL');
+COMMIT TRANSACTION;
+GO
+
+-- Integrated migration: 09_LoyaltyConsistency.sql
+USE [KLCN021_HealthBeauty];
+GO
+-- Reward balance, voucher and invoice concurrency safety. Repeatable migration.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF EXISTS (SELECT LichHenID FROM dbo.HOADON GROUP BY LichHenID HAVING COUNT(*) > 1)
+BEGIN
+    ROLLBACK TRANSACTION;
+    THROW 51009, N'Duplicate appointment invoices exist. Reconcile manually; no historical data was deleted.', 1;
+END;
+IF COL_LENGTH(N'dbo.KHACHHANG', N'RowVersion') IS NULL
+    ALTER TABLE dbo.KHACHHANG ADD RowVersion rowversion NOT NULL;
+IF COL_LENGTH(N'dbo.VOUCHER', N'RowVersion') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD RowVersion rowversion NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HOADON') AND name = N'UX_HOADON_LichHenID')
+    CREATE UNIQUE INDEX UX_HOADON_LichHenID ON dbo.HOADON(LichHenID);
+COMMIT TRANSACTION;
+GO
+
+-- Integrated migration: 10_VoucherPointExchange.sql
+USE [KLCN021_HealthBeauty];
+GO
+-- Configurable point cost for one-use voucher codes. Existing vouchers remain free.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH(N'dbo.VOUCHER', N'PointsCost') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD PointsCost int NOT NULL CONSTRAINT DF_VOUCHER_PointsCost DEFAULT (0) WITH VALUES;
+IF COL_LENGTH(N'dbo.VOUCHER', N'RedeemedAt') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD RedeemedAt datetime2(0) NULL;
+IF COL_LENGTH(N'dbo.VOUCHER', N'UsedAt') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD UsedAt datetime2(0) NULL;
+IF COL_LENGTH(N'dbo.GIAODICHDIEM', N'VoucherID') IS NULL
+    ALTER TABLE dbo.GIAODICHDIEM ADD VoucherID int NULL;
+COMMIT TRANSACTION;
+GO
+-- New columns must be compiled after the preceding batch.
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(N'dbo.GIAODICHDIEM') AND name = N'FK_GD_DIEM_VOUCHER')
+    ALTER TABLE dbo.GIAODICHDIEM WITH CHECK ADD CONSTRAINT FK_GD_DIEM_VOUCHER FOREIGN KEY (VoucherID) REFERENCES dbo.VOUCHER(VoucherID);
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(N'dbo.VOUCHER') AND name = N'CK_VOUCHER_PointsCost')
+    ALTER TABLE dbo.VOUCHER WITH CHECK ADD CONSTRAINT CK_VOUCHER_PointsCost CHECK (PointsCost BETWEEN 0 AND 1000000);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(N'dbo.VOUCHER') AND name = N'CK_VOUCHER_PointOwnership')
+    ALTER TABLE dbo.VOUCHER WITH CHECK ADD CONSTRAINT CK_VOUCHER_PointOwnership CHECK
+        (PointsCost = 0 OR (KhachHangID IS NULL AND RedeemedAt IS NULL) OR (KhachHangID IS NOT NULL AND RedeemedAt IS NOT NULL));
+GO
+
+-- Integrated migration: 11_ReviewManagement.sql
+USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH(N'dbo.DANHGIA', N'IsDeleted') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD IsDeleted bit NOT NULL CONSTRAINT DF_DANHGIA_IsDeleted DEFAULT (0) WITH VALUES;
+IF COL_LENGTH(N'dbo.DANHGIA', N'Reply') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD Reply nvarchar(2000) NULL;
+IF COL_LENGTH(N'dbo.DANHGIA', N'ReplyAccountId') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD ReplyAccountId int NULL;
+IF COL_LENGTH(N'dbo.DANHGIA', N'RepliedAt') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD RepliedAt datetime2(0) NULL;
+IF COL_LENGTH(N'dbo.DANHGIA', N'Version') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD Version uniqueidentifier NOT NULL CONSTRAINT DF_DANHGIA_Version DEFAULT (NEWID()) WITH VALUES;
+COMMIT TRANSACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(N'dbo.DANHGIA') AND name = N'FK_DANHGIA_ReplyAccount')
+    ALTER TABLE dbo.DANHGIA WITH CHECK ADD CONSTRAINT FK_DANHGIA_ReplyAccount FOREIGN KEY (ReplyAccountId) REFERENCES dbo.TAIKHOAN(TaiKhoanID);
+GO
+
+-- Integrated migration: 12_ReportingCustomerCreatedAt.sql
+USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+-- No WITH VALUES: historical customers retain NULL, not fabricated creation dates.
+IF COL_LENGTH(N'dbo.KHACHHANG', N'CreatedAt') IS NULL
+    ALTER TABLE dbo.KHACHHANG ADD CreatedAt datetime2(0) NULL CONSTRAINT DF_KHACHHANG_CreatedAt DEFAULT (SYSDATETIME());
+COMMIT TRANSACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.KHACHHANG') AND name = N'IX_KHACHHANG_CreatedAt')
+    CREATE INDEX IX_KHACHHANG_CreatedAt ON dbo.KHACHHANG(CreatedAt);
 GO

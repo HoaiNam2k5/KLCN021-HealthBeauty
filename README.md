@@ -1,5 +1,7 @@
 # KLCN021 HealthBeauty
 
+**Thành viên Web: đọc [BÁO CÁO TỔNG HỢP](BAO_CAO_TONG_HOP_CHO_WEB.md) trước khi tích hợp. Nhánh `feature/huynh-web`; chạy migration còn thiếu đến SQL12 trước khi dùng API mới.**
+
 Hệ thống quản lý spa HealthBeauty gồm web quản trị React, ứng dụng Flutter cho khách hàng và một ASP.NET Core Web API dùng chung. Phạm vi hiện tại không gồm kho và bán sản phẩm.
 
 ## Clone bản tích hợp
@@ -29,7 +31,7 @@ KLCN021-HealthBeauty/
 
 Chạy lần lượt trong SSMS:
 
-1. `DB_KLCN021/KLCN021_HealthBeauty.sql`: tạo database và 24 bảng nghiệp vụ.
+1. `DB_KLCN021/KLCN021_HealthBeauty.sql`: tạo database và 28 bảng nghiệp vụ, gồm khôi phục mật khẩu và thông báo.
 2. `DB_KLCN021/02_SeedData.sql`: tạo dữ liệu demo, vai trò và quyền mặc định; có thể chạy lại.
 3. `DB_KLCN021/03_ApiPermissionGrants.sql`: bổ sung các quyền còn thiếu trên database đã tồn tại, giữ các quyền đã bị thu hồi.
 
@@ -128,4 +130,14 @@ Chi tiết từng frontend: [Web README](HealthBeauty.Web/README.md), [Mobile RE
 
 ## Phạm vi chức năng
 
-API phục vụ tài khoản/phân quyền, khách hàng, nhân viên/ca làm, dịch vụ/combo, lịch hẹn, hóa đơn/ghi nhận thanh toán, khuyến mãi/voucher, điểm thưởng, đánh giá, báo cáo và nhật ký quản trị. Thanh toán hiện ghi nhận giao dịch trong hệ thống, chưa tích hợp VNPay/MoMo. Đăng nhập Google/OAuth và quên mật khẩu chưa có luồng hoàn chỉnh.
+API phục vụ tài khoản/phân quyền, khách hàng, nhân viên/ca làm, dịch vụ/combo, lịch hẹn, hóa đơn/ghi nhận thanh toán, khuyến mãi/voucher, điểm thưởng, đánh giá, báo cáo và nhật ký quản trị. Thanh toán hiện ghi nhận giao dịch trong hệ thống, chưa tích hợp VNPay/MoMo. Đăng nhập Google/OAuth chưa có luồng hoàn chỉnh. API quên mật khẩu đã triển khai; xem [hợp đồng và cấu hình SMTP](HealthBeauty.Api/PASSWORD_RECOVERY.md). Database có sẵn cần chạy thêm `DB_KLCN021/04_PasswordRecovery.sql` trước khi dùng API mới.
+
+API service reviews and appointment invoice metadata: [integration contract](HealthBeauty.Api/REVIEWS.md). Existing databases must run `DB_KLCN021/05_ReviewInvoiceUniqueness.sql`.
+
+API thông báo: xem [mục 11 hướng dẫn tích hợp](HealthBeauty.Api/REVIEWS.md#11-thông-báo-trong-ứng-dụng-và-thông-báo-đẩy-firebase). Database có sẵn chạy thêm `DB_KLCN021/06_Notifications.sql`; khóa Firebase cấu hình riêng trên server, không commit.
+
+Bổ sung ảnh Cloudinary, nhắc lịch tự động và đổi điểm lấy voucher: [báo cáo ngắn cho Web](BAO_CAO_5_CHUC_NANG_WEB.md), [hướng dẫn API mục 12](HealthBeauty.Api/REVIEWS.md#12-ảnh-upload-cloudinary-nhắc-lịch-và-voucher-đổi-điểm-18102026). Database hiện có chạy thêm SQL **07 → 08 → 09 → 10**; không thêm bảng mới. Cloudinary cần cấu hình riêng ở backend.
+
+[Báo cáo quản lý đánh giá cho Web](BAO_CAO_QUAN_LY_DANH_GIA_WEB.md) — API, bộ lọc, phản hồi và kiểm duyệt; xem mục 13 trong `HealthBeauty.Api/REVIEWS.md`.
+
+[Báo cáo thống kê cho Web](BAO_CAO_THONG_KE_BAO_CAO_WEB.md) — API báo cáo theo kỳ, khách mới và xuất XLSX; cần chạy SQL12 trước khi dùng bản API mới.

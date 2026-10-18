@@ -102,7 +102,9 @@ public sealed class FinanceFollowupTests
     {
         await using var db=await Db();db.Hoadons.Add(new Hoadon{HoaDonId=1,LichHenId=1,KhachHangId=1,TrangThai="DaThanhToan"});db.Danhgia.Add(new Danhgium{DanhGiaId=1,HoaDonId=1,SoSao=5,TrangThai="ChoDuyet"});await db.SaveChangesAsync();
         var controller=User(new ReviewsController(db),"Admin");
-        Assert.Empty((System.Collections.IEnumerable)Assert.IsType<OkObjectResult>(await controller.List(null,default)).Value!);
+        var publicReviews = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(await controller.List(null,default)).Value);
+        Assert.Equal(0, publicReviews.GetProperty("totalReviews").GetInt32());
+        Assert.Empty(publicReviews.GetProperty("items").EnumerateArray());
         Assert.Single((System.Collections.IEnumerable)Assert.IsType<OkObjectResult>(await controller.Pending(default)).Value!);
     }
 

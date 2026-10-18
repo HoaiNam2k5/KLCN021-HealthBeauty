@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
@@ -8,6 +8,8 @@ public partial class Refreshtoken
     public long RefreshTokenId { get; set; }
 
     public int TaiKhoanId { get; set; }
+
+    public string? SecurityStamp { get; set; }
 
     public string TokenHash { get; set; } = null!;
 

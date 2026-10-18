@@ -1,10 +1,16 @@
-﻿using System;
+using System;
+using System.Text.Json.Serialization;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
 
 public partial class Khachhang
 {
+    [JsonIgnore]
+    public byte[]? RowVersion { get; set; }
+
+    public DateTime? CreatedAt { get; set; }
+
     public int KhachHangId { get; set; }
 
     public int? TaiKhoanId { get; set; }

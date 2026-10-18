@@ -19,6 +19,8 @@ var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
     throw new InvalidOperationException("Configure Jwt:Key with a secret of at least 32 characters using User Secrets or an environment variable.");
 
+PasswordRecoveryService.ValidateConfiguration(builder.Configuration);
+
 // Add services to the container.
 
 builder.Services.AddScoped<DatabasePermissionFilter>();
@@ -28,6 +30,14 @@ builder.Services.AddDbContext<Klcn021HealthBeautyContext>(options =>
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<AccountTokenValidation>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<PasswordRecoveryService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddNotificationPush(builder.Configuration, builder.Environment);
+builder.Services.AddAppointmentReminders(builder.Configuration);
+builder.Services.AddCloudinaryImages(builder.Configuration);
+builder.Services.AddPasswordRecoveryEmail(builder.Configuration);
+builder.Services.AddPasswordRecoveryRateLimiting();
 var jwt = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
@@ -61,6 +71,8 @@ app.UseHttpsRedirection();
 
 if (app.Environment.IsDevelopment())
     app.UseCors(DevelopmentClientCors.PolicyName);
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

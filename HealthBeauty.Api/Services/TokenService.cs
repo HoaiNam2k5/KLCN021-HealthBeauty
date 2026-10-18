@@ -25,6 +25,7 @@ public sealed class TokenService(IConfiguration configuration) : ITokenService
             new Claim(JwtRegisteredClaimNames.Sub, account.TaiKhoanId.ToString()),
             new Claim(ClaimTypes.NameIdentifier, account.TaiKhoanId.ToString()),
             new Claim(ClaimTypes.Email, account.Email),
+            new Claim("security_stamp", account.SecurityStamp ?? string.Empty),
             new Claim(ClaimTypes.Role, account.VaiTro?.TenVaiTro ?? "Customer")
         };
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(section["Key"]!));

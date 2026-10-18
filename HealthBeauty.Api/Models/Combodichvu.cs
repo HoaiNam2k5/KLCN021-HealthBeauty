@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
@@ -14,6 +14,8 @@ public partial class Combodichvu
     public DateOnly? NgayBatDauHieuLuc { get; set; }
 
     public DateOnly? NgayKetThucHieuLuc { get; set; }
+
+    public string? ImageUrl { get; set; }
 
     public bool TrangThai { get; set; }
 

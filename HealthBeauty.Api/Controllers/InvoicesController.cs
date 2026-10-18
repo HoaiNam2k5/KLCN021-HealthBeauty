@@ -5,12 +5,14 @@ using HealthBeauty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 
 namespace HealthBeauty.Api.Controllers;
 
 [ApiController, Authorize, Route("api/v1/invoices")]
-public sealed class InvoicesController(Klcn021HealthBeautyContext db) : ControllerBase
+public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificationService? notifications = null) : ControllerBase
 {
+    private INotificationService Notifications => notifications ?? new NotificationService(db);
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -72,8 +74,18 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db) : Controll
             if (appliedPoints > 0) db.Giaodichdiems.Add(new Giaodichdiem { HoaDon = invoice, KhachHangId = customer.KhachHangId, SoDiem = -appliedPoints, LoaiGiaoDich = "SuDung", NgayGiaoDich = DateTime.Now, GhiChu = "Đổi điểm trên hóa đơn" });
         }
         invoice.TongTienTruocGiam = subtotal; invoice.TongTienSauGiam = Math.Max(0, subtotal - discount);
-        if (appliedVoucher is not null) appliedVoucher.TrangThai = false;
-        db.Hoadons.Add(invoice); await db.SaveChangesAsync(ct);
+        if (appliedVoucher is not null) { appliedVoucher.TrangThai = false; appliedVoucher.UsedAt = DateTime.Now; }
+        db.Hoadons.Add(invoice);
+        try
+        {
+            if (!await NotificationPersistence.TrySaveAsync(db, ct))
+                return Conflict("Reward balance or voucher changed. Please reload.");
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            db.ChangeTracker.Clear();
+            return Conflict("Appointment already has an invoice. Please reload.");
+        }
         return CreatedAtAction(nameof(List), new { id = invoice.HoaDonId }, new { invoice.HoaDonId, invoice.TongTienTruocGiam, invoice.TongTienSauGiam, invoice.TrangThai });
     }
 
@@ -89,7 +101,8 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db) : Controll
         if (invoice.TongTienSauGiam == 0)
         {
             invoice.TrangThai = "DaThanhToan";
-            await db.SaveChangesAsync(ct);
+            await NotificationEvents.PaidAsync(Notifications, invoice, 0, ct);
+            if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Hóa đơn vừa được cập nhật hoặc thanh toán. Vui lòng tải lại dữ liệu.");
             return Ok(new { InvoiceId = invoice.HoaDonId, Status = invoice.TrangThai, Amount = 0m, PaymentRequired = false });
         }
         var payment = new Thanhtoan { HoaDonId = invoice.HoaDonId, PhuongThuc = request.Method.Trim(), SoTien = invoice.TongTienSauGiam, NgayGioThanhToan = DateTime.Now, TrangThai = "ThanhCong" };
@@ -97,7 +110,8 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db) : Controll
         var customer = await db.Khachhangs.FirstAsync(x => x.KhachHangId == invoice.KhachHangId, ct);
         var earned = decimal.ToInt32(decimal.Floor(invoice.TongTienSauGiam / 10000m));
         if (earned > 0) { customer.DiemThuong += earned; db.Giaodichdiems.Add(new Giaodichdiem { KhachHangId = customer.KhachHangId, HoaDonId = invoice.HoaDonId, SoDiem = earned, LoaiGiaoDich = "TichLuy", NgayGiaoDich = DateTime.Now, GhiChu = "Tích điểm thanh toán" }); }
-        await db.SaveChangesAsync(ct);
+        await NotificationEvents.PaidAsync(Notifications, invoice, earned, ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Hóa đơn vừa được cập nhật hoặc thanh toán. Vui lòng tải lại dữ liệu.");
         return Ok(new PaymentResponse(payment.ThanhToanId, payment.PhuongThuc, payment.SoTien, payment.NgayGioThanhToan, payment.TrangThai));
     }
 
