@@ -22,6 +22,7 @@ public sealed class ThongBao
     public string NoiDung { get; set; } = "";
     public string LoaiThongBao { get; set; } = "";
     public string? DuLieuKemTheo { get; set; }
+    public string? EventKey { get; set; }
     public DateTime NgayTao { get; set; }
     public string PushStatus { get; set; } = "Pending";
     public int PushAttempts { get; set; }
@@ -47,6 +48,16 @@ public partial class Klcn021HealthBeautyContext
     {
         modelBuilder.Entity<Lichhen>().Property(x => x.RowVersion).IsRowVersion();
         modelBuilder.Entity<Hoadon>().Property(x => x.RowVersion).IsRowVersion();
+        modelBuilder.Entity<Khachhang>().Property(x => x.CreatedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSDATETIME()");
+        modelBuilder.Entity<Khachhang>().Property(x => x.RowVersion).IsRowVersion();
+        modelBuilder.Entity<Voucher>().Property(x => x.RowVersion).IsRowVersion();
+        modelBuilder.Entity<Voucher>().Property(x => x.PointsCost).HasDefaultValue(0);
+        modelBuilder.Entity<Voucher>().Property(x => x.RedeemedAt).HasPrecision(0);
+        modelBuilder.Entity<Voucher>().Property(x => x.UsedAt).HasPrecision(0);
+        modelBuilder.Entity<Giaodichdiem>().Property(x => x.VoucherId).HasColumnName("VoucherID");
+        modelBuilder.Entity<Giaodichdiem>().HasOne<Voucher>().WithMany().HasForeignKey(x => x.VoucherId)
+            .HasConstraintName("FK_GD_DIEM_VOUCHER").OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Hoadon>().HasIndex(x => x.LichHenId, "UX_HOADON_LichHenID").IsUnique();
         modelBuilder.Entity<ThietBiKhachHang>(e =>
         {
             e.ToTable("ThietBiKhachHang"); e.HasKey(x => x.Id);
@@ -63,6 +74,8 @@ public partial class Klcn021HealthBeautyContext
             e.ToTable("ThongBao"); e.HasKey(x => x.ThongBaoId);
             e.Property(x => x.TieuDe).HasMaxLength(250); e.Property(x => x.NoiDung).HasMaxLength(1000);
             e.Property(x => x.LoaiThongBao).HasMaxLength(50);
+            e.Property(x => x.EventKey).HasMaxLength(150).IsUnicode(false);
+            e.HasIndex(x => x.EventKey, "UX_ThongBao_EventKey").IsUnique().HasFilter("[EventKey] IS NOT NULL");
             e.Property(x => x.NgayTao).HasPrecision(7); e.Property(x => x.NextPushAt).HasPrecision(7);
             e.Property(x => x.PushLeaseUntil).HasPrecision(7);
             e.Property(x => x.PushStatus).HasMaxLength(20).IsUnicode(false);

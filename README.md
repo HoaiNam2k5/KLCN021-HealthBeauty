@@ -1,5 +1,7 @@
 # KLCN021 HealthBeauty
 
+**Thành viên Web: đọc [BÁO CÁO TỔNG HỢP](BAO_CAO_TONG_HOP_CHO_WEB.md) trước khi tích hợp. Nhánh `feature/huynh-web`; chạy migration còn thiếu đến SQL12 trước khi dùng API mới.**
+
 Hệ thống quản lý spa HealthBeauty gồm web quản trị React, ứng dụng Flutter cho khách hàng và một ASP.NET Core Web API dùng chung. Phạm vi hiện tại không gồm kho và bán sản phẩm.
 
 ## Clone bản tích hợp
@@ -133,3 +135,9 @@ API phục vụ tài khoản/phân quyền, khách hàng, nhân viên/ca làm, d
 API service reviews and appointment invoice metadata: [integration contract](HealthBeauty.Api/REVIEWS.md). Existing databases must run `DB_KLCN021/05_ReviewInvoiceUniqueness.sql`.
 
 API thông báo: xem [mục 11 hướng dẫn tích hợp](HealthBeauty.Api/REVIEWS.md#11-thông-báo-trong-ứng-dụng-và-thông-báo-đẩy-firebase). Database có sẵn chạy thêm `DB_KLCN021/06_Notifications.sql`; khóa Firebase cấu hình riêng trên server, không commit.
+
+Bổ sung ảnh Cloudinary, nhắc lịch tự động và đổi điểm lấy voucher: [báo cáo ngắn cho Web](BAO_CAO_5_CHUC_NANG_WEB.md), [hướng dẫn API mục 12](HealthBeauty.Api/REVIEWS.md#12-ảnh-upload-cloudinary-nhắc-lịch-và-voucher-đổi-điểm-18102026). Database hiện có chạy thêm SQL **07 → 08 → 09 → 10**; không thêm bảng mới. Cloudinary cần cấu hình riêng ở backend.
+
+[Báo cáo quản lý đánh giá cho Web](BAO_CAO_QUAN_LY_DANH_GIA_WEB.md) — API, bộ lọc, phản hồi và kiểm duyệt; xem mục 13 trong `HealthBeauty.Api/REVIEWS.md`.
+
+[Báo cáo thống kê cho Web](BAO_CAO_THONG_KE_BAO_CAO_WEB.md) — API báo cáo theo kỳ, khách mới và xuất XLSX; cần chạy SQL12 trước khi dùng bản API mới.

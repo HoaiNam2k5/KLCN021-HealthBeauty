@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
@@ -16,6 +16,8 @@ public partial class Dichvu
     public int ThoiLuongPhut { get; set; }
 
     public string? MoTa { get; set; }
+
+    public string? ImageUrl { get; set; }
 
     public bool TrangThai { get; set; }
 

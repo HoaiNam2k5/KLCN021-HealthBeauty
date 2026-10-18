@@ -183,6 +183,7 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.Property(e => e.ComboId).HasColumnName("ComboID");
             entity.Property(e => e.GiaCombo).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.TenCombo).HasMaxLength(150);
+            entity.Property(e => e.ImageUrl).HasMaxLength(2048);
             entity.Property(e => e.TrangThai).HasDefaultValue(true);
         });
 
@@ -218,6 +219,9 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.HasKey(e => e.DanhGiaId);
 
             entity.ToTable("DANHGIA");
+            entity.Property(e => e.Reply).HasMaxLength(2000);
+            entity.Property(e => e.RepliedAt).HasPrecision(0);
+            entity.Property(e => e.Version).IsConcurrencyToken().HasDefaultValueSql("NEWID()");
 
             entity.HasIndex(e => e.HoaDonId, "UX_DANHGIA_HoaDonID").IsUnique();
 
@@ -248,6 +252,7 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.Property(e => e.LoaiDichVuId).HasColumnName("LoaiDichVuID");
             entity.Property(e => e.MoTa).HasMaxLength(1000);
             entity.Property(e => e.TenDichVu).HasMaxLength(150);
+            entity.Property(e => e.ImageUrl).HasMaxLength(2048);
             entity.Property(e => e.TrangThai).HasDefaultValue(true);
 
             entity.HasOne(d => d.LoaiDichVu).WithMany(p => p.Dichvus)

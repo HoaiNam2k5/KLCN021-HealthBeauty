@@ -61,13 +61,13 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db, INotific
         var validation = await ValidateVoucherRequest(request, null, ct);
         if (validation is not null) return validation;
         var code = VoucherRules.NormalizeCode(request.Code);
-        var voucher = new Voucher { MaCode = code, KhuyenMaiId = request.PromotionId, KhachHangId = request.CustomerId, GiaTriGiam = request.DiscountValue, HanSuDung = request.ExpiresAt, TrangThai = true };
+        var voucher = new Voucher { MaCode = code, KhuyenMaiId = request.PromotionId, KhachHangId = request.CustomerId, GiaTriGiam = request.DiscountValue, HanSuDung = request.ExpiresAt, TrangThai = true, PointsCost = request.PointsCost };
         db.Vouchers.Add(voucher);
         if (voucher.KhachHangId.HasValue)
             await Notifications.StageToCustomerAsync(voucher.KhachHangId.Value, "Bạn vừa nhận được voucher mới",
                 $"Mã ưu đãi {voucher.MaCode} đã được thêm vào ví. Hạn sử dụng: {voucher.HanSuDung:dd/MM/yyyy}.",
                 "Voucher", new() { ["type"] = "VOUCHER", ["code"] = voucher.MaCode }, ct);
-        await db.SaveChangesAsync(ct); return Created("api/v1/promotions/vouchers/" + voucher.VoucherId, new { voucher.VoucherId,voucher.MaCode,voucher.KhuyenMaiId,voucher.KhachHangId,voucher.GiaTriGiam,voucher.HanSuDung,voucher.TrangThai });
+        await db.SaveChangesAsync(ct); return Created("api/v1/promotions/vouchers/" + voucher.VoucherId, new { voucher.VoucherId,voucher.MaCode,voucher.KhuyenMaiId,voucher.KhachHangId,voucher.GiaTriGiam,voucher.HanSuDung,voucher.TrangThai,voucher.PointsCost,voucher.RedeemedAt });
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpGet("~/api/v1/vouchers")]
@@ -77,7 +77,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db, INotific
         if (active.HasValue) query = query.Where(x => x.TrangThai == active.Value);
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.MaCode.Contains(keyword) || x.KhuyenMai.TenKhuyenMai.Contains(keyword) || (x.KhachHang != null && x.KhachHang.HoTen.Contains(keyword)));
         return Ok(await query.OrderByDescending(x => x.HanSuDung).Take(500)
-            .Select(x => new VoucherResponse(x.VoucherId, x.MaCode, x.KhuyenMaiId, x.KhuyenMai.TenKhuyenMai, x.KhachHangId, x.KhachHang != null ? x.KhachHang.HoTen : null, x.GiaTriGiam, x.HanSuDung, x.TrangThai))
+            .Select(x => new VoucherResponse(x.VoucherId, x.MaCode, x.KhuyenMaiId, x.KhuyenMai.TenKhuyenMai, x.KhachHangId, x.KhachHang != null ? x.KhachHang.HoTen : null, x.GiaTriGiam, x.HanSuDung, x.TrangThai, x.PointsCost))
             .ToListAsync(ct));
     }
 
@@ -85,13 +85,25 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db, INotific
     public async Task<IActionResult> UpdateVoucher(int id, VoucherRequest request, CancellationToken ct)
     {
         var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound();
+        if ((item.KhachHangId.HasValue || item.RedeemedAt.HasValue)
+            && (item.KhachHangId != request.CustomerId || item.PointsCost != request.PointsCost))
+            return Conflict("Assigned voucher ownership and point cost cannot be changed.");
         var validation=await ValidateVoucherRequest(request,id,ct); if(validation is not null)return validation;
         item.MaCode=VoucherRules.NormalizeCode(request.Code);item.KhuyenMaiId=request.PromotionId;item.KhachHangId=request.CustomerId;
-        item.GiaTriGiam=request.DiscountValue;item.HanSuDung=request.ExpiresAt;await db.SaveChangesAsync(ct);
-        return Ok(new { item.VoucherId,item.MaCode,item.KhuyenMaiId,item.KhachHangId,item.GiaTriGiam,item.HanSuDung,item.TrangThai });
+        item.GiaTriGiam=request.DiscountValue;item.HanSuDung=request.ExpiresAt;item.PointsCost=request.PointsCost;
+        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Voucher changed. Please reload.");
+        return Ok(new { item.VoucherId,item.MaCode,item.KhuyenMaiId,item.KhachHangId,item.GiaTriGiam,item.HanSuDung,item.TrangThai,item.PointsCost,item.RedeemedAt });
     }
     private async Task<IActionResult?> ValidateVoucherRequest(VoucherRequest request,int? excludedId,CancellationToken ct)
     {
+        if (request.PointsCost < 0 || request.PointsCost > 1000000)
+            return BadRequest("Points cost must be between 0 and 1000000.");
+        if (request.PointsCost > 0 && request.CustomerId.HasValue)
+        {
+            var existing = excludedId.HasValue ? await db.Vouchers.FindAsync([excludedId.Value], ct) : null;
+            if (existing is null || existing.KhachHangId != request.CustomerId || existing.PointsCost != request.PointsCost || !existing.RedeemedAt.HasValue)
+                return BadRequest("Point vouchers must be unassigned; customers redeem them using their points.");
+        }
         var code=VoucherRules.NormalizeCode(request.Code);
         if(code.Length==0 || code.Length>30 || request.DiscountValue<0 || request.ExpiresAt<=DateTime.Now) return BadRequest("Voucher code, discount and expiry are invalid.");
         if(!await db.Khuyenmais.AnyAsync(x=>x.KhuyenMaiId==request.PromotionId,ct)) return BadRequest("Promotion does not exist.");
@@ -100,7 +112,7 @@ public sealed class PromotionsController(Klcn021HealthBeautyContext db, INotific
         return null;
     }
     [Authorize(Roles = "Admin,Manager,Reception"), HttpPatch("vouchers/{id:int}/status")]
-    public async Task<IActionResult> VoucherStatus(int id, [FromQuery] bool active, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=active; await db.SaveChangesAsync(ct); return NoContent(); }
+    public async Task<IActionResult> VoucherStatus(int id, [FromQuery] bool active, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); if(active && item.UsedAt.HasValue)return Conflict("A consumed voucher cannot be reactivated."); item.TrangThai=active; if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Voucher changed. Please reload."); return NoContent(); }
     [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("vouchers/{id:int}")]
-    public async Task<IActionResult> DeleteVoucher(int id, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
+    public async Task<IActionResult> DeleteVoucher(int id, CancellationToken ct) { var item=await db.Vouchers.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Voucher changed. Please reload."); return NoContent(); }
 }

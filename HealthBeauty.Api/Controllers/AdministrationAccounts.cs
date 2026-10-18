@@ -120,7 +120,7 @@ public sealed partial class AdministrationController
     {
         if (role == "Customer" && account.Khachhang is null)
         {
-            var customer = new Khachhang { TaiKhoan = account, HoTen = fullName, SoDienThoai = phone, DiemThuong = 0 };
+            var customer = new Khachhang { CreatedAt = DateTime.Now, TaiKhoan = account, HoTen = fullName, SoDienThoai = phone, DiemThuong = 0 };
             account.Khachhang = customer; db.Khachhangs.Add(customer);
         }
         else if (role != "Customer" && account.Nhanvien is null)

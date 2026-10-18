@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using HealthBeauty.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,6 +42,11 @@ public sealed class NotificationPushDispatcher(
                     await CompleteAsync(notification.ThongBaoId, lease, "Failed", now, cancellationToken);
                     continue;
                 }
+                if (!await ReminderIsCurrentAsync(notification, cancellationToken))
+                {
+                    await CompleteAsync(notification.ThongBaoId, lease, "Skipped", now, cancellationToken);
+                    continue;
+                }
                 var retry = false;
                 var failed = false;
                 var sent = false;
@@ -60,6 +67,12 @@ public sealed class NotificationPushDispatcher(
                         .Where(x => ids.Contains(x.Id)).ToListAsync(cancellationToken);
                     batch = batch.Where(snapshot => current.Any(x => SameBinding(x, snapshot))).ToList();
                     if (batch.Count == 0) continue;
+                    if (!await ReminderIsCurrentAsync(notification, cancellationToken))
+                    {
+                        await CompleteAsync(notification.ThongBaoId, lease, "Skipped", clock.GetUtcNow().UtcDateTime, cancellationToken);
+                        leaseLost = true;
+                        break;
+                    }
                     devicesFound = true;
                     var result = await sender.SendAsync(notification, batch.Select(x => x.FcmToken).ToArray(), cancellationToken);
                     if (result.Count != batch.Count) throw new InvalidOperationException("Push result count mismatch.");
@@ -94,6 +107,29 @@ public sealed class NotificationPushDispatcher(
             }
         }
         return processed;
+    }
+
+    private async Task<bool> ReminderIsCurrentAsync(ThongBao notification, CancellationToken ct)
+    {
+        if (notification.EventKey?.StartsWith("appointment-reminder:", StringComparison.Ordinal) != true) return true;
+        if (notification.KhachHangId is null || notification.TaiKhoanId is null || notification.DuLieuKemTheo is null) return false;
+        try
+        {
+            using var payload = JsonDocument.Parse(notification.DuLieuKemTheo);
+            var root = payload.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("appointmentId", out var id) || id.ValueKind != JsonValueKind.String ||
+                !int.TryParse(id.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var appointmentId) ||
+                !root.TryGetProperty("appointmentAt", out var at) || at.ValueKind != JsonValueKind.String ||
+                !DateTime.TryParseExact(at.GetString(), "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var appointmentAt))
+                return false;
+            var now = clock.GetLocalNow().DateTime;
+            return await db.Lichhens.AsNoTracking().AnyAsync(x => x.LichHenId == appointmentId &&
+                x.TrangThai == "DaXacNhan" && x.KhachHangId == notification.KhachHangId &&
+                x.NgayGioHen == appointmentAt && x.NgayGioHen > now &&
+                x.KhachHang.TaiKhoanId == notification.TaiKhoanId && x.KhachHang.TaiKhoan!.TrangThai, ct);
+        }
+        catch (JsonException) { return false; }
     }
 
     public static TimeSpan RetryDelay(int attempts) =>

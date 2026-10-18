@@ -1,5 +1,7 @@
 # Hướng dẫn tích hợp API mới cho Web và Flutter — HealthBeauty
 
+> Cập nhật bàn giao 18/10/2026: backend đã tích hợp vào nhánh `feature/huynh-web`. Thành viên Web đọc `BAO_CAO_TONG_HOP_CHO_WEB.md`, chạy các migration còn thiếu đến **SQL12**. SQL12 chưa áp dụng local do SSPI; các đoạn hướng dẫn nhánh cũ bên dưới ghi nhận đợt bàn giao trước.
+
 Cập nhật ngày 17/10/2026. Tài liệu tổng hợp các thay đổi backend vừa thực hiện: đánh giá dịch vụ, thông tin hóa đơn/đánh giá trong lịch hẹn, quên mật khẩu qua OTP email và hệ thống thông báo.
 
 Backend đã triển khai; hai thành viên phụ trách Web và Flutter thực hiện phần giao diện theo hợp đồng bên dưới. Bản backend tích hợp nằm trên nhánh `feature/healthbeauty-web-mobile-ready`; mã nguồn Web/Flutter được giữ nguyên trong đợt cập nhật backend này. Hai thành viên pull nhánh này, cập nhật database theo các script 04 → 05 → 06 rồi tích hợp giao diện.
@@ -560,3 +562,156 @@ Checklist Web/backend:
 - Gửi Firebase dùng bộ gửi giả trong kiểm thử. Chưa kiểm tra nhận push thực tế trên thiết bị vì chưa cấu hình khóa service account.
 
 Migration 06 đã áp dụng trên database local của máy đang phát triển: snapshot số dòng/checksum của 25 bảng cũ không đổi, tổng hiện có 28 bảng nghiệp vụ. API đã khởi động lại; Swagger có 86 thao tác, cả 6 route thông báo yêu cầu đăng nhập (401 khi không có token). Máy thành viên khác cần tự chạy script trước khi tích hợp.
+
+## 12. Ảnh upload Cloudinary, nhắc lịch và voucher đổi điểm (18/10/2026)
+
+Báo cáo ngắn cho thành viên Web: [BAO_CAO_5_CHUC_NANG_WEB.md](../BAO_CAO_5_CHUC_NANG_WEB.md). Đợt này chỉ bổ sung backend, không sửa nhánh Web của thành viên; chưa commit/push.
+
+### 12.1. Upload ảnh dịch vụ/combo
+
+`POST /api/v1/media/images`, có Bearer token; vai trò Admin/Manager/Reception cùng quyền `SERVICE.WRITE`. Gửi **multipart/form-data**, trường `file`. Chấp nhận PNG/JPEG/WebP tối đa 5 MiB, kiểm tra loại và chữ ký dữ liệu, không nhận SVG hay URL để server tự tải.
+
+Ví dụ response 201:
+
+```json
+{
+  "imageUrl": "https://res.cloudinary.com/your-cloud/image/upload/example.jpg",
+  "publicId": "healthbeauty/catalog/example"
+}
+```
+
+Sau upload, gửi `imageUrl` vào POST/PUT `/api/v1/services` hoặc `/api/v1/combos`. Các response danh sách, chi tiết và lưu của hai module đã có trường `imageUrl` nullable; lưu chung trong SQL thay cho localStorage.
+
+- Tạo mới không gửi/null/rỗng: chưa có ảnh. Sửa bỏ trường/null: giữ ảnh cũ. Sửa với chuỗi rỗng: xóa liên kết ảnh.
+- URL phải HTTP/HTTPS, tối đa 2048 ký tự, không chứa thông tin đăng nhập/ký tự điều khiển.
+- Upload lỗi 400: file không hợp lệ; 413: quá dung lượng; 503: chưa cấu hình Cloudinary; 502: lỗi nhà cung cấp; 504: timeout.
+- `publicId` là mã tài nguyên Cloudinary. Bản hiện tại lưu URL trong dịch vụ/combo; xóa liên kết không tự xóa file trên Cloudinary. Ảnh upload xong nhưng người dùng bỏ form vẫn nằm trên Cloudinary, cần dọn tài nguyên không dùng khi vận hành.
+- Chưa có upload avatar của khách, album nhiều ảnh hoặc module sản phẩm trong phạm vi này.
+
+Frontend dùng FormData phải bỏ header JSON mặc định của axios cho request này để trình duyệt tự tạo multipart boundary. Không đưa API secret Cloudinary vào Web/Flutter.
+
+Cấu hình tại thư mục `HealthBeauty.Api` bằng User Secrets, rồi khởi động lại API:
+
+```powershell
+dotnet user-secrets set "Cloudinary:Enabled" "true"
+dotnet user-secrets set "Cloudinary:CloudName" "<cloud-name>"
+dotnet user-secrets set "Cloudinary:ApiKey" "<api-key>"
+dotnet user-secrets set "Cloudinary:ApiSecret" "<api-secret>"
+```
+
+Cloudinary mặc định tắt; API vẫn chạy, riêng upload nhận 503 khi chưa cấu hình. `Configuration/cloudinary.example.json` chỉ là mẫu, không tự nạp. Upload có chữ ký phía server, không ghi file vào ổ đĩa API. Tham khảo [tài liệu upload Cloudinary](https://cloudinary.com/documentation/upload_images#authenticated_requests).
+
+### 12.2. Nhắc lịch tự động
+
+Mặc định worker quét mỗi 60 giây, tạo nhắc cho lịch `DaXacNhan` còn trong tương lai và trong 60 phút tới. Khách phải có tài khoản hoạt động. Cấu hình `AppointmentReminders:Enabled`, `LeadMinutes` (1–1440), `PollSeconds` (10–3600).
+
+Khóa sự kiện lưu trong SQL chống tạo trùng khi nhiều worker/khởi động lại. Đổi giờ hẹn có khóa mới. Tại thời điểm gửi, backend kiểm tra lại lịch còn xác nhận, đúng khách/tài khoản/giờ và chưa quá hạn; nhắc lịch cũ bị bỏ qua nếu đã hủy hoặc đổi lịch. Dùng hàng đợi/Firebase hiện có, không cần Web gọi API gửi nhắc riêng.
+
+Giờ lịch hẹn theo giờ địa phương của server như API cũ; triển khai phải đặt múi giờ Việt Nam (Asia/Ho_Chi_Minh hoặc múi giờ Windows tương ứng). Thời gian thông báo vẫn UTC. Chưa có khóa Firebase thì chỉ có hộp thư, chưa kiểm chứng push thật; gửi đẩy vẫn có thể lặp khi mạng gián đoạn, client dedup theo `notificationId`.
+
+### 12.3. Cấu hình voucher đổi điểm
+
+Thêm `pointsCost` (0–1.000.000) vào body tạo/sửa voucher:
+
+```json
+{
+  "code": "DOIDIEM100",
+  "promotionId": 1,
+  "customerId": null,
+  "discountValue": 50000,
+  "expiresAt": "2027-12-31T23:59:59",
+  "pointsCost": 100
+}
+```
+
+- `pointsCost=0`: voucher tặng/khuyến mãi cũ, không tự trừ điểm.
+- `pointsCost>0`: voucher cần đổi điểm; phải tạo chưa gán khách. Mỗi mã là một suất đổi một lần, không phải mẫu phát hành vô hạn; tạo nhiều mã nếu cần nhiều suất.
+- Không gán trực tiếp voucher đổi điểm để bỏ qua thu điểm. Voucher đã gán/đổi không thay chủ hoặc giá điểm. Khi đã sử dụng thì không kích hoạt lại.
+
+Khách xem ưu đãi đổi điểm qua `GET /api/v1/customers/me/voucher-offers`. Response là mảng `{id,promotionId,promotionName,discountValue,expiresAt,pointsCost}`, không lộ mã voucher trước khi đổi. Chỉ trả voucher còn hạn, hoạt động, khuyến mãi hợp lệ, chưa đổi/chưa dùng.
+
+Khách đổi bằng `POST /api/v1/customers/me/vouchers/{id}/redeem`, có Bearer token và hồ sơ khách, **không body**. Thành công 200:
+
+```json
+{
+  "voucherId": 1,
+  "code": "DOIDIEM100",
+  "pointsSpent": 100,
+  "remainingPoints": 250
+}
+```
+
+Thiếu điểm: 400; không có hồ sơ khách: 403; voucher không tồn tại/không hợp lệ: 404; đã đổi hoặc bị yêu cầu khác thay đổi số dư/voucher: 409. Đổi thành công trừ điểm, gán voucher và ghi `GIAODICHDIEM` loại `DoiVoucher` cùng `voucherId` trong một transaction. Đổi lại không trừ lần hai. Voucher chưa đổi không dùng được khi validate/lập hóa đơn; sử dụng voucher đã đổi không thu lại `pointsCost`.
+
+Giữ luồng hiện có: thanh toán cộng `floor(tiền thực trả/10.000)` điểm; `pointsToRedeem` trên hóa đơn là đổi điểm trực tiếp (1 điểm = 1đ), được trừ khi lập hóa đơn. Đây là hai thao tác khác nhau, người dùng có thể chủ động chọn số điểm đổi trực tiếp nếu muốn, không mặc định trừ thêm khi dùng voucher.
+
+### 12.4. Lịch sử điểm cho quản trị
+
+`GET /api/v1/customers/{id}/points?page=1&pageSize=20`: vai trò Admin/Manager/Reception và quyền `CUSTOMER.READ`. Response `{customerId,diemThuong,transactions,totalCount,page,pageSize}`. Mỗi giao dịch có `giaoDichId,soDiem,loaiGiaoDich,ngayGiaoDich,ghiChu,hoaDonId,voucherId`. `soDiem` âm là trừ, dương là cộng. Khách không tồn tại: 404; page không hợp lệ: 400, pageSize 1–100.
+
+API `/api/v1/customers/me/points` của khách giữ hợp đồng cũ, bổ sung `voucherId` trong lịch sử. Web cần thêm tab lịch sử điểm trong hồ sơ khách. Đã bổ sung kiểm soát đồng thời số dư/voucher và một hóa đơn cho một lịch hẹn; gặp 409 cần tải lại, không tự lặp request.
+
+### 12.5. Database cập nhật
+
+Trên database đã có 04–06, chạy **07 → 08 → 09 → 10**:
+
+| File | Bổ sung |
+| --- | --- |
+| `07_ServiceImages.sql` | Cột URL ảnh dịch vụ và combo |
+| `08_AppointmentReminders.sql` | Khóa sự kiện nhắc lịch và unique index chống trùng |
+| `09_LoyaltyConsistency.sql` | RowVersion số dư/voucher, unique hóa đơn theo lịch hẹn |
+| `10_VoucherPointExchange.sql` | Giá điểm, thời điểm đổi/dùng voucher, liên kết lịch sử điểm |
+
+Cả bốn chạy lại được. File 09 dừng nếu có hóa đơn trùng lịch hẹn cũ để xử lý thủ công, không xóa dữ liệu. Voucher cũ có `pointsCost=0`; không tự trừ điểm cũ. Không thêm bảng mới, tổng vẫn 28 bảng nghiệp vụ. SQL gốc đã tích hợp cho database mới. Cloudinary không cần bảng riêng vì ảnh thực tế nằm trên dịch vụ lưu trữ, SQL giữ URL.
+
+Kiểm chứng đợt 18/10: **361/361 test backend đạt**, build 0 cảnh báo/lỗi; **21 kiểm tra SQL ảnh/nhắc lịch + 22 kiểm tra SQL điểm/voucher đạt**. Database local đã chạy 07–10: 28 bảng và snapshot dữ liệu cũ (gồm điểm/tài khoản) không đổi. API mới đã khởi động lại, Swagger có 90 thao tác; lịch sử điểm quản trị 200, upload chưa cấu hình trả 503 đúng thiết kế. Chưa có khóa Cloudinary/Firebase nên chưa kiểm tra upload/gửi push thật.
+
+
+## 13. Quản lý đánh giá dịch vụ (18/10/2026)
+
+Bổ sung `GET /api/v1/reviews/management` lọc `serviceId`, `from`, `to`, `stars`, `status`, phân trang `page` mặc định 1, `pageSize` mặc định 20, tối đa 100. Các bộ lọc kết hợp AND; dịch vụ khớp cả thành phần combo; `from/to` bao gồm thời điểm đầu/cuối, ngày đánh giá theo thời gian máy chủ đang dùng. Thống kê toàn bộ kết quả phù hợp trước phân trang; tổng/sao trung bình lấy một truy vấn nhóm để tránh lỗi tập rỗng khi thao tác đồng thời. Danh sách gồm cả đánh giá ẩn/chờ duyệt, trừ bản xóa mềm; trả thông tin khách và dòng dịch vụ/combo, không trả liên hệ khách.
+
+`PUT /api/v1/reviews/{id}/reply` nhận `{reply}` dài 1–2000 ký tự sau kiểm tra, không chỉ khoảng trắng; lưu phản hồi hiện tại, tài khoản thực hiện và thời điểm UTC. Gọi lại để thay phản hồi (chưa có lịch sử nhiều lần). `GET /reviews` giữ nguyên `{averageRating,totalReviews,items}` và bổ sung `reply/repliedAt`; không lộ mã tài khoản người phản hồi. Thời điểm phản hồi được gắn UTC khi đọc SQL, JSON có `Z`. Phản hồi chỉ xuất hiện công khai khi đánh giá đang `HienThi`; chưa tự phát push/email.
+
+`PATCH /reviews/{id}/moderation?visible=true|false` duyệt/ẩn; `DELETE /reviews/{id}` xóa mềm. Các lệnh thành công `204`; không tồn tại/đã xóa `404`; tranh chấp cập nhật sau khi đọc `409` (tải lại/thử lại). GUID `Version` là concurrency token phía máy chủ; không yêu cầu client gửi version, không ngăn người dùng tuần tự ghi đè phản hồi cũ đang mở lâu. Xóa mềm không giải phóng hóa đơn, không đổi trạng thái `hasReviewed`, không cho duyệt hoặc phản hồi để hồi sinh bản đã xóa. Đánh giá mới vẫn hiện ngay như yêu cầu trước; không tự chuyển các đánh giá cũ sang hiển thị.
+
+Danh sách quản trị, phản hồi, xóa và duyệt/ẩn cần vai trò `Admin,Manager,Reception` cùng quyền hiện hành `REVIEW.MODERATE`. Migration `11_ReviewManagement.sql` thêm `IsDeleted`, `Reply`, `ReplyAccountId` (FK tài khoản), `RepliedAt`, `Version`; chạy nhiều lần an toàn, tích hợp script gốc, không thêm bảng hay sửa bình luận cũ. Local đã chạy hai lần: 28 bảng, số dòng và checksum mọi cột cũ không đổi. Không thêm audit log riêng hoặc lưu lịch sử nội dung phản hồi trong phạm vi này.
+
+Kiểm chứng: 373/373 kiểm thử đạt, build 0 cảnh báo/0 lỗi. Có HTTP tích hợp cô lập kiểm tra anonymous401, Customer403, Reception thiếu quyền403, Admin/Reception có quyền truy cập; các lệnh trên ID thiếu trả404 sau khi qua quyền. 9 kiểm tra SQL cô lập đạt, gồm tạo schema mới/idempotence, query/filter+aggregate quản trị, optimistic concurrency409 và xóa mềm không khôi phục. DB thử đã xóa; không chỉnh sửa đánh giá thật. Báo cáo ngắn gửi thành viên Web: `BAO_CAO_QUAN_LY_DANH_GIA_WEB.md`; Web hiện thiếu bộ lọc dịch vụ/thời gian, xem bản ẩn/xóa, phản hồi CSDL và adapter đọc `items`. Chưa sửa Web/Flutter, chưa commit/push.
+
+Cập nhật cấu hình ảnh cùng ngày: đã điền khóa Cloudinary vào file local được Git bỏ qua; kiểm tra thật đăng nhập 200, upload 201 và URL ảnh trả 200. Không ghi khóa vào tài liệu/Git.
+
+Kiểm tra HTTP cuối trên SQL local bằng API thử cổng 5242: đăng nhập 200; danh sách quản trị 200; số sao không hợp lệ 400; danh sách công khai 200; phản hồi/xóa trên ID không tồn tại 404; đăng xuất 204. Không đổi đánh giá thật, không gửi email/push; API thử đã dừng, giữ nguyên phiên người dùng ở cổng 5230. Tiến trình chính bị SSPI do ngữ cảnh Windows của môi trường chạy; kiểm chứng bằng worker kết nối SQL local thành công.
+
+
+## 14. Thống kê và báo cáo
+
+Chi tiết bàn giao thống kê:
+
+| Yêu cầu | Web hiện tại / việc cần làm |
+|---|---|
+| Lịch hẹn theo ngày/tuần/tháng/trạng thái | Có tổng theo trạng thái; dùng API tổng hợp mới để vẽ theo kỳ. |
+| Đơn hàng theo ngày/tuần/tháng/quý/năm | Dùng hóa đơn dịch vụ/combo; biểu đồ hiện lấy danh sách hóa đơn giới hạn 100 nên có thể thiếu dữ liệu. |
+| Theo dịch vụ/combo/nhân viên/nhóm dịch vụ | Bổ sung lựa chọn nhóm và các bộ lọc mới; API cũ theo dịch vụ chưa nhận khoảng ngày. |
+| Khách hàng mới | Chưa có; số khách hiện đếm danh sách tối đa 200, không phải toàn bộ. |
+| Tìm kiếm/lọc/xuất | Web có khoảng ngày nhưng cần gửi `to` = 00:00 ngày kế tiếp; nút Excel hiện xuất CSV. In trình duyệt có thể lưu PDF, chưa có API PDF. |
+
+## API mới (Admin/Manager/Reception + REPORT.READ)
+- `GET /api/v1/reports/appointment-summary?groupBy=day|week|month|status`
+- `GET /api/v1/reports/orders?page=1&pageSize=20`: `{totalCount,paidRevenue,page,pageSize,items}`; danh sách phân trang, tổng không phụ thuộc trang.
+- `GET /api/v1/reports/order-summary?groupBy=day|week|month|quarter|year`
+- `GET /api/v1/reports/order-breakdown?groupBy=service|combo|staff|category`
+- `GET /api/v1/reports/new-customers?groupBy=day|week|month|quarter|year`
+- `GET /api/v1/reports/export?report=appointments|orders|breakdown|new-customers&groupBy=...`: tải XLSX thật; `orders` xuất tổng hợp theo kỳ.
+
+Bộ lọc chung: `from` bao gồm, `to` loại trừ; `status`, `staffId`, `serviceId`, `comboId`, `categoryId`, `search` (tên/SĐT khách). Khách mới chỉ dùng khoảng ngày và search. Tuần bắt đầu thứ Hai; ngày theo giờ máy chủ như dữ liệu hiện có. Khoảng không có dữ liệu không tự sinh dòng 0. Sai bộ lọc/nguồn quá lớn trả 400, cần thu hẹp khoảng ngày; không cắt âm thầm. Xuất tối đa 10.000 dòng gồm metadata.
+
+`order-summary`: `{totalCount,paidRevenue,items:[{periodStart,invoiceCount,paidInvoiceCount,unpaidInvoiceCount,paidRevenue}]}`. Ngày hóa đơn là `NgayLap`, chưa phải ngày thực thu; doanh thu chỉ gồm `DaThanhToan`. Nhóm nhân viên dùng toàn bộ tiền hóa đơn sau giảm, mỗi hóa đơn tính một lần. Nhóm dịch vụ/combo/loại dùng `grossAmount` trước giảm của dòng hàng, không cộng với `paidRevenue`; combo nằm nhóm `comboUnallocated` khi theo loại, không chia giả cho dịch vụ thành phần. Lọc dịch vụ/loại chỉ xét dịch vụ trực tiếp. Bộ lọc hóa đơn chọn hóa đơn có dòng khớp; tổng hóa đơn vẫn là tổng cả hóa đơn, không phải phần dòng khớp.
+
+Khách mới: `{totalCount,unknownHistoricalCount,items:[{periodStart,count}]}`. Chạy `12_ReportingCustomerCreatedAt.sql` sau SQL11. Khách cũ chưa biết ngày tạo giữ NULL và được báo riêng; không suy đoán ngày lịch hẹn thành ngày tạo. Không có bảng mới. Các API báo cáo cũ giữ định dạng để tương thích; Web chuyển dần sang API mới. Không sửa Web/Flutter trong đợt này.
+
+Kiểm chứng: xem kết quả kiểm thử đợt báo cáo; không gửi thông báo, không sửa dữ liệu tài chính để thử nghiệm.
+
+Kiểm chứng đợt này: **403/403 test đạt**, build 0 cảnh báo/0 lỗi; gồm HTTP phân quyền và thu hồi quyền `REPORT.READ`, bộ lọc, kỳ báo cáo và XLSX. File XLSX được đọc độc lập bằng openpyxl, giữ đúng tiếng Việt/số và nội dung bắt đầu bằng dấu `=` vẫn là văn bản.
+
+**SQL12 CHƯA áp dụng vào database local.** Kết nối kiểm thử SQL Server bị `Failed to generate SSPI context` trước khi tạo database; chưa kiểm chứng truy vấn SQL thực hoặc chạy migration hai lần. Không sửa dữ liệu thật. Trước khi chạy API bản mới, anh mở `DB_KLCN021/12_ReportingCustomerCreatedAt.sql` trong SSMS, kết nối SQL Server đang dùng rồi Execute (F5); sau đó khởi động lại API. File có `USE KLCN021_HealthBeauty`, chỉ thêm cột/index, không gán ngày giả cho khách cũ.

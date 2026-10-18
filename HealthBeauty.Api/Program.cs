@@ -34,6 +34,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<PasswordRecoveryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddNotificationPush(builder.Configuration, builder.Environment);
+builder.Services.AddAppointmentReminders(builder.Configuration);
+builder.Services.AddCloudinaryImages(builder.Configuration);
 builder.Services.AddPasswordRecoveryEmail(builder.Configuration);
 builder.Services.AddPasswordRecoveryRateLimiting();
 var jwt = builder.Configuration.GetSection("Jwt");

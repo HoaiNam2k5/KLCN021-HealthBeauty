@@ -392,3 +392,116 @@ IF COL_LENGTH(N'dbo.HOADON', N'RowVersion') IS NULL
     ALTER TABLE dbo.HOADON ADD RowVersion rowversion NOT NULL;
 COMMIT TRANSACTION;
 GO
+
+-- Integrated migration: 07_ServiceImages.sql
+USE [KLCN021_HealthBeauty];
+GO
+-- Anh minh hoa dich vu/combo. Chay lai an toan; khong sua du lieu hien co.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH(N'dbo.DICHVU', N'ImageUrl') IS NULL
+    ALTER TABLE dbo.DICHVU ADD ImageUrl nvarchar(2048) NULL;
+IF COL_LENGTH(N'dbo.COMBODICHVU', N'ImageUrl') IS NULL
+    ALTER TABLE dbo.COMBODICHVU ADD ImageUrl nvarchar(2048) NULL;
+COMMIT TRANSACTION;
+
+GO
+
+-- Integrated migration: 08_AppointmentReminders.sql
+-- Nhắc lịch tự động: khóa sự kiện chống trùng khi chạy lại/nhiều worker.
+-- Chạy sau 06_Notifications.sql; không chèn hoặc xóa dữ liệu nghiệp vụ.
+USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF OBJECT_ID(N'dbo.ThongBao', N'U') IS NULL
+    THROW 51000, 'Run 06_Notifications.sql first.', 1;
+IF COL_LENGTH(N'dbo.ThongBao', N'EventKey') IS NULL
+    ALTER TABLE dbo.ThongBao ADD EventKey varchar(150) NULL;
+-- Dynamic SQL allows first-time column addition and index creation in the same batch.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.ThongBao') AND name=N'UX_ThongBao_EventKey')
+    EXEC(N'CREATE UNIQUE INDEX UX_ThongBao_EventKey ON dbo.ThongBao(EventKey) WHERE EventKey IS NOT NULL');
+COMMIT TRANSACTION;
+GO
+
+-- Integrated migration: 09_LoyaltyConsistency.sql
+USE [KLCN021_HealthBeauty];
+GO
+-- Reward balance, voucher and invoice concurrency safety. Repeatable migration.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF EXISTS (SELECT LichHenID FROM dbo.HOADON GROUP BY LichHenID HAVING COUNT(*) > 1)
+BEGIN
+    ROLLBACK TRANSACTION;
+    THROW 51009, N'Duplicate appointment invoices exist. Reconcile manually; no historical data was deleted.', 1;
+END;
+IF COL_LENGTH(N'dbo.KHACHHANG', N'RowVersion') IS NULL
+    ALTER TABLE dbo.KHACHHANG ADD RowVersion rowversion NOT NULL;
+IF COL_LENGTH(N'dbo.VOUCHER', N'RowVersion') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD RowVersion rowversion NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HOADON') AND name = N'UX_HOADON_LichHenID')
+    CREATE UNIQUE INDEX UX_HOADON_LichHenID ON dbo.HOADON(LichHenID);
+COMMIT TRANSACTION;
+GO
+
+-- Integrated migration: 10_VoucherPointExchange.sql
+USE [KLCN021_HealthBeauty];
+GO
+-- Configurable point cost for one-use voucher codes. Existing vouchers remain free.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH(N'dbo.VOUCHER', N'PointsCost') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD PointsCost int NOT NULL CONSTRAINT DF_VOUCHER_PointsCost DEFAULT (0) WITH VALUES;
+IF COL_LENGTH(N'dbo.VOUCHER', N'RedeemedAt') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD RedeemedAt datetime2(0) NULL;
+IF COL_LENGTH(N'dbo.VOUCHER', N'UsedAt') IS NULL
+    ALTER TABLE dbo.VOUCHER ADD UsedAt datetime2(0) NULL;
+IF COL_LENGTH(N'dbo.GIAODICHDIEM', N'VoucherID') IS NULL
+    ALTER TABLE dbo.GIAODICHDIEM ADD VoucherID int NULL;
+COMMIT TRANSACTION;
+GO
+-- New columns must be compiled after the preceding batch.
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(N'dbo.GIAODICHDIEM') AND name = N'FK_GD_DIEM_VOUCHER')
+    ALTER TABLE dbo.GIAODICHDIEM WITH CHECK ADD CONSTRAINT FK_GD_DIEM_VOUCHER FOREIGN KEY (VoucherID) REFERENCES dbo.VOUCHER(VoucherID);
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(N'dbo.VOUCHER') AND name = N'CK_VOUCHER_PointsCost')
+    ALTER TABLE dbo.VOUCHER WITH CHECK ADD CONSTRAINT CK_VOUCHER_PointsCost CHECK (PointsCost BETWEEN 0 AND 1000000);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(N'dbo.VOUCHER') AND name = N'CK_VOUCHER_PointOwnership')
+    ALTER TABLE dbo.VOUCHER WITH CHECK ADD CONSTRAINT CK_VOUCHER_PointOwnership CHECK
+        (PointsCost = 0 OR (KhachHangID IS NULL AND RedeemedAt IS NULL) OR (KhachHangID IS NOT NULL AND RedeemedAt IS NOT NULL));
+GO
+
+-- Integrated migration: 11_ReviewManagement.sql
+USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF COL_LENGTH(N'dbo.DANHGIA', N'IsDeleted') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD IsDeleted bit NOT NULL CONSTRAINT DF_DANHGIA_IsDeleted DEFAULT (0) WITH VALUES;
+IF COL_LENGTH(N'dbo.DANHGIA', N'Reply') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD Reply nvarchar(2000) NULL;
+IF COL_LENGTH(N'dbo.DANHGIA', N'ReplyAccountId') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD ReplyAccountId int NULL;
+IF COL_LENGTH(N'dbo.DANHGIA', N'RepliedAt') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD RepliedAt datetime2(0) NULL;
+IF COL_LENGTH(N'dbo.DANHGIA', N'Version') IS NULL
+    ALTER TABLE dbo.DANHGIA ADD Version uniqueidentifier NOT NULL CONSTRAINT DF_DANHGIA_Version DEFAULT (NEWID()) WITH VALUES;
+COMMIT TRANSACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(N'dbo.DANHGIA') AND name = N'FK_DANHGIA_ReplyAccount')
+    ALTER TABLE dbo.DANHGIA WITH CHECK ADD CONSTRAINT FK_DANHGIA_ReplyAccount FOREIGN KEY (ReplyAccountId) REFERENCES dbo.TAIKHOAN(TaiKhoanID);
+GO
+
+-- Integrated migration: 12_ReportingCustomerCreatedAt.sql
+USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+-- No WITH VALUES: historical customers retain NULL, not fabricated creation dates.
+IF COL_LENGTH(N'dbo.KHACHHANG', N'CreatedAt') IS NULL
+    ALTER TABLE dbo.KHACHHANG ADD CreatedAt datetime2(0) NULL CONSTRAINT DF_KHACHHANG_CreatedAt DEFAULT (SYSDATETIME());
+COMMIT TRANSACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.KHACHHANG') AND name = N'IX_KHACHHANG_CreatedAt')
+    CREATE INDEX IX_KHACHHANG_CreatedAt ON dbo.KHACHHANG(CreatedAt);
+GO

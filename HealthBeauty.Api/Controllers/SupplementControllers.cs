@@ -194,19 +194,20 @@ public sealed class CustomerVouchersController(Klcn021HealthBeautyContext db) : 
         if(id is null)return NotFound();
         var now=DateTime.Now;
         var vouchers=await db.Vouchers.AsNoTracking().Include(x=>x.KhuyenMai)
-            .Where(x=>(x.KhachHangId==null || x.KhachHangId==id) && x.TrangThai && x.HanSuDung>=now)
+            .Where(x=>(x.KhachHangId==null || x.KhachHangId==id) && x.TrangThai && !x.UsedAt.HasValue && x.HanSuDung>=now)
+            .Where(x=>x.PointsCost==0 || (x.RedeemedAt.HasValue && x.KhachHangId==id))
             .Where(x=>(!x.KhuyenMai.NgayBatDauHieuLuc.HasValue || x.KhuyenMai.NgayBatDauHieuLuc<=now)
                 && (!x.KhuyenMai.NgayKetThucHieuLuc.HasValue || x.KhuyenMai.NgayKetThucHieuLuc>=now)).ToListAsync(ct);
         return Ok(vouchers.Where(x=>x.GiaTriGiam>=0 && VoucherRules.ValidDiscount(x.KhuyenMai.LoaiGiam,x.KhuyenMai.MucGiam))
-            .Select(x=>new {x.VoucherId,x.MaCode,x.GiaTriGiam,x.HanSuDung,x.KhuyenMai.TenKhuyenMai}));
+            .Select(x=>new {x.VoucherId,x.MaCode,x.GiaTriGiam,x.HanSuDung,x.KhuyenMai.TenKhuyenMai,x.PointsCost,x.RedeemedAt}));
     }
 }
 
 [ApiController, Authorize, Route("api/v1/reports")]
-public sealed class ReportsController(Klcn021HealthBeautyContext db) : ControllerBase
+public sealed partial class ReportsController(Klcn021HealthBeautyContext db) : ControllerBase
 {
     [Authorize(Roles="Admin,Manager,Reception"), HttpGet("appointments")] public async Task<IActionResult> Appointments([FromQuery] DateTime? from,[FromQuery] DateTime? to,CancellationToken ct){var q=db.Lichhens.AsNoTracking().AsQueryable();if(from.HasValue)q=q.Where(x=>x.NgayGioHen>=from);if(to.HasValue)q=q.Where(x=>x.NgayGioHen<to);return Ok(await q.GroupBy(x=>x.TrangThai).Select(g=>new{Status=g.Key,Count=g.Count()}).ToListAsync(ct));}
     [Authorize(Roles="Admin,Manager,Reception"), HttpGet("revenue")] public async Task<IActionResult> Revenue([FromQuery] DateTime? from,[FromQuery] DateTime? to,CancellationToken ct){var q=db.Hoadons.AsNoTracking().Where(x=>x.TrangThai=="DaThanhToan");if(from.HasValue)q=q.Where(x=>x.NgayLap>=from);if(to.HasValue)q=q.Where(x=>x.NgayLap<to);return Ok(new{InvoiceCount=await q.CountAsync(ct),Revenue=await q.SumAsync(x=>(decimal?)x.TongTienSauGiam,ct)??0});}
-    [Authorize(Roles="Admin,Manager,Reception"), HttpGet("services")] public async Task<IActionResult> Services(CancellationToken ct)=>Ok(await db.Chitiethoadons.AsNoTracking().Where(x=>x.HoaDon.TrangThai=="DaThanhToan").GroupBy(x=>new{x.DichVuId,Name=x.DichVu!=null?x.DichVu.TenDichVu:x.Combo!.TenCombo}).Select(g=>new{g.Key.DichVuId,g.Key.Name,Quantity=g.Sum(x=>x.SoLuong),Revenue=g.Sum(x=>x.SoLuong*x.DonGia)}).OrderByDescending(x=>x.Revenue).ToListAsync(ct));
+    [Authorize(Roles="Admin,Manager,Reception"), HttpGet("services")] public async Task<IActionResult> Services(CancellationToken ct)=>Ok(await db.Chitiethoadons.AsNoTracking().Where(x=>x.HoaDon.TrangThai=="DaThanhToan").GroupBy(x=>new{x.DichVuId,x.ComboId,Name=x.DichVu!=null?x.DichVu.TenDichVu:x.Combo!.TenCombo}).Select(g=>new{g.Key.DichVuId,g.Key.Name,Quantity=g.Sum(x=>x.SoLuong),Revenue=g.Sum(x=>x.SoLuong*x.DonGia)}).OrderByDescending(x=>x.Revenue).ToListAsync(ct));
     [Authorize(Roles="Admin,Manager,Reception"), HttpGet("customers")] public async Task<IActionResult> Customers(CancellationToken ct)=>Ok(await db.Khachhangs.AsNoTracking().OrderByDescending(x=>x.Hoadons.Count).Select(x=>new{ x.KhachHangId, x.HoTen, SoDiem=x.DiemThuong, AppointmentCount=x.Lichhens.Count, InvoiceCount=x.Hoadons.Count}).Take(200).ToListAsync(ct));
 }

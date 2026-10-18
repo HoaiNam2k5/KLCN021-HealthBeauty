@@ -1,0 +1,12 @@
+﻿USE [KLCN021_HealthBeauty];
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+-- No WITH VALUES: historical customers retain NULL, not fabricated creation dates.
+IF COL_LENGTH(N'dbo.KHACHHANG', N'CreatedAt') IS NULL
+    ALTER TABLE dbo.KHACHHANG ADD CreatedAt datetime2(0) NULL CONSTRAINT DF_KHACHHANG_CreatedAt DEFAULT (SYSDATETIME());
+COMMIT TRANSACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.KHACHHANG') AND name = N'IX_KHACHHANG_CreatedAt')
+    CREATE INDEX IX_KHACHHANG_CreatedAt ON dbo.KHACHHANG(CreatedAt);
+GO

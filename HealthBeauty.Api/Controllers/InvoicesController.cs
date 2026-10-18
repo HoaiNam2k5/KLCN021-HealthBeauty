@@ -5,6 +5,7 @@ using HealthBeauty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 
 namespace HealthBeauty.Api.Controllers;
 
@@ -73,8 +74,18 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificat
             if (appliedPoints > 0) db.Giaodichdiems.Add(new Giaodichdiem { HoaDon = invoice, KhachHangId = customer.KhachHangId, SoDiem = -appliedPoints, LoaiGiaoDich = "SuDung", NgayGiaoDich = DateTime.Now, GhiChu = "Đổi điểm trên hóa đơn" });
         }
         invoice.TongTienTruocGiam = subtotal; invoice.TongTienSauGiam = Math.Max(0, subtotal - discount);
-        if (appliedVoucher is not null) appliedVoucher.TrangThai = false;
-        db.Hoadons.Add(invoice); await db.SaveChangesAsync(ct);
+        if (appliedVoucher is not null) { appliedVoucher.TrangThai = false; appliedVoucher.UsedAt = DateTime.Now; }
+        db.Hoadons.Add(invoice);
+        try
+        {
+            if (!await NotificationPersistence.TrySaveAsync(db, ct))
+                return Conflict("Reward balance or voucher changed. Please reload.");
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            db.ChangeTracker.Clear();
+            return Conflict("Appointment already has an invoice. Please reload.");
+        }
         return CreatedAtAction(nameof(List), new { id = invoice.HoaDonId }, new { invoice.HoaDonId, invoice.TongTienTruocGiam, invoice.TongTienSauGiam, invoice.TrangThai });
     }
 

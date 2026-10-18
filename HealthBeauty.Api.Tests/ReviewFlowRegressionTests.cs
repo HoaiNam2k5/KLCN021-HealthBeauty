@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using System.Security.Claims;
 using System.Text.Json;
 using HealthBeauty.Api.Contracts;
@@ -150,5 +151,80 @@ public sealed class ReviewFlowRegressionTests
         Assert.Equal("ChuaThanhToan", item.GetProperty("invoiceStatus").GetString()); Assert.False(item.GetProperty("hasReviewed").GetBoolean());
         Assert.IsType<BadRequestObjectResult>(await AsUser(new ReviewsController(db)).CreateForAppointment(1, new ReviewRequest(5, null), default));
         Assert.Empty(await db.Danhgia.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task ManagementFiltersDirectAndComboServicesAndRetainsHiddenReviews(int serviceId)
+    {
+        await using var db = await Database();
+        db.Danhgia.Add(new Danhgium { HoaDonId = 1, SoSao = 3, TrangThai = "An", NgayDanhGia = DateTime.Today });
+        await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        var controller = new ReviewsController(db);
+        var result = Json(Assert.IsType<OkObjectResult>(await controller.Management(serviceId, DateTime.Today, DateTime.Today, 3, "An")).Value);
+        Assert.Equal(1, result.GetProperty("totalCount").GetInt32());
+        Assert.Equal(3, result.GetProperty("averageRating").GetDouble());
+        var item = Assert.Single(result.GetProperty("items").EnumerateArray());
+        Assert.Equal("Customer One", item.GetProperty("tenKhachHang").GetString());
+        Assert.Equal(2, item.GetProperty("services").GetArrayLength());
+        var empty = Json(Assert.IsType<OkObjectResult>(await controller.Management(serviceId, null, null, 5, null)).Value);
+        Assert.Equal(0, empty.GetProperty("totalCount").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(0, 20, null, null)]
+    [InlineData(1, 101, null, null)]
+    [InlineData(1, 20, 6, null)]
+    [InlineData(1, 20, null, "Deleted")]
+    public async Task ManagementRejectsInvalidFilters(int page, int size, int? stars, string? status)
+    {
+        await using var db = await Database();
+        Assert.IsType<BadRequestObjectResult>(await new ReviewsController(db).Management(null, null, null, stars, status, page, size));
+    }
+
+    [Fact]
+    public async Task ReplyPersistsWithoutPublicAuthorIdentityAndDeletionCannotResurrectOrReviewAgain()
+    {
+        await using var db = await Database(); var controller = AsUser(new ReviewsController(db));
+        await controller.Create(1, new ReviewRequest(4, "Nice"), default);
+        var id = (await db.Danhgia.SingleAsync()).DanhGiaId;
+        Assert.IsType<NoContentResult>(await controller.Reply(id, new ReviewReplyRequest("  Thank you  "), default));
+        db.ChangeTracker.Clear();
+        var stored = await db.Danhgia.SingleAsync(); Assert.Equal("Thank you", stored.Reply); Assert.Equal(1, stored.ReplyAccountId); Assert.NotNull(stored.RepliedAt);
+        var json = Json(Assert.IsType<OkObjectResult>(await controller.List(null, default)).Value);
+        var item = json.GetProperty("items")[0]; Assert.Equal("Thank you", item.GetProperty("reply").GetString());
+        Assert.False(item.TryGetProperty("replyAccountId", out _));
+        Assert.EndsWith("Z", item.GetProperty("repliedAt").GetString());
+        Assert.IsType<NoContentResult>(await controller.Delete(id, default));
+        Assert.IsType<NotFoundResult>(await controller.Moderate(id, true, default));
+        Assert.IsType<NotFoundResult>(await controller.Reply(id, new ReviewReplyRequest("Again"), default));
+        Assert.IsType<ConflictObjectResult>(await controller.Create(1, new ReviewRequest(5, null), default));
+        Assert.True((await Mine(db)).GetProperty("hasReviewed").GetBoolean());
+        Assert.Empty(Json(Assert.IsType<OkObjectResult>(await controller.Pending(default)).Value).EnumerateArray());
+        Assert.Equal(0, Json(Assert.IsType<OkObjectResult>(await controller.List(null, default)).Value).GetProperty("totalReviews").GetInt32());
+        Assert.Equal(0, Json(Assert.IsType<OkObjectResult>(await controller.Management(null,null,null,null,null)).Value).GetProperty("totalCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConcurrentModerationRejectsStaleTrackedReview()
+    {
+        await using var db = await Database(); db.Danhgia.Add(new Danhgium { HoaDonId = 1, SoSao = 4, TrangThai = "ChoDuyet" }); await db.SaveChangesAsync();
+        var id = (await db.Danhgia.SingleAsync()).DanhGiaId;
+        await using var other = new Klcn021HealthBeautyContext(db.GetService<Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptions>() is Microsoft.EntityFrameworkCore.DbContextOptions<Klcn021HealthBeautyContext> options ? options : throw new Exception());
+        await other.Danhgia.FindAsync(id);
+        Assert.IsType<NoContentResult>(await new ReviewsController(db).Moderate(id, false, default));
+        Assert.IsType<ConflictObjectResult>(await new ReviewsController(other).Moderate(id, true, default));
+    }
+
+    [Theory]
+    [InlineData("Management")]
+    [InlineData("Reply")]
+    [InlineData("Delete")]
+    public void ManagementRoutesRequireRoleAndDatabaseGrant(string action)
+    {
+        var method = typeof(ReviewsController).GetMethod(action)!;
+        Assert.Equal("Admin,Manager,Reception", Assert.Single(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true).Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()).Roles);
+        Assert.Equal("REVIEW.MODERATE", HealthBeauty.Api.Services.DatabasePermissionFilter.RequiredPermission("Reviews", action, new ClaimsPrincipal()));
     }
 }

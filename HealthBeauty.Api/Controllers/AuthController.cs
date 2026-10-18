@@ -32,7 +32,7 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
         if (role is null) { role = new Vaitro { TenVaiTro = "Customer", MoTa = "Khách hàng" }; db.Vaitros.Add(role); await db.SaveChangesAsync(cancellationToken); }
         var account = new Taikhoan { Email = email, TenTaiKhoan = request.HoTen.Trim(), MatKhauHash = passwords.Hash(request.Password), VaiTroId = role.VaiTroId, TrangThai = true, NgayTao = DateTime.UtcNow };
         db.Taikhoans.Add(account); await db.SaveChangesAsync(cancellationToken);
-        db.Khachhangs.Add(new Khachhang { TaiKhoanId = account.TaiKhoanId, HoTen = request.HoTen.Trim(), SoDienThoai = request.SoDienThoai, DiemThuong = 0 });
+        db.Khachhangs.Add(new Khachhang { CreatedAt = DateTime.Now, TaiKhoanId = account.TaiKhoanId, HoTen = request.HoTen.Trim(), SoDienThoai = request.SoDienThoai, DiemThuong = 0 });
         await db.SaveChangesAsync(cancellationToken);
         account.VaiTro = role;
         return Ok(await IssueTokens(account, cancellationToken));

@@ -1,0 +1,14 @@
+{
+  "Cloudinary": {
+    "Enabled": false,
+    "CloudName": "<cloud-name>",
+    "ApiKey": "<api-key>",
+    "ApiSecret": "<api-secret>",
+    "Folder": "healthbeauty/catalog"
+  },
+  "AppointmentReminders": {
+    "Enabled": true,
+    "LeadMinutes": 60,
+    "PollSeconds": 60
+  }
+}
