@@ -53,6 +53,7 @@ export interface VoucherRequest {
   customerId: number | null
   discountValue: number
   expiresAt: string
+  pointsCost?: number
 }
 
 export interface Voucher {
@@ -65,6 +66,7 @@ export interface Voucher {
   discountValue: number
   expiresAt: string
   active: boolean
+  pointsCost?: number
 }
 
 export function mapPromotion(response: PromotionResponse): Promotion {

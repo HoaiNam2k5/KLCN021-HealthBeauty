@@ -7,6 +7,14 @@ export const customerStaffKeys = {
   staff: ['staff'] as const,
 }
 
+export function useCustomerPointHistory(id: number | null, page = 1, pageSize = 20, enabled = true) {
+  return useQuery({
+    queryKey: ['customers', id, 'points', page, pageSize],
+    queryFn: () => api.getCustomerPointHistory(id!, page, pageSize),
+    enabled: Boolean(id) && enabled,
+  })
+}
+
 export function useCustomers(keyword: string, enabled = true) {
   return useQuery({ queryKey: [...customerStaffKeys.customers, keyword], queryFn: () => api.getCustomers(keyword), enabled })
 }

@@ -16,6 +16,7 @@ export interface Service {
   price: number
   durationMinutes: number
   description: string | null
+  imageUrl?: string | null
 }
 
 export interface ServiceRequest {
@@ -24,6 +25,7 @@ export interface ServiceRequest {
   price: number
   durationMinutes: number
   description: string | null
+  imageUrl?: string | null
 }
 
 export interface ComboItemRequest {
@@ -37,6 +39,7 @@ export interface ComboRequest {
   validFrom: string
   validTo: string
   items: ComboItemRequest[] | null
+  imageUrl?: string | null
 }
 
 export interface ComboItemResponse {
@@ -51,6 +54,7 @@ export interface Combo {
   validFrom: string
   validTo: string
   items: ComboItemResponse[] | null
+  imageUrl?: string | null
 }
 
 export interface PageQuery {

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import * as reportsApi from '../../api/reports'
-import { REPORT_QUERY_KEY, REPORT_STALE_TIME } from '../../types/reports'
+import { REPORT_QUERY_KEY, REPORT_STALE_TIME, type ReportFilterParams } from '../../types/reports'
 
 export const reportKeys = {
+  summary: (kind: string, params: ReportFilterParams) => [...REPORT_QUERY_KEY, kind, params] as const,
   all: REPORT_QUERY_KEY,
   appointmentReport: (from: string, to: string) => [...REPORT_QUERY_KEY, 'appointments', from, to] as const,
   revenueReport: (from: string, to: string) => [...REPORT_QUERY_KEY, 'revenue', from, to] as const,
@@ -13,6 +14,19 @@ export const reportKeys = {
   reviews: [...REPORT_QUERY_KEY, 'reviews'] as const,
   appointments: [...REPORT_QUERY_KEY, 'appointment-list'] as const,
   services: [...REPORT_QUERY_KEY, 'service-list'] as const,
+}
+
+export function useAppointmentSummary(params: ReportFilterParams, enabled = true) {
+  return useQuery({ queryKey: reportKeys.summary('appointment-summary', params), queryFn: () => reportsApi.getAppointmentSummary(params), enabled, staleTime: REPORT_STALE_TIME })
+}
+export function useOrderSummary(params: ReportFilterParams, enabled = true) {
+  return useQuery({ queryKey: reportKeys.summary('order-summary', params), queryFn: () => reportsApi.getOrderSummary(params), enabled, staleTime: REPORT_STALE_TIME })
+}
+export function useOrderBreakdown(params: ReportFilterParams, enabled = true) {
+  return useQuery({ queryKey: reportKeys.summary('order-breakdown', params), queryFn: () => reportsApi.getOrderBreakdown(params), enabled, staleTime: REPORT_STALE_TIME })
+}
+export function useNewCustomers(params: ReportFilterParams, enabled = true) {
+  return useQuery({ queryKey: reportKeys.summary('new-customers', params), queryFn: () => reportsApi.getNewCustomers(params), enabled, staleTime: REPORT_STALE_TIME })
 }
 
 export function useAppointmentReport(from: string, to: string) {

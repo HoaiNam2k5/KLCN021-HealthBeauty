@@ -1,3 +1,24 @@
+export interface ReportFilterParams {
+  from?: string
+  to?: string
+  groupBy?: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'status' | 'service' | 'combo' | 'staff' | 'category'
+  status?: string
+  staffId?: number
+  serviceId?: number
+  comboId?: number
+  categoryId?: number
+  search?: string
+  page?: number
+  pageSize?: number
+}
+export interface AppointmentSummaryItem { periodStart?: string | null; status: string; count: number }
+export interface AppointmentSummaryResponse { totalCount: number; items: AppointmentSummaryItem[] }
+export interface OrderSummaryItem { periodStart: string; invoiceCount: number; paidInvoiceCount: number; unpaidInvoiceCount: number; paidRevenue: number }
+export interface OrderSummaryResponse { totalCount: number; paidRevenue: number; items: OrderSummaryItem[] }
+export interface OrderBreakdownItem { id: number | null; kind: string; name: string; invoiceCount: number; quantity?: number; grossAmount?: number; paidRevenue?: number }
+export interface OrderBreakdownResponse { totalCount: number; paidRevenue: number; metric: string; items: OrderBreakdownItem[] }
+export interface NewCustomersResponse { totalCount: number; unknownHistoricalCount: number; items: { periodStart: string; count: number }[] }
+
 export interface AppointmentStatusReport { status: string; count: number }
 export interface RevenueReport { invoiceCount: number; revenue: number }
 export interface ServiceReport { dichVuId: number | null; name: string; quantity: number; revenue: number }

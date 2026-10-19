@@ -1,6 +1,28 @@
 import api from './client'
 import { asArray, mapStaff, mapStaffList, type Customer, type CreateStaffRequest, type Staff, type StaffRequest, type StaffResponse, type UpdateCustomerRequest } from '../types/customersStaff'
 
+export interface PointTransaction {
+  giaoDichId: number
+  soDiem: number
+  loaiGiaoDich: string
+  ngayGiaoDich: string
+  ghiChu: string | null
+  hoaDonId: number | null
+  voucherId: number | null
+}
+export interface CustomerPointHistoryResponse {
+  customerId: number
+  diemThuong: number
+  transactions: PointTransaction[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+export async function getCustomerPointHistory(id: number, page = 1, pageSize = 20): Promise<CustomerPointHistoryResponse> {
+  const { data } = await api.get<CustomerPointHistoryResponse>(`/customers/${id}/points`, { params: { page, pageSize } })
+  return data
+}
+
 export async function getCustomers(keyword = ''): Promise<Customer[]> {
   const { data } = await api.get<unknown>('/customers', { params: { keyword: keyword.trim() } })
   return asArray<Customer>(data)

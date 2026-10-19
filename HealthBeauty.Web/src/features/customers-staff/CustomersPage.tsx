@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Alert, App, Button, Card, Descriptions, Drawer, Empty, Form, Input, Modal, Select, Space, Statistic, Table, Tabs, Tag } from 'antd'
+import { Alert, App, Button, Card, Descriptions, Drawer, Empty, Form, Input, Modal, Select, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { Appointment } from '../../types/appointments'
 import type { Invoice } from '../../types/billing'
@@ -12,7 +12,8 @@ import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
 import type { Customer, UpdateCustomerRequest } from '../../types/customersStaff'
 import type { CreateCustomerInput } from '../../api/customersStaff'
-import { useCreateCustomer, useCustomers, useUpdateCustomer } from './customerStaffQueries'
+import { useCreateCustomer, useCustomerPointHistory, useCustomers, useUpdateCustomer } from './customerStaffQueries'
+import type { PointTransaction } from '../../api/customersStaff'
 
 function membership(points: number) {
   if (points >= 2000) return { label: 'Kim Cương', color: 'purple' }
@@ -25,6 +26,7 @@ const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amoun
 
 export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [pointPage, setPointPage] = useState(1)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [keyword, setKeyword] = useState('')
@@ -40,6 +42,7 @@ export default function CustomersPage() {
   const createMutation = useCreateCustomer()
   const appointmentsQuery = useAllAppointments()
   const invoicesQuery = useInvoices()
+  const pointsQuery = useCustomerPointHistory(selectedCustomer?.id ?? null, pointPage, 10, has('CUSTOMER.READ'))
   const customerAppointments = useMemo(() => (appointmentsQuery.data ?? []).filter((item: Appointment) => item.customerId === selectedCustomer?.id).sort((a, b) => dayjs(b.appointmentAt).valueOf() - dayjs(a.appointmentAt).valueOf()), [appointmentsQuery.data, selectedCustomer?.id])
   const customerInvoices = useMemo(() => (invoicesQuery.data ?? []).filter((item: Invoice) => item.customerId === selectedCustomer?.id).sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf()), [invoicesQuery.data, selectedCustomer?.id])
   const spent = customerInvoices.filter((invoice) => invoice.status === INVOICE_STATUS.PAID).reduce((total, invoice) => total + invoice.total, 0)
@@ -56,10 +59,19 @@ export default function CustomersPage() {
     { title: 'Tổng tiền', dataIndex: 'total', key: 'total', render: (value: number) => money(value) },
     { title: 'Thanh toán', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={status === INVOICE_STATUS.PAID ? 'success' : 'warning'}>{INVOICE_STATUS_LABELS[status] ?? status}</Tag> },
   ]
+  const pointColumns = [
+    { title: 'Ngày giao dịch', dataIndex: 'ngayGiaoDich', key: 'ngayGiaoDich', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') },
+    { title: 'Thay đổi điểm', dataIndex: 'soDiem', key: 'soDiem', render: (value: number) => value > 0 ? <Tag color="success">+{value.toLocaleString('vi-VN')}</Tag> : value < 0 ? <Tag color="error">{value.toLocaleString('vi-VN')}</Tag> : <Tag>0</Tag> },
+    { title: 'Loại giao dịch', dataIndex: 'loaiGiaoDich', key: 'loaiGiaoDich' },
+    { title: 'Ghi chú', dataIndex: 'ghiChu', key: 'ghiChu', render: (value: string | null) => value || '—' },
+    { title: 'Mã HĐ liên quan', dataIndex: 'hoaDonId', key: 'hoaDonId', render: (value: number | null) => value ? `#${value}` : '—' },
+    { title: 'Mã Voucher liên quan', dataIndex: 'voucherId', key: 'voucherId', render: (value: number | null) => value ? `#${value}` : '—' },
+  ]
   const historyTabs = selectedCustomer ? [
     { key: 'overview', label: 'Tổng quan', children: <Space direction="vertical" size="middle" style={{ width: '100%' }}><Card><Descriptions column={2} title={selectedCustomer.fullName || 'Hồ sơ khách hàng'}><Descriptions.Item label="Số điện thoại">{selectedCustomer.phone || '—'}</Descriptions.Item><Descriptions.Item label="Giới tính">{selectedCustomer.gender || '—'}</Descriptions.Item><Descriptions.Item label="Hạng thành viên"><Tag color={membership(selectedCustomer.rewardPoints).color} style={{ fontSize: 16, padding: '4px 12px' }}>{membership(selectedCustomer.rewardPoints).label}</Tag></Descriptions.Item><Descriptions.Item label="Điểm thưởng">{selectedCustomer.rewardPoints.toLocaleString('vi-VN')}</Descriptions.Item></Descriptions></Card><Space wrap style={{ width: '100%' }}><Card><Statistic title="Tổng lịch hẹn" value={customerAppointments.length} /></Card><Card><Statistic title="Đã hoàn thành" value={customerAppointments.filter((item) => item.status === APPOINTMENT_STATUS.COMPLETED).length} /></Card><Card><Statistic title="Tổng chi tiêu" value={money(spent)} /></Card></Space></Space> },
     { key: 'appointments', label: 'Lịch sử Lịch hẹn', children: customerAppointments.length ? <Table<Appointment> rowKey="id" size="small" scroll={{ x: 'max-content' }} pagination={{ pageSize: 5 }} dataSource={customerAppointments} columns={appointmentColumns} /> : <Empty description="Chưa có lịch sử" /> },
     { key: 'invoices', label: 'Lịch sử Hóa đơn', children: customerInvoices.length ? <Table<Invoice> rowKey="id" size="small" scroll={{ x: 'max-content' }} pagination={{ pageSize: 5 }} dataSource={customerInvoices} columns={invoiceColumns} /> : <Empty description="Chưa có lịch sử" /> },
+    { key: 'points', label: 'Lịch sử Điểm thưởng', children: <><Space style={{ marginBottom: 12 }}><Typography.Text strong>Điểm thưởng hiện tại:</Typography.Text><Typography.Text>{(pointsQuery.data?.diemThuong ?? selectedCustomer.rewardPoints).toLocaleString('vi-VN')}</Typography.Text></Space><Table<PointTransaction> rowKey="giaoDichId" size="small" scroll={{ x: 'max-content' }} loading={pointsQuery.isLoading} dataSource={pointsQuery.data?.transactions ?? []} columns={pointColumns} pagination={{ current: pointPage, pageSize: 10, total: pointsQuery.data?.totalCount ?? 0, showSizeChanger: false, onChange: (nextPage) => setPointPage(nextPage) }} /></> },
   ] : []
 
   function edit(customer: Customer) {
@@ -97,7 +109,7 @@ export default function CustomersPage() {
         { title: 'Giới tính', dataIndex: 'gender', key: 'gender', render: (value: string | null) => value || '—' },
         { title: 'Điểm thưởng', dataIndex: 'rewardPoints', key: 'rewardPoints', render: (value: number) => value.toLocaleString('vi-VN') },
         { title: 'Hạng thành viên', key: 'membership', render: (_: unknown, customer: Customer) => <Tag color={membership(customer.rewardPoints).color}>{membership(customer.rewardPoints).label}</Tag> },
-        { title: 'Thao tác', key: 'actions', render: (_: unknown, customer: Customer) => <Space><Button type="link" onClick={() => setSelectedCustomer(customer)}>Lịch sử</Button>{canEdit && <Button type="link" onClick={() => edit(customer)}>Sửa</Button>}</Space> },
+        { title: 'Thao tác', key: 'actions', render: (_: unknown, customer: Customer) => <Space><Button type="link" onClick={() => { setPointPage(1); setSelectedCustomer(customer) }}>Lịch sử</Button>{canEdit && <Button type="link" onClick={() => edit(customer)}>Sửa</Button>}</Space> },
       ]}
       data={query.data ?? []} searchFields={['fullName', 'phone']} loading={query.isLoading} error={query.isError}
       page={page} pageSize={pageSize} onPageChange={(next, size) => { setPage(next); setPageSize(size) }}

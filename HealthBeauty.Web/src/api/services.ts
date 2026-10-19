@@ -1,4 +1,16 @@
 import api from './client'
+
+export interface UploadImageResponse {
+  imageUrl: string
+  publicId: string
+}
+
+export async function uploadImage(file: File): Promise<UploadImageResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post<UploadImageResponse>('/media/images', formData)
+  return data
+}
 import { asArray, type CategoryRequest, type Combo, type ComboRequest, type Service, type ServiceCategory, type ServiceRequest } from '../types/services'
 
 export async function getCategories(): Promise<ServiceCategory[]> {

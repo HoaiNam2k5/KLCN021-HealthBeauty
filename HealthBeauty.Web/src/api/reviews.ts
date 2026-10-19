@@ -1,6 +1,6 @@
 import api from './client'
 import { getAllAppointments } from './appointments'
-import { asReviewArray, asReviewRelatedArray, type Review, type ReviewAppointment, type ReviewCustomer, type ReviewInvoice, type ReviewStaff } from '../types/reviews'
+import { asReviewArray, asReviewRelatedArray, type Review, type ReviewAppointment, type ReviewCustomer, type ReviewFilterParams, type ReviewInvoice, type ReviewManagementResponse, type ReviewStaff } from '../types/reviews'
 
 export async function getReviews(serviceId?: number): Promise<Review[]> {
   const { data } = await api.get<unknown>('/reviews', { params: serviceId === undefined ? {} : { serviceId } })
@@ -29,6 +29,19 @@ export async function getReviewCustomers(): Promise<ReviewCustomer[]> {
 export async function getReviewStaff(): Promise<ReviewStaff[]> {
   const { data } = await api.get<unknown>('/staff')
   return asReviewRelatedArray<ReviewStaff>(data)
+}
+
+export async function getManagementReviews(params: ReviewFilterParams = {}): Promise<ReviewManagementResponse> {
+  const { data } = await api.get<ReviewManagementResponse>('/reviews/management', { params })
+  return data
+}
+
+export async function replyReview(id: number, reply: string): Promise<void> {
+  await api.put(`/reviews/${id}/reply`, { reply })
+}
+
+export async function deleteReview(id: number): Promise<void> {
+  await api.delete(`/reviews/${id}`)
 }
 
 export async function setReviewVisibility(id: number, visible: boolean): Promise<void> {

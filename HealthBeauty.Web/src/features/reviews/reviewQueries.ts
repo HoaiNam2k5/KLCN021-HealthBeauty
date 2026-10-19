@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as reviewsApi from '../../api/reviews'
+import type { ReviewFilterParams } from '../../types/reviews'
 
 export const reviewKeys = {
   reviews: ['reviews'] as const,
   pending: ['reviews', 'pending'] as const,
+  management: (params?: ReviewFilterParams) => ['reviews', 'management', params] as const,
   invoices: ['review-invoices'] as const,
   appointments: ['review-appointments'] as const,
   customers: ['review-customers'] as const,
@@ -32,6 +34,26 @@ export function useReviewCustomers(enabled = true) {
 
 export function useReviewStaff(enabled = true) {
   return useQuery({ queryKey: reviewKeys.staff, queryFn: reviewsApi.getReviewStaff, enabled })
+}
+
+export function useManagementReviews(params: ReviewFilterParams, enabled = true) {
+  return useQuery({ queryKey: reviewKeys.management(params), queryFn: () => reviewsApi.getManagementReviews(params), enabled })
+}
+
+export function useReplyReview() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: number; reply: string }) => reviewsApi.replyReview(input.id, input.reply),
+    onSuccess: () => client.invalidateQueries({ queryKey: reviewKeys.reviews }),
+  })
+}
+
+export function useDeleteReview() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => reviewsApi.deleteReview(id),
+    onSuccess: () => client.invalidateQueries({ queryKey: reviewKeys.reviews }),
+  })
 }
 
 export function useSetReviewVisibility() {

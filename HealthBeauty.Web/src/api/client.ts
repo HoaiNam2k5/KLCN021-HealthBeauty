@@ -48,6 +48,7 @@ export function refreshSession(): Promise<string> {
 api.interceptors.request.use((config) => {
   const token = getSession()?.accessToken
   if (token) config.headers.Authorization = `Bearer ${token}`
+  if (config.data instanceof FormData) delete config.headers['Content-Type']
   return config
 })
 
