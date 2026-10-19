@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using System.Security.Claims;
 using HealthBeauty.Api.Contracts;
 using HealthBeauty.Api.Models;
@@ -42,6 +43,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             return Conflict("Khách hàng hoặc nhân viên đã có lịch hẹn trong khoảng thời gian này.");
         if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, ct))
             return BadRequest("The entire appointment must be within the selected staff member's working shift.");
+        if (!await ServicePackageLifecycle.ValidDateAsync(db, item, request.AppointmentAt, ct)) return BadRequest("Appointment is outside package validity.");
         item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim();
         await NotificationEvents.AppointmentAsync(Notifications, item, "Rescheduled", ct);
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
@@ -67,9 +69,20 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             _ => Array.Empty<string>()
         };
         if (!nextStatuses.Contains(request.Status)) return Conflict("Invalid appointment status transition.");
+        if (request.Status is "HoanThanh" or "DaHuy") await ServicePackageLifecycle.SettleAsync(db, item, request.Status == "HoanThanh", ct);
         item.TrangThai = request.Status;
         await NotificationEvents.AppointmentAsync(Notifications, item, request.Status, ct);
-        if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return NoContent();
+        try
+        {
+            if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Appointment or package balance changed. Please reload.");
+        }
+        catch (DbUpdateException error) when (item.CustomerPackageId.HasValue && error.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            // Concurrent package completion can reach the unique receipt insert before the CAS update.
+            db.ChangeTracker.Clear();
+            return Conflict("The package appointment was already completed. Please reload.");
+        }
+        return NoContent();
     }
 
     [HttpPost("{id:int}/reschedule")]
@@ -88,6 +101,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             return Conflict("Khách hàng hoặc nhân viên đã có lịch hẹn trong khoảng thời gian này.");
         if (!await AppointmentTiming.IsWithinShiftAsync(db, request.StaffId, request.AppointmentAt, durationMinutes, ct))
             return BadRequest("The entire appointment must be within the selected staff member's working shift.");
+        if (!await ServicePackageLifecycle.ValidDateAsync(db, item, request.AppointmentAt, ct)) return BadRequest("Appointment is outside package validity.");
         item.NgayGioHen = request.AppointmentAt; item.NhanVienId = request.StaffId; item.GhiChu = request.Note?.Trim();
         await NotificationEvents.AppointmentAsync(Notifications, item, "Rescheduled", ct);
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return Ok(await AppointmentViews.LoadDetailAsync(db, item.LichHenId, ct));
@@ -100,6 +114,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!); var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
         if (customerId != item.KhachHangId && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
         if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan" or "DaDen")) return Conflict("This appointment can no longer be cancelled.");
+        await ServicePackageLifecycle.SettleAsync(db, item, false, ct);
         item.TrangThai = "DaHuy";
         await NotificationEvents.AppointmentAsync(Notifications, item, "DaHuy", ct);
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Lịch hẹn vừa được cập nhật. Vui lòng tải lại dữ liệu."); return NoContent();

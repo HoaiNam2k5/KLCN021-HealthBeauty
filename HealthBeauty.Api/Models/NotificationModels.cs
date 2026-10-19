@@ -46,6 +46,7 @@ public partial class Klcn021HealthBeautyContext
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
+        ConfigureServicePackages(modelBuilder);
         modelBuilder.Entity<Lichhen>().Property(x => x.RowVersion).IsRowVersion();
         modelBuilder.Entity<Hoadon>().Property(x => x.RowVersion).IsRowVersion();
         modelBuilder.Entity<Khachhang>().Property(x => x.CreatedAt).HasColumnType("datetime2(0)").HasDefaultValueSql("SYSDATETIME()");

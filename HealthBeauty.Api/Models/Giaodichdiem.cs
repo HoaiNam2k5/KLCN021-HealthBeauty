@@ -5,6 +5,7 @@ namespace HealthBeauty.Api.Models;
 
 public partial class Giaodichdiem
 {
+    public int? CustomerPackageId { get; set; }
     public int GiaoDichId { get; set; }
 
     public int KhachHangId { get; set; }

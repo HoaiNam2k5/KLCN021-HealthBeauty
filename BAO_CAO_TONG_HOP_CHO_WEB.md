@@ -106,3 +106,7 @@ Tất cả API sau cần Admin/Manager/Reception và `REPORT.READ`:
 
 Kiểm chứng backend: **403/403 test đạt**, build 0 lỗi/cảnh báo; XLSX đã đọc độc lập bằng openpyxl. Các migration 07–11 từng được kiểm tra trên SQL local; riêng SQL12 và các truy vấn báo cáo SQL thực **chưa kiểm chứng** do SSPI. Không có khóa Cloudinary/SMTP/JWT/Firebase trong tài liệu hoặc commit.
 Chi tiết: `HealthBeauty.Api/REVIEWS.md` và `KLCN021_API_Catalog.xlsx`; ba báo cáo từng module vẫn giữ để tra cứu.
+
+## 9. Bổ sung mới: gói dịch vụ nhiều buổi (19/10)
+
+Module gói dịch vụ đã tích hợp vào nhánh `feature/huynh-web`. Xem **HUONG_DAN_GOI_DICH_VU.md**: tạo gói, mua/thanh toán, tab số lượt của khách, chọn gói khi đặt lịch, lịch sử và doanh thu riêng. Frontend cần tích hợp, chưa có sẵn giao diện. Không thay combo cũ. Thành viên chạy migration còn thiếu đến SQL13 trước API mới. Máy anh Nam đã chạy SQL; 14/14 kiểm tra HTTP với API thật đạt, chưa kiểm chứng luồng ghi SQL/tranh chấp đồng thời.

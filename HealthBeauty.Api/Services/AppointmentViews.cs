@@ -8,6 +8,7 @@ public static class AppointmentViews
 {
     public static object Detail(Lichhen x) => new
     {
+        x.CustomerPackageId, FundingSource = x.CustomerPackageId.HasValue ? "ServicePackage" : "Cash",
         x.LichHenId, x.KhachHangId, x.NhanVienId, x.NgayGioHen, x.GioKetThucDuKien, x.TrangThai, x.GhiChu,
         KhachHang = x.KhachHang is null ? null : new { x.KhachHang.KhachHangId, x.KhachHang.HoTen, x.KhachHang.SoDienThoai },
         NhanVien = x.NhanVien is null ? null : new { x.NhanVien.NhanVienId, x.NhanVien.HoTen, x.NhanVien.ChuyenMon },

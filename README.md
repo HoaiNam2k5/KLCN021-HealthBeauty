@@ -141,3 +141,5 @@ Bổ sung ảnh Cloudinary, nhắc lịch tự động và đổi điểm lấy 
 [Báo cáo quản lý đánh giá cho Web](BAO_CAO_QUAN_LY_DANH_GIA_WEB.md) — API, bộ lọc, phản hồi và kiểm duyệt; xem mục 13 trong `HealthBeauty.Api/REVIEWS.md`.
 
 [Báo cáo thống kê cho Web](BAO_CAO_THONG_KE_BAO_CAO_WEB.md) — API báo cáo theo kỳ, khách mới và xuất XLSX; cần chạy SQL12 trước khi dùng bản API mới.
+
+[Gói dịch vụ nhiều buổi — Web/Flutter cần tích hợp](HUONG_DAN_GOI_DICH_VU.md): theo dõi số lượt, mua/thanh toán và đặt lịch; cần SQL13.
