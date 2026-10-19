@@ -28,3 +28,16 @@ README.md
 !.git/config
 !.git/packed-refs
 !.git/refs/heads/**
+# Machine-local configuration and generated frontend/integration artifacts
+**/appsettings.*.local.json
+**/.env.*
+.local-integration/
+.audit/
+**/dist/
+**/build/
+**/.dart_tool/
+**/.gradle/
+**/local.properties
+**/key.properties
+**/*.keystore
+**/*.jks

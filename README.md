@@ -1,105 +1,145 @@
 # KLCN021 HealthBeauty
 
-Repository chứa ASP.NET Core Web API, SQL Server schema và danh mục API cho hệ thống quản lý spa HealthBeauty. Web React và ứng dụng di động dùng chung API này.
+**Thành viên Web: đọc [BÁO CÁO TỔNG HỢP](BAO_CAO_TONG_HOP_CHO_WEB.md) trước khi tích hợp. Nhánh `feature/huynh-web`; chạy migration còn thiếu đến SQL12 trước khi dùng API mới.**
 
-## Công nghệ
+Hệ thống quản lý spa HealthBeauty gồm web quản trị React, ứng dụng Flutter cho khách hàng và một ASP.NET Core Web API dùng chung. Phạm vi hiện tại không gồm kho và bán sản phẩm.
 
-- .NET 8 / ASP.NET Core Web API
-- SQL Server
-- Entity Framework Core
-- JWT access token và refresh token
+## Clone bản tích hợp
+
+```powershell
+git clone --branch feature/healthbeauty-web-mobile-ready --single-branch https://github.com/HoaiNam2k5/KLCN021-HealthBeauty.git
+cd KLCN021-HealthBeauty
+```
+
+```text
+KLCN021-HealthBeauty/
+├── HealthBeauty.Api/        # ASP.NET Core Web API /api/v1
+├── HealthBeauty.Api.Tests/  # Kiểm thử API
+├── DB_KLCN021/              # SQL Server schema, seed và cập nhật quyền
+├── HealthBeauty.Web/        # React / TypeScript / Vite cho quản trị
+└── HealthBeauty.Mobile/     # Flutter cho khách hàng
+```
 
 ## Yêu cầu
 
-- .NET 8 SDK
-- SQL Server (LocalDB, SQL Server Express hoặc SQL Server instance)
-- SQL Server Management Studio hoặc công cụ chạy script tương đương
+- .NET 8 SDK và SQL Server; SSMS hoặc công cụ chạy script SQL.
+- Web: Node.js `^20.19.0`, `^22.13.0` hoặc `>=24.0.0`, npm. Node 24 đã được kiểm tra.
+- Mobile: Flutter >=3.38.1, Dart >=3.10 và <4.0. Android cần JDK >=17 và Android SDK; cấu hình dùng AGP 8.11.1, Kotlin 2.2.20, Gradle 8.14.
+- Cấu hình máy cá nhân, database đang dùng, JWT key, cache và file build không được đưa vào repository. Mỗi thành viên cấu hình API trên máy mình.
 
-## Cài đặt lần đầu
+## 1. Database và API
 
-1. Clone repository và mở solution:
+Chạy lần lượt trong SSMS:
 
-   ```powershell
-   git clone https://github.com/HoaiNam2k5/KLCN021-HealthBeauty.git
-   cd KLCN021-HealthBeauty
-   ```
+1. `DB_KLCN021/KLCN021_HealthBeauty.sql`: tạo database và 28 bảng nghiệp vụ, gồm khôi phục mật khẩu và thông báo.
+2. `DB_KLCN021/02_SeedData.sql`: tạo dữ liệu demo, vai trò và quyền mặc định; có thể chạy lại.
+3. `DB_KLCN021/03_ApiPermissionGrants.sql`: bổ sung các quyền còn thiếu trên database đã tồn tại, giữ các quyền đã bị thu hồi.
 
-2. Chạy script `DB_KLCN021/KLCN021_HealthBeauty.sql` trong SQL Server Management Studio. Script tạo database `KLCN021_HealthBeauty` và các bảng cần thiết.
+Trong terminal tại thư mục repo, cấu hình User Secrets. Thay SQL Server instance theo máy của thành viên:
 
-   Để nạp dữ liệu mẫu cho giao diện và luồng nghiệp vụ, tiếp tục chạy `DB_KLCN021/02_SeedData.sql`. Script seed có thể chạy lại an toàn.
+```powershell
+cd HealthBeauty.Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost\SQLEXPRESS;Database=KLCN021_HealthBeauty;Trusted_Connection=True;TrustServerCertificate=True;"
 
-   Tài khoản demo local sau khi chạy seed:
+# Sinh khóa riêng, dùng được cả Windows PowerShell 5.1.
+$jwtBytes = New-Object byte[] 48
+$jwtRng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$jwtRng.GetBytes($jwtBytes)
+$jwtKey = [Convert]::ToBase64String($jwtBytes)
+$jwtRng.Dispose()
+dotnet user-secrets set "Jwt:Key" $jwtKey
+Remove-Variable jwtKey, jwtBytes, jwtRng
 
-   | Vai trò | Email | Mật khẩu |
-   | --- | --- | --- |
-   | Admin | `admin@healthbeauty.local` | `HealthBeauty@123` |
-   | Reception | `reception@healthbeauty.local` | `HealthBeauty@123` |
-   | Customer | `customer@healthbeauty.local` | `HealthBeauty@123` |
+dotnet restore
+dotnet run --launch-profile http
+```
 
-   Các tài khoản trên chỉ dùng phát triển local. Không nạp seed này vào môi trường production và phải đổi mật khẩu nếu dùng trong môi trường dùng chung.
+API: `http://localhost:5230/api/v1`. Swagger: `http://localhost:5230/swagger`.
 
-3. Cấu hình connection string và JWT key bằng User Secrets ở project API. Ví dụ với SQL Server Express:
+Trong Development, có thể dùng `HealthBeauty.Api/appsettings.Development.local.json` thay cho User Secrets. File local được bỏ qua bởi Git và không đưa vào publish. Environment variables và tham số dòng lệnh có ưu tiên cao hơn.
 
-   ```powershell
-   cd HealthBeauty.Api
-   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost\SQLEXPRESS;Database=KLCN021_HealthBeauty;Trusted_Connection=True;TrustServerCertificate=True;"
-   dotnet user-secrets set "Jwt:Key" "<chuoi-bi-mat-ngau-nhien-it-nhat-32-ky-tu>"
-   dotnet restore
-   dotnet run
-   ```
+## 2. Web quản trị
 
-   Thay `localhost\SQLEXPRESS` theo SQL Server instance của máy. Không commit connection string có thông tin đăng nhập, JWT key, hoặc User Secrets.
+Mở terminal khác tại thư mục repo:
 
-   Có thể tạo secret ngẫu nhiên bằng PowerShell: `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))`.
+```powershell
+cd HealthBeauty.Web
+npm ci
+npm run dev
+```
 
-4. Mở Swagger tại `http://localhost:5230/swagger`. Nếu cổng 5230 bận, chọn cổng khác bằng:
+Mở `http://localhost:5173`. Proxy Vite chuyển `/api` sang API cổng 5230; mặc định không cần tạo `.env`. Nếu cần đổi cấu hình, sao chép `.env.example` thành `.env` và sửa `VITE_API_BASE_URL`.
 
-   ```powershell
-   dotnet run --urls http://localhost:5231
-   ```
+Tài khoản demo sau khi chạy seed:
 
-## Luồng làm việc Web/App
+| Vai trò | Email | Mật khẩu demo |
+| --- | --- | --- |
+| Admin | `admin@healthbeauty.local` | `HealthBeauty@123` |
+| Reception | `reception@healthbeauty.local` | `HealthBeauty@123` |
+| Customer | `customer@healthbeauty.local` | `HealthBeauty@123` |
 
-- API base URL khi chạy local: `http://localhost:5230/api/v1`.
-- Web/app gọi `auth/register` hoặc `auth/login`, sau đó gửi access token trong header `Authorization: Bearer <token>` cho endpoint cần đăng nhập.
-- Khi web/app chạy trên thiết bị khác, `localhost` phải được thay bằng địa chỉ IP máy chạy API; cấu hình CORS và HTTPS phù hợp trước khi triển khai dùng chung.
-- Danh mục endpoint: xem Swagger hoặc file `KLCN021_API_Catalog.xlsx`.
-- Lịch hẹn dùng các trạng thái `ChoXacNhan`, `DaXacNhan`, `DaDen`, `DangThucHien`, `HoanThanh`, `DaHuy`.
-- Giờ trống: `GET /api/v1/appointments/availability?date=YYYY-MM-DD` (alias tương thích: `available-slots`).
-- Trên Android Emulator chạy API bằng `dotnet run --launch-profile http` và dùng base URL `http://10.0.2.2:5230/api/v1`. Trên thiết bị thật dùng `dotnet run --urls http://0.0.0.0:5230` và địa chỉ IP của máy.
+Web dành cho Admin, Manager, Reception, Staff. Customer đăng nhập trên Flutter. Các tài khoản demo chỉ dùng phát triển local.
 
-## Lưu ý
+## 3. Flutter khách hàng
 
-- Một số endpoint nghiệp vụ cần SQL Server đang chạy và database đã được tạo từ script.
-- Endpoint thanh toán hiện ghi nhận trạng thái thanh toán trong hệ thống, chưa tích hợp cổng thu tiền VNPay/MoMo.
-- JWT secret phải được tạo riêng cho từng môi trường; không dùng ví dụ placeholder làm secret thật.
+Mở terminal khác tại thư mục repo:
 
-## Flutter booking update (2026-10-13)
+```powershell
+cd HealthBeauty.Mobile
+flutter pub get
 
-- Authenticated `Customer` accounts can call `GET /api/v1/staff`; modifying staff and accessing schedules still requires `Admin` or `Manager`.
-- `POST /appointments`, `POST /appointments/{id}/reschedule`, and `PUT /appointments/{id}` reject overlapping appointments for either the customer or the selected staff member with HTTP 409. Intervals are `[start, end)`: a 09:00?10:00 booking blocks 09:30 but allows 10:00. Cancelled bookings are ignored, and an appointment does not conflict with itself when moved. This also checks intervals crossing midnight.
-- `AppointmentItemResponse` adds `durationMinutes` (integer); `expectedPrice` remains decimal. Duration uses the saved positive duration, otherwise the current service duration, otherwise 30 minutes. The overall appointment duration is the sum of its item durations (30 minutes for legacy appointments without items).
-- The affected entries in `KLCN021_API_Catalog.xlsx` have been updated. Other catalog entries still describe older/planned contracts and were outside this change.
-- Run regression tests: `dotnet test KLCN021_HealthBeauty.sln`. Tests use a separate EF InMemory database per case and do not modify the local SQL Server database.
+# Android Emulator: 10.0.2.2 trỏ về máy chạy API.
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5230/api/v1
+```
 
-## Priority API fixes (2026-10-13)
+Kiểm tra trên Chrome với API chạy bằng profile Development:
 
-- Appointment/staff detail responses use finite projections and retain Vietnamese property names; EF back references/account navigation are omitted.
-- Only Admin/Manager/Reception may confirm payment with POST `/invoices/{id}/payments`; customers receive403. This remains a staff acknowledgement of money received, without payment gateway integration.
-- Creating an invoice requires a completed appointment and an exact match of booked standalone services, complete combo components and quantities. Unit prices come from the catalog database. Customer creation/read is retained for their own invoices; staff role takes precedence over any linked customer profile.
-- Reschedule and PUT require `ChoXacNhan` or `DaXacNhan`; cancellation allows those states plus `DaDen`. Invalid transitions return409.
-- Assigned appointments must fit their entire duration in one non-leave working shift; Create/PUT/reschedule return400 otherwise. Unassigned appointments remain allowed; selecting staff triggers the shift check.
-- Availability/available-slots accept `date`, optional `staffId`, optional `serviceId`, and `durationMinutes` (default30, service duration takes precedence). Return individual candidate slots every30minutes with `nhanVienId`, `gioBatDau`, `gioKetThuc`; subtract full busy intervals including bookings carried from a previous day, ignore cancelled bookings and past starts.
-- Combo component changes return409 while an uncancelled referencing appointment awaits invoicing, so billing validation can still match its composition. Create a different combo or finish invoicing first. Catalog records edited earlier have no historical composition snapshot.
+```powershell
+flutter run -d chrome --web-port=5174 --dart-define=API_BASE_URL=http://localhost:5230/api/v1
+```
 
-## Remaining API fixes (2026-10-13)
+API Development cho phép CORS từ localhost/127.0.0.1 cổng 5173 và 5174. Khi bỏ `API_BASE_URL`, Flutter Web dùng `/api/v1` cùng origin và cần reverse proxy. Bản production cần cấu hình HTTPS, proxy/CORS theo môi trường triển khai.
 
-- JWT checks the current account status, temporary lock and role on every authenticated request. Deactivation/role changes invalidate existing access tokens immediately. Failed login attempts are logged; default5wrongpasswords lock15minutes, configurable with `Authentication:MaxFailedAttempts` and `Authentication:LockoutMinutes`. Refresh honors temporary locks; logout only revokes the caller's refresh token.
-- Management APIs require both their existing role allowlist and an active database permission grant; revocation takes effect on the next request with the same JWT. Customer owned operations/public reads retain their paths. There is no Admin grant bypass. Services/combos use SERVICE.WRITE, promotions/vouchers PROMOTION.WRITE, review moderation REVIEW.MODERATE; logs use ACCOUNT.READ. Full mapping: Services/DatabasePermissionFilter.cs.
-- Existing databases: run `DB_KLCN021/03_ApiPermissionGrants.sql` to add missing Reception CUSTOMER.WRITE/STAFF.READ/INVOICE.WRITE and Staff STAFF.READ grants. It inserts only missing rows and preserves explicit revocations. New seed data includes the same grants. The migration has been prepared, not executed against the group's SQL database.
-- Invoice redemption deducts only whole points actually applied and links the ledger to its invoice. A zero-total invoice is completed by an authorized staff payment confirmation without a payment row or earned points; response `{invoiceId,status,amount:0,paymentRequired:false}`. Positive payments retain PaymentResponse.
-- Voucher creation/update share foreign-key, duplicate normalized code, nonnegative discount and future expiry validation. Validation/billing normalize code identically; customer voucher lists respect promotion dates. Promotion types are `PhanTram` (0..100) and `SoTien` (nonnegative).
-- Booking prices derive from the database; client expectedPrice is ignored. Combo composition, quantities, active status and effective dates are verified; its total is allocated across component rows with a final rounding remainder. Duplicate combo service IDs are rejected.
-- Staff can call GET `/staff/me/appointments` and `/staff/me/schedules`, and see only assigned appointments in `/appointments` and its detail endpoint. Reception can list staff. Staff deletion returns409 if any schedule/appointment references it; schedule updates validate employee existence and overlap.
-- Moderation queue: GET `/reviews/pending` for Admin/Manager with REVIEW.MODERATE; public GET reviews remains visible-only.
-- Concurrent writes, historical catalog snapshots and invoice cancellation/refund workflows still require additional implementation and SQL integration tests.
+Điện thoại Android thật dùng IP LAN của máy chạy API; chạy API với `dotnet run --launch-profile http --urls http://0.0.0.0:5230`, thay base URL bằng `http://<IP-LAN>:5230/api/v1` và cho phép cổng qua firewall. HTTP local được cho phép trong Android debug; release dùng HTTPS.
+
+Repo hiện có cấu hình Android, Web và Windows; chưa có cấu hình iOS. Thông báo nhắc lịch không áp dụng trên Flutter Web.
+
+## Tạo nhân viên và đặt lịch
+
+- Admin hoặc vai trò được cấp `STAFF.WRITE` vào **Nhân viên → Thêm nhân viên**, nhập hồ sơ, email và mật khẩu ban đầu. API tự tạo tài khoản vai trò Staff và hồ sơ nhân viên liên kết trong một transaction. Mật khẩu được hash; email trùng trả HTTP 409.
+- Khách chọn `NhanVienId` để đặt lịch. Staff đăng nhập bằng tài khoản có `TaiKhoanId` liên kết và chỉ thấy lịch được phân công; hai mã không cần bằng nhau.
+- Với hồ sơ nhân viên có sẵn, Admin vào **Tài khoản → Tạo tài khoản/Gán vai trò → Staff → Liên kết nhân viên hiện có**. Hồ sơ đã thuộc tài khoản khác không được chọn. Đổi liên kết yêu cầu hồ sơ cũ chưa có lịch hẹn hoặc ca làm.
+- Tạo ca làm trong tương lai ở **Lịch làm việc** trước khi khách đặt lịch. Giờ trống phải nằm trọn trong ca, đủ thời lượng dịch vụ/combo và không trùng lịch.
+- Quyền quản trị được gán theo vai trò trong database. Web dùng `GET /auth/permissions` để hiện menu/nút; API tiếp tục kiểm tra quyền và quyền sở hữu dữ liệu.
+
+## Kiểm thử và build
+
+Chạy tại thư mục repo:
+
+```powershell
+dotnet test HealthBeauty.Api.Tests/HealthBeauty.Api.Tests.csproj
+```
+
+Trong `HealthBeauty.Web`: `npm test`, `npm run lint`, `npm run build`.
+
+Trong `HealthBeauty.Mobile`: `flutter analyze`, `flutter test`, `flutter build web`, `flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:5230/api/v1`.
+
+Nếu Vite báo `spawn EPERM` khi nạp cấu hình trên Windows, dùng `npm run dev -- --configLoader native` hoặc `npm run build -- --configLoader native` với Node hỗ trợ nạp TypeScript.
+
+Chi tiết từng frontend: [Web README](HealthBeauty.Web/README.md), [Mobile README](HealthBeauty.Mobile/README.md). Hợp đồng API: Swagger và `KLCN021_API_Catalog.xlsx`; các dòng catalog chưa có trong Swagger được đánh dấu riêng.
+
+## Phạm vi chức năng
+
+API phục vụ tài khoản/phân quyền, khách hàng, nhân viên/ca làm, dịch vụ/combo, lịch hẹn, hóa đơn/ghi nhận thanh toán, khuyến mãi/voucher, điểm thưởng, đánh giá, báo cáo và nhật ký quản trị. Thanh toán hiện ghi nhận giao dịch trong hệ thống, chưa tích hợp VNPay/MoMo. Đăng nhập Google/OAuth chưa có luồng hoàn chỉnh. API quên mật khẩu đã triển khai; xem [hợp đồng và cấu hình SMTP](HealthBeauty.Api/PASSWORD_RECOVERY.md). Database có sẵn cần chạy thêm `DB_KLCN021/04_PasswordRecovery.sql` trước khi dùng API mới.
+
+API service reviews and appointment invoice metadata: [integration contract](HealthBeauty.Api/REVIEWS.md). Existing databases must run `DB_KLCN021/05_ReviewInvoiceUniqueness.sql`.
+
+API thông báo: xem [mục 11 hướng dẫn tích hợp](HealthBeauty.Api/REVIEWS.md#11-thông-báo-trong-ứng-dụng-và-thông-báo-đẩy-firebase). Database có sẵn chạy thêm `DB_KLCN021/06_Notifications.sql`; khóa Firebase cấu hình riêng trên server, không commit.
+
+Bổ sung ảnh Cloudinary, nhắc lịch tự động và đổi điểm lấy voucher: [báo cáo ngắn cho Web](BAO_CAO_5_CHUC_NANG_WEB.md), [hướng dẫn API mục 12](HealthBeauty.Api/REVIEWS.md#12-ảnh-upload-cloudinary-nhắc-lịch-và-voucher-đổi-điểm-18102026). Database hiện có chạy thêm SQL **07 → 08 → 09 → 10**; không thêm bảng mới. Cloudinary cần cấu hình riêng ở backend.
+
+[Báo cáo quản lý đánh giá cho Web](BAO_CAO_QUAN_LY_DANH_GIA_WEB.md) — API, bộ lọc, phản hồi và kiểm duyệt; xem mục 13 trong `HealthBeauty.Api/REVIEWS.md`.
+
+[Báo cáo thống kê cho Web](BAO_CAO_THONG_KE_BAO_CAO_WEB.md) — API báo cáo theo kỳ, khách mới và xuất XLSX; cần chạy SQL12 trước khi dùng bản API mới.
+
+[Gói dịch vụ nhiều buổi — Web/Flutter cần tích hợp](HUONG_DAN_GOI_DICH_VU.md): theo dõi số lượt, mua/thanh toán và đặt lịch; cần SQL13.

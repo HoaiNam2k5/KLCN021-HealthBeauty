@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 namespace HealthBeauty.Api.Services;
 
-// Database grants are an additional gate; existing role allowlists and ownership checks still apply.
+// Database grants gate management roles; Customer and Staff ownership checks still apply.
 public sealed class DatabasePermissionFilter(Klcn021HealthBeautyContext db) : IAsyncAuthorizationFilter
 {
     public static string? RequiredPermission(string controller, string action, ClaimsPrincipal user)
@@ -18,13 +18,15 @@ public sealed class DatabasePermissionFilter(Klcn021HealthBeautyContext db) : IA
             "Administration" => action switch
             {
                 "Roles" or "Permissions" or "RolePermissions" => "ROLE.READ",
-                "SetRolePermission" => "ROLE.WRITE", "SetAccountStatus" => "ACCOUNT.WRITE", _ => "ACCOUNT.READ"
+                "SetRolePermission" => "ROLE.WRITE", "SetAccountStatus" or "CreateAccount" or "AssignAccountRole" => "ACCOUNT.WRITE", _ => "ACCOUNT.READ"
             },
             "Services" => action is "CreateService" or "UpdateService" or "DeactivateService" or "CreateCategory" or "UpdateCategory" or "DeactivateCategory" ? "SERVICE.WRITE" : null,
+            "ServicePackages" => action switch { "Create" or "Update" or "ManagementList" => "SERVICE.WRITE", "Pay" => "PAYMENT.WRITE", "Customer" => "CUSTOMER.READ", "Sales" => "REPORT.READ", "Purchase" or "CancelPurchase" => management ? "CUSTOMER.WRITE" : null, "Detail" => management ? "CUSTOMER.READ" : null, "List" => null, _ => null },
+            "Media" => "SERVICE.WRITE",
             "Combos" => action is "Create" or "Update" or "Deactivate" ? "SERVICE.WRITE" : null,
             "Promotions" => action is "List" or "ValidateVoucher" ? null : "PROMOTION.WRITE",
-            "Reviews" => action is "Moderate" or "Pending" ? "REVIEW.MODERATE" : null,
-            "Customers" => action switch { "List" => "CUSTOMER.READ", "Update" => "CUSTOMER.WRITE", _ => null },
+            "Reviews" => action is "Moderate" or "Pending" or "Management" or "Reply" or "Delete" ? "REVIEW.MODERATE" : null,
+            "Customers" => action switch { "List" or "PointHistory" => "CUSTOMER.READ", "Update" => "CUSTOMER.WRITE", _ => null },
             "Staff" => action switch
             {
                 "MyAppointments" => "APPOINTMENT.READ", "MySchedules" or "Schedules" => "STAFF.READ",

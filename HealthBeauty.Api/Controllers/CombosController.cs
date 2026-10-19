@@ -25,26 +25,28 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
         return item is null ? NotFound() : Ok(Map(item));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost]
     public async Task<IActionResult> Create(ComboRequest request, CancellationToken ct)
     {
+        if (!CatalogImageUrl.IsValid(request.ImageUrl)) return BadRequest("ImageUrl must be an HTTP/HTTPS URL without credentials, up to 2048 characters.");
         if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidTo < request.ValidFrom) return BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
         if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one combo component is required.");
         var ids = request.Items.Select(x => x.ServiceId).Distinct().ToList();
         if (ids.Count != request.Items.Count) return BadRequest("Each service must appear only once in a combo; use quantity for repetitions.");
         var services = await db.Dichvus.Where(x => ids.Contains(x.DichVuId) && x.TrangThai).Select(x => x.DichVuId).ToListAsync(ct);
         if (ids.Count != services.Count) return BadRequest("Có dịch vụ không tồn tại hoặc đã ngừng hoạt động.");
-        var item = new Combodichvu { TenCombo = request.Name.Trim(), GiaCombo = request.Price, NgayBatDauHieuLuc = request.ValidFrom, NgayKetThucHieuLuc = request.ValidTo, TrangThai = true };
+        var item = new Combodichvu { TenCombo = request.Name.Trim(), GiaCombo = request.Price, NgayBatDauHieuLuc = request.ValidFrom, NgayKetThucHieuLuc = request.ValidTo, ImageUrl = CatalogImageUrl.Normalize(request.ImageUrl), TrangThai = true };
         foreach (var line in request.Items) item.Chitietcombos.Add(new Chitietcombo { DichVuId = line.ServiceId, SoLuong = line.Quantity });
         db.Combodichvus.Add(item); await db.SaveChangesAsync(ct);
         await db.Entry(item).Collection(x => x.Chitietcombos).Query().Include(x => x.DichVu).LoadAsync(ct);
         return CreatedAtAction(nameof(Get), new { id = item.ComboId }, Map(item));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, ComboRequest request, CancellationToken ct)
     {
         var item = await db.Combodichvus.Include(x => x.Chitietcombos).FirstOrDefaultAsync(x => x.ComboId == id, ct); if (item is null) return NotFound();
+        if (!CatalogImageUrl.IsValid(request.ImageUrl)) return BadRequest("ImageUrl must be an HTTP/HTTPS URL without credentials, up to 2048 characters.");
         if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidTo < request.ValidFrom) return BadRequest("Ngày kết thúc phải sau ngày bắt đầu.");
         if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one combo component is required.");
         var ids = request.Items.Select(x => x.ServiceId).Distinct().ToList();
@@ -57,6 +59,7 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
         if (componentsChanged && await db.Chitietlichhens.AnyAsync(x => x.ComboId == id
             && x.LichHen.TrangThai != "DaHuy" && !x.LichHen.Hoadons.Any(), ct))
             return Conflict("Combo components cannot change while an uncancelled appointment still awaits invoicing.");
+        if (request.ImageUrl is not null) item.ImageUrl = CatalogImageUrl.Normalize(request.ImageUrl);
         item.TenCombo = request.Name.Trim(); item.GiaCombo = request.Price; item.NgayBatDauHieuLuc = request.ValidFrom; item.NgayKetThucHieuLuc = request.ValidTo;
         db.Chitietcombos.RemoveRange(item.Chitietcombos);
         foreach (var line in request.Items) item.Chitietcombos.Add(new Chitietcombo { DichVuId = line.ServiceId, SoLuong = line.Quantity });
@@ -65,13 +68,13 @@ public sealed class CombosController(Klcn021HealthBeautyContext db) : Controller
         return Ok(Map(updated));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("{id:int}")]
     public async Task<IActionResult> Deactivate(int id, CancellationToken ct)
     {
         var item = await db.Combodichvus.FindAsync([id], ct); if (item is null) return NotFound(); item.TrangThai = false; await db.SaveChangesAsync(ct); return NoContent();
     }
 
     private static ComboResponse Map(Combodichvu x) => new(x.ComboId, x.TenCombo, x.GiaCombo, x.NgayBatDauHieuLuc, x.NgayKetThucHieuLuc, x.TrangThai,
-        x.Chitietcombos.Select(c => new ComboItemResponse(c.DichVuId, c.DichVu.TenDichVu, c.SoLuong)).ToList());
+        x.Chitietcombos.Select(c => new ComboItemResponse(c.DichVuId, c.DichVu.TenDichVu, c.SoLuong)).ToList(), x.ImageUrl);
 }
 

@@ -18,7 +18,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(cancellationToken);
         var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
-        var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).AsQueryable();
+        var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).Include(x => x.Hoadons).ThenInclude(x => x.Danhgia).AsSplitQuery().AsQueryable();
         if (!isStaff && User.IsInRole("Staff"))
         {
             var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(cancellationToken);
@@ -36,7 +36,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.KhachHang.HoTen.Contains(keyword) || (x.KhachHang.SoDienThoai != null && x.KhachHang.SoDienThoai.Contains(keyword)));
         var totalCount = await query.CountAsync(cancellationToken);
-        var list = await query.OrderByDescending(x => x.NgayGioHen).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var list = await query.OrderByDescending(x => x.NgayGioHen).ThenByDescending(x => x.LichHenId).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return Ok(new { items = list.Select(Map), totalCount, page, pageSize });
     }
 
@@ -54,6 +54,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, cancellationToken)) return BadRequest("Staff does not exist.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Appointment time must be in the future.");
         if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one service is required.");
+        if (request.CustomerPackageId.HasValue && request.Items.Any(x => x.ComboId.HasValue)) return BadRequest("Package sessions cannot be combined with combos or cash-funded services.");
         var serviceIds = request.Items.Select(x => x.ServiceId).Distinct().ToList();
         var services = await db.Dichvus.Where(x => serviceIds.Contains(x.DichVuId) && x.TrangThai).ToDictionaryAsync(x => x.DichVuId, cancellationToken);
         if (services.Count != serviceIds.Count) return BadRequest("One or more services are invalid.");
@@ -99,10 +100,26 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
             var item = request.Items[index];
             appointment.Chitietlichhens.Add(new Chitietlichhen { DichVuId = item.ServiceId, ComboId = item.ComboId, GiaDuKien = expectedPrices[index], ThoiLuongThucTe = services[item.ServiceId].ThoiLuongPhut });
         }
-        db.Lichhens.Add(appointment); await db.SaveChangesAsync(cancellationToken);
+        if (request.CustomerPackageId.HasValue) {
+            foreach (var line in appointment.Chitietlichhens) line.GiaDuKien = 0;
+            var packageError = await ServicePackageLifecycle.ReserveAsync(db, appointment, request.CustomerPackageId.Value, cancellationToken);
+            if (packageError != null) return BadRequest(packageError);
+        }
+        db.Lichhens.Add(appointment);
+        if (!await NotificationPersistence.TrySaveAsync(db, cancellationToken)) return Conflict("Package session balance changed. Reload availability.");
         await db.Entry(appointment).Collection(x => x.Chitietlichhens).Query().Include(x => x.DichVu).LoadAsync(cancellationToken);
         return CreatedAtAction(nameof(GetMine), new { id = appointment.LichHenId }, Map(appointment));
     }
 
-    private static AppointmentResponse Map(Lichhen item) => new(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen, item.TrangThai, item.GhiChu, item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId, x.DichVu?.TenDichVu ?? string.Empty, x.ComboId, x.GiaDuKien, AppointmentTiming.ItemDurationMinutes(x))).ToList());
+    private static AppointmentResponse Map(Lichhen item)
+    {
+        var invoice = item.Hoadons.OrderByDescending(x => x.NgayLap).ThenByDescending(x => x.HoaDonId).FirstOrDefault();
+        var review = invoice?.Danhgia.OrderByDescending(x => x.NgayDanhGia).ThenByDescending(x => x.DanhGiaId).FirstOrDefault();
+        return new AppointmentResponse(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen,
+            item.TrangThai, item.GhiChu,
+            item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId,
+                x.DichVu?.TenDichVu ?? string.Empty, x.ComboId, x.GiaDuKien, AppointmentTiming.ItemDurationMinutes(x))).ToList(),
+            InvoiceId: invoice?.HoaDonId, InvoiceStatus: invoice?.TrangThai,
+            HasReviewed: review is not null, ReviewStars: review?.SoSao, CustomerPackageId: item.CustomerPackageId, FundingSource: item.CustomerPackageId.HasValue ? "ServicePackage" : "Cash");
+    }
 }

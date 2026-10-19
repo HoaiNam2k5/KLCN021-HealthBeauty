@@ -12,8 +12,9 @@ public static class VoucherRules
     {
         var normalized=NormalizeCode(code); if(normalized.Length==0) return null;
         var now=DateTime.Now;
-        var voucher=await db.Vouchers.Include(x=>x.KhuyenMai).FirstOrDefaultAsync(x=>x.MaCode==normalized && x.TrangThai && x.HanSuDung>=now
+        var voucher=await db.Vouchers.Include(x=>x.KhuyenMai).FirstOrDefaultAsync(x=>x.MaCode==normalized && x.TrangThai && !x.UsedAt.HasValue && x.HanSuDung>=now
             && (!x.KhachHangId.HasValue || x.KhachHangId==customerId)
+            && (x.PointsCost == 0 || (x.RedeemedAt.HasValue && x.KhachHangId.HasValue && x.KhachHangId == customerId))
             && (!x.KhuyenMai.NgayBatDauHieuLuc.HasValue || x.KhuyenMai.NgayBatDauHieuLuc<=now)
             && (!x.KhuyenMai.NgayKetThucHieuLuc.HasValue || x.KhuyenMai.NgayKetThucHieuLuc>=now),ct);
         return voucher is not null && voucher.GiaTriGiam>=0 && ValidDiscount(voucher.KhuyenMai.LoaiGiam,voucher.KhuyenMai.MucGiam) ? voucher : null;

@@ -19,43 +19,46 @@ public sealed class ServicesController(Klcn021HealthBeautyContext db) : Controll
         var query = db.Dichvus.AsNoTracking().Where(x => x.TrangThai);
         if (categoryId.HasValue) query = query.Where(x => x.LoaiDichVuId == categoryId.Value);
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.TenDichVu.Contains(keyword));
-        return Ok(await query.OrderBy(x => x.TenDichVu).Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId, x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa)).ToListAsync(cancellationToken));
+        return Ok(await query.OrderBy(x => x.TenDichVu).Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId, x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa, x.ImageUrl)).ToListAsync(cancellationToken));
     }
 
     [AllowAnonymous, HttpGet("services/{id:int}")]
     public async Task<ActionResult<ServiceResponse>> GetService(int id, CancellationToken cancellationToken)
     {
-        var item = await db.Dichvus.AsNoTracking().Where(x => x.DichVuId == id && x.TrangThai).Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId, x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa)).FirstOrDefaultAsync(cancellationToken);
+        var item = await db.Dichvus.AsNoTracking().Where(x => x.DichVuId == id && x.TrangThai).Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId, x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa, x.ImageUrl)).FirstOrDefaultAsync(cancellationToken);
         return item is null ? NotFound() : Ok(item);
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost("services")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("services")]
     public async Task<ActionResult<ServiceResponse>> CreateService(CreateServiceRequest request, CancellationToken cancellationToken)
     {
+        if (!CatalogImageUrl.IsValid(request.ImageUrl)) return BadRequest("ImageUrl must be an HTTP/HTTPS URL without credentials, up to 2048 characters.");
         if (!await db.Loaidichvus.AnyAsync(x => x.LoaiDichVuId == request.CategoryId && x.TrangThai, cancellationToken)) return BadRequest("Loại dịch vụ không tồn tại.");
-        var item = new Dichvu { LoaiDichVuId = request.CategoryId, TenDichVu = request.Name.Trim(), Gia = request.Price, ThoiLuongPhut = request.DurationMinutes, MoTa = request.Description?.Trim(), TrangThai = true };
+        var item = new Dichvu { LoaiDichVuId = request.CategoryId, TenDichVu = request.Name.Trim(), Gia = request.Price, ThoiLuongPhut = request.DurationMinutes, MoTa = request.Description?.Trim(), ImageUrl = CatalogImageUrl.Normalize(request.ImageUrl), TrangThai = true };
         db.Dichvus.Add(item); await db.SaveChangesAsync(cancellationToken);
-        return CreatedAtAction(nameof(GetService), new { id = item.DichVuId }, new ServiceResponse(item.DichVuId, item.LoaiDichVuId, item.TenDichVu, item.Gia, item.ThoiLuongPhut, item.MoTa));
+        return CreatedAtAction(nameof(GetService), new { id = item.DichVuId }, new ServiceResponse(item.DichVuId, item.LoaiDichVuId, item.TenDichVu, item.Gia, item.ThoiLuongPhut, item.MoTa, item.ImageUrl));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("services/{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("services/{id:int}")]
     public async Task<IActionResult> UpdateService(int id, CreateServiceRequest request, CancellationToken ct)
     {
         var item = await db.Dichvus.FindAsync([id], ct); if (item is null) return NotFound();
+        if (!CatalogImageUrl.IsValid(request.ImageUrl)) return BadRequest("ImageUrl must be an HTTP/HTTPS URL without credentials, up to 2048 characters.");
         if (!await db.Loaidichvus.AnyAsync(x => x.LoaiDichVuId == request.CategoryId && x.TrangThai, ct)) return BadRequest("Loại dịch vụ không tồn tại.");
-        item.LoaiDichVuId=request.CategoryId; item.TenDichVu=request.Name.Trim(); item.Gia=request.Price; item.ThoiLuongPhut=request.DurationMinutes; item.MoTa=request.Description?.Trim(); await db.SaveChangesAsync(ct); return Ok(new ServiceResponse(item.DichVuId,item.LoaiDichVuId,item.TenDichVu,item.Gia,item.ThoiLuongPhut,item.MoTa));
+        if (request.ImageUrl is not null) item.ImageUrl = CatalogImageUrl.Normalize(request.ImageUrl);
+        item.LoaiDichVuId=request.CategoryId; item.TenDichVu=request.Name.Trim(); item.Gia=request.Price; item.ThoiLuongPhut=request.DurationMinutes; item.MoTa=request.Description?.Trim(); await db.SaveChangesAsync(ct); return Ok(new ServiceResponse(item.DichVuId,item.LoaiDichVuId,item.TenDichVu,item.Gia,item.ThoiLuongPhut,item.MoTa,item.ImageUrl));
     }
 
-    [Authorize(Roles = "Admin,Manager"), HttpDelete("services/{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("services/{id:int}")]
     public async Task<IActionResult> DeactivateService(int id, CancellationToken ct) { var item=await db.Dichvus.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPut("service-categories/{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("service-categories/{id:int}")]
     public async Task<IActionResult> UpdateCategory(int id, CreateCategoryRequest request, CancellationToken ct) { var item=await db.Loaidichvus.FindAsync([id],ct); if(item is null)return NotFound(); item.TenLoai=request.Name.Trim(); item.MoTa=request.Description?.Trim(); await db.SaveChangesAsync(ct); return Ok(new ServiceCategoryResponse(item.LoaiDichVuId,item.TenLoai,item.MoTa)); }
 
-    [Authorize(Roles = "Admin,Manager"), HttpDelete("service-categories/{id:int}")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpDelete("service-categories/{id:int}")]
     public async Task<IActionResult> DeactivateCategory(int id, CancellationToken ct) { var item=await db.Loaidichvus.FindAsync([id],ct); if(item is null)return NotFound(); item.TrangThai=false; await db.SaveChangesAsync(ct); return NoContent(); }
 
-    [Authorize(Roles = "Admin,Manager"), HttpPost("service-categories")]
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("service-categories")]
     public async Task<ActionResult<ServiceCategoryResponse>> CreateCategory(CreateCategoryRequest request, CancellationToken cancellationToken)
     {
         var item = new Loaidichvu { TenLoai = request.Name.Trim(), MoTa = request.Description?.Trim(), TrangThai = true };

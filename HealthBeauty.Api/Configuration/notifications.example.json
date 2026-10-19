@@ -1,0 +1,7 @@
+{
+  "Firebase": {
+    "Enabled": false,
+    "CredentialsPath": "<absolute-path-to-private-service-account.json>",
+    "ProjectId": "<firebase-project-id>"
+  }
+}

@@ -1,11 +1,21 @@
-﻿using System;
+using System;
+using System.Text.Json.Serialization;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
 
 public partial class Voucher
 {
+    [JsonIgnore]
+    public byte[]? RowVersion { get; set; }
+
     public int VoucherId { get; set; }
+
+    public int PointsCost { get; set; }
+
+    public DateTime? RedeemedAt { get; set; }
+
+    public DateTime? UsedAt { get; set; }
 
     public string MaCode { get; set; } = null!;
 

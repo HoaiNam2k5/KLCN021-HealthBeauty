@@ -34,3 +34,16 @@ Thumbs.db
 /API_FOLLOWUP_FIXES.md
 /PLANS.md
 /cac_van_de*.txt
+
+# Local integration evidence, caches and archived clone history
+/.local-integration/
+
+# Legacy personal handoff/design/agent notes retained only on this machine
+/HealthBeauty.Web/HANDOFF.md
+/HealthBeauty.Web/ROADMAP.md
+/HealthBeauty.Web/DESIGN.md
+/HealthBeauty.Web/.clinerules
+
+# Firebase service account private keys (configure path locally)
+**/firebase-service-account*.json
+**/*firebase-adminsdk*.json
