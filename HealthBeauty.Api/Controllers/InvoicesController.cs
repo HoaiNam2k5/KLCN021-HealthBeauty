@@ -36,6 +36,7 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificat
         var appointment = await db.Lichhens.Include(x => x.Chitietlichhens).FirstOrDefaultAsync(x => x.LichHenId == request.AppointmentId, ct);
         if (appointment is null) return NotFound("Không tìm thấy lịch hẹn.");
         if (!isStaff && customer is not null && appointment.KhachHangId != customer.KhachHangId) return Forbid();
+        if (appointment.CustomerPackageId.HasValue) return Conflict("Package-funded service receipt is created automatically on completion; no second invoice or charge is permitted.");
         if (appointment.TrangThai != "HoanThanh") return BadRequest("Only completed appointments can be invoiced.");
         if (await db.Hoadons.AnyAsync(x => x.LichHenId == appointment.LichHenId, ct)) return Conflict("Lịch hẹn đã có hóa đơn.");
         if (request.Items is null || request.Items.Count==0 || request.PointsToRedeem<0) return BadRequest("Invoice items and nonnegative points are required.");

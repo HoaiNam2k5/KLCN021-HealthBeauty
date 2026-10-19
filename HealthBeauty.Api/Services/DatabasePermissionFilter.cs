@@ -21,6 +21,7 @@ public sealed class DatabasePermissionFilter(Klcn021HealthBeautyContext db) : IA
                 "SetRolePermission" => "ROLE.WRITE", "SetAccountStatus" or "CreateAccount" or "AssignAccountRole" => "ACCOUNT.WRITE", _ => "ACCOUNT.READ"
             },
             "Services" => action is "CreateService" or "UpdateService" or "DeactivateService" or "CreateCategory" or "UpdateCategory" or "DeactivateCategory" ? "SERVICE.WRITE" : null,
+            "ServicePackages" => action switch { "Create" or "Update" or "ManagementList" => "SERVICE.WRITE", "Pay" => "PAYMENT.WRITE", "Customer" => "CUSTOMER.READ", "Sales" => "REPORT.READ", "Purchase" or "CancelPurchase" => management ? "CUSTOMER.WRITE" : null, "Detail" => management ? "CUSTOMER.READ" : null, "List" => null, _ => null },
             "Media" => "SERVICE.WRITE",
             "Combos" => action is "Create" or "Update" or "Deactivate" ? "SERVICE.WRITE" : null,
             "Promotions" => action is "List" or "ValidateVoucher" ? null : "PROMOTION.WRITE",

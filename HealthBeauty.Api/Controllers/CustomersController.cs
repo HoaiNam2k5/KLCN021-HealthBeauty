@@ -64,7 +64,7 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
         var totalCount = await query.CountAsync(ct);
         var transactions = await query.OrderByDescending(x => x.NgayGiaoDich).ThenByDescending(x => x.GiaoDichId)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new { x.GiaoDichId, x.SoDiem, x.LoaiGiaoDich, x.NgayGiaoDich, x.GhiChu, x.HoaDonId, x.VoucherId }).ToListAsync(ct);
+            .Select(x => new { x.GiaoDichId, x.SoDiem, x.LoaiGiaoDich, x.NgayGiaoDich, x.GhiChu, x.HoaDonId, x.VoucherId, x.CustomerPackageId }).ToListAsync(ct);
         return Ok(new { CustomerId = id, customer.DiemThuong, Transactions = transactions, TotalCount = totalCount, Page = page, PageSize = pageSize });
     }
 
@@ -75,7 +75,7 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
         var customer = await db.Khachhangs.AsNoTracking().FirstOrDefaultAsync(x => x.TaiKhoanId == accountId, ct);
         if (customer is null) return NotFound();
         var ledger = await db.Giaodichdiems.AsNoTracking().Where(x => x.KhachHangId == customer.KhachHangId).OrderByDescending(x => x.NgayGiaoDich)
-            .Select(x => new { x.GiaoDichId, x.SoDiem, x.LoaiGiaoDich, x.NgayGiaoDich, x.GhiChu, x.HoaDonId, x.VoucherId }).Take(100).ToListAsync(ct);
+            .Select(x => new { x.GiaoDichId, x.SoDiem, x.LoaiGiaoDich, x.NgayGiaoDich, x.GhiChu, x.HoaDonId, x.VoucherId, x.CustomerPackageId }).Take(100).ToListAsync(ct);
         return Ok(new { customer.DiemThuong, Transactions = ledger });
     }
 }
