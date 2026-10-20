@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { App as AntApp, Alert, Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu } from 'antd'
-import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined, TeamOutlined, ContactsOutlined, ClockCircleOutlined, DollarOutlined, StarOutlined, SafetyCertificateOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, DownOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, GiftOutlined, UserOutlined, TeamOutlined, ContactsOutlined, ClockCircleOutlined, DollarOutlined, StarOutlined, SafetyCertificateOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, DownOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearSession, getRefreshToken } from '../api/session'
@@ -28,6 +28,7 @@ export default function MainLayout() {
     { key: '/service-categories', icon: <TagsOutlined />, label: 'Loại dịch vụ' },
     { key: '/services', icon: <AppstoreOutlined />, label: 'Dịch vụ' },
     { key: '/combos', icon: <AppstoreOutlined />, label: 'Combo' },
+    { key: '/packages', icon: <GiftOutlined />, label: 'Gói dịch vụ' },
     { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn' },
     { key: '/customers', icon: <ContactsOutlined />, label: 'Khách hàng' },
     { key: '/staff', icon: <TeamOutlined />, label: 'Nhân viên' },

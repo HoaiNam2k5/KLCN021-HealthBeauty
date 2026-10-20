@@ -18,6 +18,7 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
   const [open, setOpen] = useState(false)
   const [form] = Form.useForm<VoucherFields>()
   const pointsCost = Form.useWatch('pointsCost', form) ?? 0
+  const voucherOwnershipLocked = Boolean(editing && (editing.customerId !== null || !editing.active))
   const query = useVouchers(keyword, statusFilter === 'all' ? undefined : statusFilter === 'active')
   const { has } = usePermissions()
   const customers = useCustomers('', has('CUSTOMER.READ'))
@@ -40,7 +41,7 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
 
   async function submit(values: VoucherFields) {
     if (!canManage) return
-    const body: VoucherRequest = { code: values.code.trim().toUpperCase(), promotionId: values.promotionId, customerId: (values.pointsCost ?? 0) > 0 ? null : values.customerId ?? null,
+    const body: VoucherRequest = { code: values.code.trim().toUpperCase(), promotionId: values.promotionId, customerId: (values.pointsCost ?? 0) > 0 ? (editing?.customerId ?? null) : (values.customerId ?? null),
       discountValue: values.discountValue, expiresAt: values.expiresAt.format('YYYY-MM-DDTHH:mm:ss'), pointsCost: values.pointsCost ?? 0 }
     try {
       await save.mutateAsync({ id: editing?.id, body })
@@ -91,8 +92,8 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
       <Form className="responsive-form" form={form} layout="vertical" onFinish={(values) => void submit(values)}>
         <Form.Item name="code" label="Mã voucher" rules={[{ required: true, whitespace: true }, { max: 30 }]}><Input maxLength={30} /></Form.Item>
         <Form.Item name="promotionId" label="Khuyến mãi" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={promotionOptions} /></Form.Item>
-        <Form.Item name="pointsCost" label="Điểm cần đổi" extra="0 điểm = Voucher khuyến mãi tặng; > 0 điểm = Khách tự dùng điểm thưởng để đổi (phải để trống khách hàng)." rules={[{ type: 'number', min: 0, max: 1000000 }]}><InputNumber min={0} max={1000000} style={{ width: '100%' }} onChange={(value) => { if (Number(value ?? 0) > 0) form.setFieldValue('customerId', undefined) }} /></Form.Item>
-        <Form.Item name="customerId" label="Khách hàng"><Select disabled={pointsCost > 0} allowClear showSearch optionFilterProp="label" loading={customers.isLoading} placeholder="Tất cả khách hàng" options={(customers.data ?? []).map((item) => ({ value: item.id, label: item.fullName ?? `Khách #${item.id}` }))} /></Form.Item>
+        <Form.Item name="pointsCost" label="Điểm cần đổi" extra="0 điểm = Voucher khuyến mãi tặng; > 0 điểm = Khách tự dùng điểm thưởng để đổi (phải để trống khách hàng)." rules={[{ type: 'number', min: 0, max: 1000000 }]}><InputNumber disabled={voucherOwnershipLocked} min={0} max={1000000} style={{ width: '100%' }} onChange={(value) => { if (Number(value ?? 0) > 0) form.setFieldValue('customerId', undefined) }} /></Form.Item>
+        <Form.Item name="customerId" label="Khách hàng"><Select disabled={voucherOwnershipLocked || pointsCost > 0} allowClear showSearch optionFilterProp="label" loading={customers.isLoading} placeholder="Tất cả khách hàng" options={(customers.data ?? []).map((item) => ({ value: item.id, label: item.fullName ?? `Khách #${item.id}` }))} /></Form.Item>
         <Form.Item name="discountValue" label="Giá trị giảm tối đa" rules={[{ required: true }, { type: 'number', min: 0, max: 1000000000 }]}><InputNumber min={0} max={1000000000} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="expiresAt" label="Hạn sử dụng" rules={[{ required: true }, { validator: (_, value: Dayjs | undefined) => !value || value.isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('Hạn sử dụng phải ở tương lai.')) }]}><DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} /></Form.Item>
         {customers.isError && <Alert type="warning" showIcon message="Không tải được danh sách khách hàng." />}

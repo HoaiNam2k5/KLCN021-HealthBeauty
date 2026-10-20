@@ -17,6 +17,7 @@ import ProtectedRoute from './routes/ProtectedRoute'
 const ServiceCategoriesPage = lazy(() => import('./features/services/ServiceCategoriesPage'))
 const ServicesPage = lazy(() => import('./features/services/ServicesPage'))
 const CombosPage = lazy(() => import('./features/services/CombosPage'))
+const ServicePackagesPage = lazy(() => import('./features/service-packages/ServicePackagesPage'))
 const AppointmentsPage = lazy(() => import('./features/appointments/AppointmentsPage'))
 const CustomersPage = lazy(() => import('./features/customers-staff/CustomersPage'))
 const StaffPage = lazy(() => import('./features/customers-staff/StaffPage'))
@@ -37,6 +38,7 @@ const pageTitles: Record<string, string> = {
   '/service-categories': 'Loại dịch vụ',
   '/services': 'Dịch vụ',
   '/combos': 'Combo',
+  '/packages': 'Gói dịch vụ',
   '/appointments': 'Lịch hẹn',
   '/customers': 'Khách hàng',
   '/staff': 'Nhân viên',
@@ -116,6 +118,7 @@ function ApplicationRoutes() {
               <Route path="/service-categories" element={<ServiceCategoriesPage />} />
               <Route path="/services" element={<ServicesPage />} />
               <Route path="/combos" element={<CombosPage />} />
+              <Route path="/packages" element={<ServicePackagesPage />} />
               <Route path="/appointments" element={<AppointmentsPage />} />
               <Route path="/customers" element={<CustomersPage />} />
               <Route path="/staff" element={<StaffPage />} />
