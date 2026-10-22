@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/catalog.dart';
+import '../models/review.dart';
 
-/// Dịch vụ, loại dịch vụ, combo, khuyến mãi (cả 4 đều là API công khai).
 class CatalogProvider extends ChangeNotifier {
-  final _dio = ApiClient().dio;
+  final Dio _dio;
+  CatalogProvider({Dio? dio}) : _dio = dio ?? ApiClient().dio;
 
   List<ServiceCategory> categories = [];
   List<Service> services = [];
@@ -18,12 +20,52 @@ class CatalogProvider extends ChangeNotifier {
   bool loading = false;
   bool loaded = false;
   String? error;
+  bool vouchersLoading = false;
+  String? voucherError;
+  bool staffLoading = false;
+  String? staffError;
+  int? _accountId;
+  int get accountVersion => _accountVersion;
+  int? get accountId => _accountId;
+  int _accountVersion = 0;
+  int _voucherRequest = 0;
+  int _staffRequest = 0;
+  bool _disposed = false;
+
+  /// Public catalog survives account changes; authenticated data never does.
+  void bind(int? accountId) {
+    if (_disposed || _accountId == accountId) return;
+    _accountId = accountId;
+    final version = ++_accountVersion;
+    _voucherRequest++;
+    _staffRequest++;
+    myVouchers = [];
+    staffList = [];
+    vouchersLoading = false;
+    staffLoading = false;
+    voucherError = null;
+    staffError = null;
+    // ProxyProvider may bind while building. Notify and refresh after that build.
+    scheduleMicrotask(() {
+      if (!_isCurrent(version)) return;
+      _notify();
+      if (_accountId != null) {
+        unawaited(loadMyVouchers());
+        unawaited(loadStaff());
+      }
+    });
+  }
+
+  bool _isCurrent(int version) => !_disposed && version == _accountVersion;
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
 
   Future<void> load({bool force = false}) async {
-    if (loading || (loaded && !force)) return;
+    if (_disposed || loading || (loaded && !force)) return;
     loading = true;
     error = null;
-    notifyListeners();
+    _notify();
     try {
       final r = await Future.wait([
         _dio.get('/service-categories'),
@@ -31,46 +73,67 @@ class CatalogProvider extends ChangeNotifier {
         _dio.get('/combos'),
         _dio.get('/promotions'),
       ]);
-      categories = (r[0].data as List)
+      final nextCategories = (r[0].data as List)
           .map((e) => ServiceCategory.fromJson(e as Map<String, dynamic>))
           .toList();
-      services = (r[1].data as List)
+      final nextServices = (r[1].data as List)
           .map((e) => Service.fromJson(e as Map<String, dynamic>))
           .toList();
-      combos = (r[2].data as List)
+      final nextCombos = (r[2].data as List)
           .map((e) => Combo.fromJson(e as Map<String, dynamic>))
           .where((c) => c.active && c.isCurrent)
           .toList();
-      promotions = (r[3].data as List)
+      final nextPromotions = (r[3].data as List)
           .map((e) => Promotion.fromJson(e as Map<String, dynamic>))
           .toList();
+      if (_disposed) return;
+      categories = nextCategories;
+      services = nextServices;
+      combos = nextCombos;
+      promotions = nextPromotions;
       loaded = true;
-      await Future.wait([
-        loadMyVouchers(),
-        loadStaff(),
-      ]);
+      await Future.wait([loadMyVouchers(), loadStaff()]);
     } on DioException catch (e) {
-      error = ApiError.message(e);
+      if (!_disposed) error = ApiError.message(e);
     } catch (e) {
-      error = 'Dữ liệu trả về không đúng định dạng';
+      if (!_disposed) error = 'Dữ liệu danh mục trả về không đúng định dạng';
       if (kDebugMode) debugPrint('CatalogProvider parse error: $e');
     } finally {
-      loading = false;
-      notifyListeners();
+      if (!_disposed) {
+        loading = false;
+        _notify();
+      }
     }
   }
 
-  /// Tải danh sách nhân viên thực hiện (GET /staff)
   Future<void> loadStaff() async {
+    if (_disposed || _accountId == null || staffLoading) return;
+    final version = _accountVersion;
+    final request = ++_staffRequest;
+    staffList = [];
+    staffError = null;
+    staffLoading = true;
+    _notify();
     try {
       final res = await _dio.get('/staff');
-      if (res.data is List) {
-        staffList = (res.data as List)
-            .map((e) => Staff.fromJson(e as Map<String, dynamic>))
-            .toList();
+      final next = (res.data as List)
+          .map((e) => Staff.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (!_isCurrent(version) || request != _staffRequest) return;
+      staffList = next;
+    } on DioException catch (e) {
+      if (_isCurrent(version) && request == _staffRequest) {
+        staffError = ApiError.message(e);
       }
     } catch (_) {
-      // Bỏ qua nếu có lỗi
+      if (_isCurrent(version) && request == _staffRequest) {
+        staffError = 'Dữ liệu nhân viên trả về không đúng định dạng';
+      }
+    } finally {
+      if (_isCurrent(version) && request == _staffRequest) {
+        staffLoading = false;
+        _notify();
+      }
     }
   }
 
@@ -81,38 +144,85 @@ class CatalogProvider extends ChangeNotifier {
     return null;
   }
 
-  /// Tải danh sách voucher cá nhân của khách hàng (GET /customers/me/vouchers)
   Future<void> loadMyVouchers() async {
+    if (_disposed || _accountId == null || vouchersLoading) return;
+    final version = _accountVersion;
+    final request = ++_voucherRequest;
+    myVouchers = [];
+    voucherError = null;
+    vouchersLoading = true;
+    _notify();
     try {
       final res = await _dio.get('/customers/me/vouchers');
-      if (res.data is List) {
-        myVouchers = (res.data as List)
-            .map((e) => CustomerVoucher.fromJson(e as Map<String, dynamic>))
-            .toList();
+      final now = DateTime.now();
+      final next = (res.data as List)
+          .map((e) => CustomerVoucher.fromJson(e as Map<String, dynamic>))
+          .where((voucher) => voucher.isAvailableAt(now))
+          .toList();
+      if (!_isCurrent(version) || request != _voucherRequest) return;
+      myVouchers = next;
+    } on DioException catch (e) {
+      if (_isCurrent(version) && request == _voucherRequest) {
+        voucherError = ApiError.message(e);
       }
     } catch (_) {
-      // Bỏ qua nếu chưa đăng nhập hoặc lỗi tải voucher
+      if (_isCurrent(version) && request == _voucherRequest) {
+        voucherError = 'Dữ liệu voucher trả về không đúng định dạng';
+      }
+    } finally {
+      if (_isCurrent(version) && request == _voucherRequest) {
+        vouchersLoading = false;
+        _notify();
+      }
     }
   }
 
-  /// Kiểm tra mã voucher của khách đang đăng nhập.
   Future<VoucherCheck> validateVoucher(String code) async {
-    try {
-      final r = await _dio.post('/promotions/vouchers/validate',
-          queryParameters: {'code': code.trim()});
-      final d = r.data as Map<String, dynamic>;
-      return VoucherCheck(
-        valid: true,
-        title: d['tenKhuyenMai'] as String?,
-        value: (d['giaTriGiam'] as num?)?.toDouble(),
-        expiresAt: DateTime.tryParse(d['hanSuDung']?.toString() ?? ''),
+    final normalized = code.trim().toUpperCase();
+    if (_disposed || _accountId == null) {
+      return const VoucherCheck(
+        valid: false,
+        message: 'Vui lòng đăng nhập để kiểm tra voucher.',
       );
+    }
+    if (normalized.isEmpty) {
+      return const VoucherCheck(
+        valid: false,
+        message: 'Vui lòng nhập mã voucher.',
+      );
+    }
+    final version = _accountVersion;
+    try {
+      final response = await _dio.post(
+        '/promotions/vouchers/validate',
+        queryParameters: {'code': normalized},
+      );
+      if (!_isCurrent(version)) {
+        return const VoucherCheck(
+          valid: false,
+          message: 'Phiên đăng nhập đã thay đổi, vui lòng kiểm tra lại.',
+        );
+      }
+      return VoucherCheck.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
+      if (!_isCurrent(version)) {
+        return const VoucherCheck(
+          valid: false,
+          message: 'Phiên đăng nhập đã thay đổi, vui lòng kiểm tra lại.',
+        );
+      }
       if (e.response?.statusCode == 404) {
         return const VoucherCheck(
-            valid: false, message: 'Mã không hợp lệ hoặc đã hết hạn');
+          valid: false,
+          message: 'Mã không hợp lệ hoặc đã hết hạn.',
+        );
       }
       return VoucherCheck(valid: false, message: ApiError.message(e));
+    } catch (_) {
+      return const VoucherCheck(
+        valid: false,
+        message: 'Dữ liệu kiểm tra voucher trả về không đúng định dạng.',
+      );
     }
   }
 
@@ -128,5 +238,32 @@ class CatalogProvider extends ChangeNotifier {
       if (c.id == id) return c.name;
     }
     return '';
+  }
+
+  Future<ReviewSummary> loadServiceReviews(int serviceId) async {
+    try {
+      final res = await _dio.get(
+        '/reviews',
+        queryParameters: {'serviceId': serviceId},
+      );
+      if (res.data is Map) {
+        return ReviewSummary.fromJson(
+          Map<String, dynamic>.from(res.data as Map),
+        );
+      }
+      return const ReviewSummary();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Error loading reviews for service $serviceId: $e');
+      }
+      return const ReviewSummary();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _accountVersion++;
+    super.dispose();
   }
 }

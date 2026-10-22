@@ -4,11 +4,13 @@ import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/customer.dart';
 
-/// Hồ sơ khách hàng + điểm thưởng.
 class ProfileProvider extends ChangeNotifier {
-  final _dio = ApiClient().dio;
-
+  final Dio _dio;
+  ProfileProvider({Dio? dio}) : _dio = dio ?? ApiClient().dio;
   int? _accountId;
+  int _epoch = 0;
+  int _revision = 0;
+  bool _disposed = false;
   Customer? customer;
   List<PointTransaction> transactions = [];
   bool loading = false;
@@ -16,8 +18,9 @@ class ProfileProvider extends ChangeNotifier {
   String? error;
 
   void bind(int? accountId) {
-    if (accountId == _accountId) return;
+    if (_accountId == accountId) return;
     _accountId = accountId;
+    _epoch++;
     customer = null;
     transactions = [];
     error = null;
@@ -25,29 +28,53 @@ class ProfileProvider extends ChangeNotifier {
     saving = false;
   }
 
+  bool _current(int epoch) => !_disposed && epoch == _epoch;
+  @override
+  void dispose() {
+    _disposed = true;
+    _epoch++;
+    super.dispose();
+  }
+
   Future<void> load() async {
-    if (loading) return;
+    if (_accountId == null || loading || _disposed) return;
+    final epoch = _epoch;
+    final revision = _revision;
     loading = true;
     error = null;
     notifyListeners();
     try {
-      final r = await Future.wait([
+      final responses = await Future.wait([
         _dio.get('/customers/me'),
         _dio.get('/customers/me/points'),
       ]);
-      customer = Customer.fromJson(r[0].data as Map<String, dynamic>);
-      final pts = r[1].data as Map<String, dynamic>;
-      transactions = ((pts['transactions'] as List?) ?? [])
-          .map((e) => PointTransaction.fromJson(e as Map<String, dynamic>))
+      if (!_current(epoch) || revision != _revision) return;
+      final profile = Customer.fromJson(
+        Map<String, dynamic>.from(responses[0].data as Map),
+      );
+      final points = Map<String, dynamic>.from(responses[1].data as Map);
+      final parsed = ((points['transactions'] as List?) ?? [])
+          .map(
+            (item) => PointTransaction.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
-    } on DioException catch (e) {
-      error = ApiError.message(e);
-    } catch (e) {
-      error = 'Dữ liệu trả về không đúng định dạng';
-      if (kDebugMode) debugPrint('ProfileProvider parse error: $e');
+      customer = profile;
+      transactions = parsed;
+    } on DioException catch (exception) {
+      if (_current(epoch) && revision == _revision) {
+        error = ApiError.message(exception);
+      }
+    } catch (_) {
+      if (_current(epoch) && revision == _revision) {
+        error = 'Dữ liệu hồ sơ trả về không đúng định dạng';
+      }
     } finally {
-      loading = false;
-      notifyListeners();
+      if (_current(epoch)) {
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -56,23 +83,37 @@ class ProfileProvider extends ChangeNotifier {
     String? phone,
     String? gender,
   }) async {
+    if (_accountId == null || saving || _disposed) return false;
+    final epoch = _epoch;
     saving = true;
     error = null;
     notifyListeners();
     try {
-      final res = await _dio.put('/customers/me', data: {
-        'fullName': fullName,
-        'phone': (phone == null || phone.isEmpty) ? null : phone,
-        'gender': (gender == null || gender.isEmpty) ? null : gender,
-      });
-      customer = Customer.fromJson(res.data as Map<String, dynamic>);
+      final response = await _dio.put(
+        '/customers/me',
+        data: {
+          'fullName': fullName.trim(),
+          'phone': phone?.trim().isEmpty == false ? phone!.trim() : null,
+          'gender': gender?.trim().isEmpty == false ? gender!.trim() : null,
+        },
+      );
+      if (!_current(epoch)) return false;
+      customer = Customer.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      _revision++;
       return true;
-    } on DioException catch (e) {
-      error = ApiError.message(e);
+    } on DioException catch (exception) {
+      if (_current(epoch)) error = ApiError.message(exception);
+      return false;
+    } catch (_) {
+      if (_current(epoch)) error = 'Dữ liệu hồ sơ trả về không đúng định dạng';
       return false;
     } finally {
-      saving = false;
-      notifyListeners();
+      if (_current(epoch)) {
+        saving = false;
+        notifyListeners();
+      }
     }
   }
 }

@@ -67,22 +67,25 @@ class EmptyState extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: cs.outline),
-            const SizedBox(height: 12),
-            Text(title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            if (subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(subtitle!,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 44, color: cs.outline),
+              const SizedBox(height: 8),
+              Text(title,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: cs.onSurfaceVariant)),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(subtitle!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
