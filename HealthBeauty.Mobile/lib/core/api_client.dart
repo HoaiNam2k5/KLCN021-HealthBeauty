@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:dio/dio.dart';
+
 import '../models/account.dart';
 import 'constants.dart';
 import 'token_storage.dart';
@@ -23,12 +25,35 @@ class ApiClient {
     : this.withDio(dio: Dio(_options()), refreshDio: Dio(_options()));
 
   ApiClient.withDio({required this.dio, required Dio refreshDio})
+    // ignore: prefer_initializing_formals
     : _refreshDio = refreshDio {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           if (options.extra['skipAuth'] != true) {
+            final session = options.extra.putIfAbsent(
+              'sessionGeneration',
+              () => TokenStorage.sessionGeneration,
+            );
+            if (session != TokenStorage.sessionGeneration) {
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.cancel,
+                  message: 'Session changed before request.',
+                ),
+              );
+            }
             final token = await TokenStorage.access;
+            if (session != TokenStorage.sessionGeneration) {
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.cancel,
+                  message: 'Session changed while loading credentials.',
+                ),
+              );
+            }
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
             }
@@ -38,15 +63,28 @@ class ApiClient {
         onError: (error, handler) async {
           final request = error.requestOptions;
           if (error.response?.statusCode == 401 &&
-              !request.path.contains('/auth/') &&
+              request.extra['skipAuth'] != true &&
+              request.extra['sessionGeneration'] ==
+                  TokenStorage.sessionGeneration &&
+              (!request.path.contains('/auth/') ||
+                  request.path == '/auth/change-password') &&
               request.extra['retried'] != true) {
             final result = await (_refreshing ??= _doRefresh().whenComplete(
               () => _refreshing = null,
             ));
-            if (result == _RefreshResult.ok) {
+            if (result == _RefreshResult.ok &&
+                request.extra['sessionGeneration'] ==
+                    TokenStorage.sessionGeneration) {
               request.extra['retried'] = true;
               request.headers['Authorization'] =
                   'Bearer ${await TokenStorage.access}';
+              if (request.extra['sessionGeneration'] !=
+                  TokenStorage.sessionGeneration) {
+                return handler.next(error);
+              }
+              if (request.data is FormData) {
+                request.data = (request.data as FormData).clone();
+              }
               try {
                 return handler.resolve(await dio.fetch(request));
               } on DioException catch (retryError) {
@@ -97,11 +135,13 @@ class ApiClient {
     }
   }
 
-  Future<_RefreshResult> _reject(int generation) async {
+  Future<_RefreshResult> _reject(int generation, {bool notify = true}) async {
     if (!await TokenStorage.clearIfCurrent(generation)) {
       return _RefreshResult.stale;
     }
-    onSessionExpired?.call();
+    if (notify) {
+      onSessionExpired?.call();
+    }
     return _RefreshResult.rejected;
   }
 
@@ -109,7 +149,7 @@ class ApiClient {
     final generation = TokenStorage.generation;
     final token = await TokenStorage.refresh;
     if (TokenStorage.generation != generation) return _RefreshResult.stale;
-    if (token == null) return _reject(generation);
+    if (token == null) return _reject(generation, notify: false);
     try {
       final response = await _refreshDio.post(
         '/auth/refresh',
@@ -122,10 +162,10 @@ class ApiClient {
           data['refreshToken'] is! String ||
           (data['refreshToken'] as String).isEmpty ||
           data['account'] is! Map<String, dynamic>) {
-        return _reject(generation);
+        return await _reject(generation);
       }
       final account = Account.fromJson(data['account']);
-      if (account.role != 'Customer') return _reject(generation);
+      if (account.role != 'Customer') return await _reject(generation);
       final saved = await TokenStorage.saveIfCurrent(
         generation,
         data['accessToken'],
@@ -154,12 +194,12 @@ class ApiClient {
       if (TokenStorage.generation != generation) return _RefreshResult.stale;
       final status = error.response?.statusCode;
       if (status == 400 || status == 401 || status == 403) {
-        return _reject(generation);
+        return await _reject(generation);
       }
       // Transient network/server/rate-limit errors preserve a valid saved session.
       return _RefreshResult.networkError;
     } catch (_) {
-      return _reject(generation);
+      return await _reject(generation);
     }
   }
 }

@@ -115,11 +115,14 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
     {
         var invoice = item.Hoadons.OrderByDescending(x => x.NgayLap).ThenByDescending(x => x.HoaDonId).FirstOrDefault();
         var review = invoice?.Danhgia.OrderByDescending(x => x.NgayDanhGia).ThenByDescending(x => x.DanhGiaId).FirstOrDefault();
+        var reviewDetails = review is { IsDeleted: false } ? review : null;
         return new AppointmentResponse(item.LichHenId, item.KhachHangId, item.NhanVienId, item.NgayGioHen,
             item.TrangThai, item.GhiChu,
             item.Chitietlichhens.Select(x => new AppointmentItemResponse(x.ChiTietLichHenId, x.DichVuId,
                 x.DichVu?.TenDichVu ?? string.Empty, x.ComboId, x.GiaDuKien, AppointmentTiming.ItemDurationMinutes(x))).ToList(),
             InvoiceId: invoice?.HoaDonId, InvoiceStatus: invoice?.TrangThai,
-            HasReviewed: review is not null, ReviewStars: review?.SoSao, CustomerPackageId: item.CustomerPackageId, FundingSource: item.CustomerPackageId.HasValue ? "ServicePackage" : "Cash");
+            HasReviewed: review is not null, ReviewStars: reviewDetails?.SoSao, CustomerPackageId: item.CustomerPackageId, FundingSource: item.CustomerPackageId.HasValue ? "ServicePackage" : "Cash",
+            ReviewComment: reviewDetails?.BinhLuan, ReviewedAt: reviewDetails?.NgayDanhGia,
+            ReviewReply: reviewDetails?.Reply, ReviewRepliedAt: reviewDetails?.RepliedAt is DateTime repliedAt ? DateTime.SpecifyKind(repliedAt, DateTimeKind.Utc) : null);
     }
 }

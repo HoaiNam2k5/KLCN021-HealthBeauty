@@ -47,3 +47,8 @@ Thumbs.db
 # Firebase service account private keys (configure path locally)
 **/firebase-service-account*.json
 **/*firebase-adminsdk*.json
+
+# Consolidation local manifests and machine config
+/CONSOLIDATION_RESULT.json
+/CONSOLIDATION_CLEANUP.json
+/Firebase_Config_Cho_Nhom/

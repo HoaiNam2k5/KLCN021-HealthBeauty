@@ -1,0 +1,25 @@
+{
+  "project_info": {
+    "project_number": "748230119172",
+    "project_id": "healthbeautyapp-2d30f",
+    "storage_bucket": "healthbeautyapp-2d30f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:748230119172:android:5a51936b156901e19d0a51",
+        "android_client_info": {
+          "package_name": "com.example.app_doancunhan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_GOOGLE_SERVICES_API_KEY"
+        }
+      ],
+      "services": {}
+    }
+  ],
+  "configuration_version": "1"
+}

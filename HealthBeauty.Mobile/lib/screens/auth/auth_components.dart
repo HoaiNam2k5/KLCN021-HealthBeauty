@@ -25,34 +25,55 @@ class AuthScaffold extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (onBack != null)
+              if (onBack != null) ...[
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    style: IconButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(36, 36),
+                      alignment: Alignment.centerLeft,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     icon: const Icon(Icons.arrow_back),
                     onPressed: onBack,
                   ),
-                )
-              else
+                ),
+                const SizedBox(height: 16),
+              ] else
                 const SizedBox(height: 24),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'HB',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onPrimaryContainer,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: cs.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.spa_rounded,
+                        color: cs.primary,
+                        size: 24,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'HealthBeauty Spa',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: cs.primary,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 14),

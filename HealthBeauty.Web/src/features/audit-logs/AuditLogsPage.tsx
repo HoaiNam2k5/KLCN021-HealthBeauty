@@ -7,12 +7,8 @@ import { getAuditLogs, type AuditLog } from '../../api/auditLogs'
 import { getAccounts } from '../../api/accounts'
 import { getApiErrorMessage } from '../../components/apiError'
 import { useAuth } from '../../hooks/useAuth'
+import { getAuditActionLabel, getAuditEntityLabel } from '../../utils/displayLabels'
 
-const actionLabels: Record<string, string> = {
-  AccountCreated: 'Tạo tài khoản', AccountRoleChanged: 'Đổi vai trò',
-  AccountActivated: 'Mở tài khoản', AccountDeactivated: 'Khóa tài khoản',
-  PermissionGranted: 'Cấp quyền', PermissionRevoked: 'Thu hồi quyền',
-}
 function displayDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('vi-VN')
@@ -26,15 +22,15 @@ export default function AuditLogsPage() {
   const accounts = useQuery({ queryKey: ['admin-accounts', accountId, ''], queryFn: () => getAccounts('') })
   const names = useMemo(() => new Map((accounts.data ?? []).map((account) => [account.taiKhoanId, account.email])), [accounts.data])
   const data = query.data ?? []
-  const actions = [...new Set(data.map((row) => row.actionName))].sort().map((value) => ({ value, label: actionLabels[value] ?? value }))
+  const actions = [...new Set(data.map((row) => row.actionName))].map((value) => ({ value, label: getAuditActionLabel(value) })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
   const search = keyword.trim().toLocaleLowerCase()
-  const rows = data.filter((row) => (!action || row.actionName === action) && (!search || [row.auditLogId, row.taiKhoanId, row.taiKhoanId == null ? '' : names.get(row.taiKhoanId), row.actionName, actionLabels[row.actionName], row.entityName, row.entityId, row.ipAddress].some((value) => value != null && String(value).toLocaleLowerCase().includes(search))))
+  const rows = data.filter((row) => (!action || row.actionName === action) && (!search || [row.auditLogId, row.taiKhoanId, row.taiKhoanId == null ? '' : names.get(row.taiKhoanId), row.actionName, getAuditActionLabel(row.actionName), row.entityName, getAuditEntityLabel(row.entityName), row.entityId, row.ipAddress].some((value) => value != null && String(value).toLocaleLowerCase().includes(search))))
   const columns: TableColumnsType<AuditLog> = [
     { title: 'STT', key: 'stt', width: 60, align: 'center', render: (_value, _record, index) => index + 1 },
     { title: 'Thời gian', dataIndex: 'createdAt', width: 180, render: displayDate },
     { title: 'Người thực hiện', width: 220, render: (_, row) => row.taiKhoanId == null ? 'Hệ thống' : <><div>{names.get(row.taiKhoanId) ?? 'Tài khoản'}</div><Typography.Text type="secondary">#{row.taiKhoanId}</Typography.Text></> },
-    { title: 'Hoạt động', dataIndex: 'actionName', width: 200, render: (value: string) => <Space direction="vertical" size={0}><Tag>{actionLabels[value] ?? value}</Tag><Typography.Text type="secondary">{value}</Typography.Text></Space> },
-    { title: 'Đối tượng', dataIndex: 'entityName', render: (value: string | null) => value || '—' },
+    { title: 'Hoạt động', dataIndex: 'actionName', width: 200, render: (value: string) => <Tag>{getAuditActionLabel(value)}</Tag> },
+    { title: 'Đối tượng', dataIndex: 'entityName', render: getAuditEntityLabel },
     { title: 'Mã đối tượng', dataIndex: 'entityId', render: (value: string | null) => value || '—' },
     { title: 'Địa chỉ IP', dataIndex: 'ipAddress', render: (value: string | null) => value || '—' },
   ]

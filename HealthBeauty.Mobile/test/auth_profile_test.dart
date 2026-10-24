@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:app_doancunhan/core/api_client.dart';
 import 'package:app_doancunhan/core/token_storage.dart';
 import 'package:app_doancunhan/providers/auth_provider.dart';
@@ -471,4 +472,178 @@ void main() {
     expect(provider.customer?.fullName, 'New');
     provider.dispose();
   });
+
+  test('forgot password and reset password invoke auth endpoints correctly', () async {
+    final client = ApiClient.withDio(
+      dio: transport((request) {
+        if (request.path == '/auth/forgot-password') {
+          expect(request.data['email'], 'test@local.test');
+          return response({'message': 'Mã OTP đã gửi', 'debugOtp': '123456'});
+        }
+        if (request.path == '/auth/reset-password') {
+          expect(request.data['email'], 'test@local.test');
+          expect(request.data['otp'], '123456');
+          expect(request.data['newPassword'], 'newpassword123');
+          return response({'message': 'Thành công'});
+        }
+        return response({}, 404);
+      }),
+      refreshDio: transport((_) => response(session())),
+    );
+    final auth = AuthProvider(client: client);
+    final forgotRes = await auth.forgotPassword('test@local.test');
+    expect(forgotRes?['debugOtp'], '123456');
+
+    final resetOk = await auth.resetPassword(
+      email: 'test@local.test',
+      otp: '123456',
+      newPassword: 'newpassword123',
+    );
+    expect(resetOk, true);
+    auth.dispose();
+  });
+
+  test('2FA login flow requests OTP and completes sign-in upon verification', () async {
+    final client = ApiClient.withDio(
+      dio: transport((request) {
+        if (request.path == '/auth/login') {
+          return response({
+            'requiresTwoFactor': true,
+            'email': 'customer@local.test',
+            'message': 'Mã xác thực đã được gửi',
+          });
+        }
+        if (request.path == '/auth/verify-2fa') {
+          expect(request.data['email'], 'customer@local.test');
+          expect(request.data['otp'], '654321');
+          return response(session(role: 'Customer'));
+        }
+        if (request.path == '/auth/resend-2fa') {
+          expect(request.data['email'], 'customer@local.test');
+          return response({'message': 'Mã mới đã được gửi'});
+        }
+        return response({}, 404);
+      }),
+      refreshDio: transport((_) => response(session())),
+    );
+    final auth = AuthProvider(client: client);
+    final loginOk = await auth.login('customer@local.test', 'password123');
+    expect(loginOk, false);
+    expect(auth.requiresTwoFactor, true);
+    expect(auth.twoFactorEmail, 'customer@local.test');
+    expect(auth.isLoggedIn, false);
+
+    final resendOk = await auth.resendTwoFactor();
+    expect(resendOk, true);
+
+    final verifyOk = await auth.verifyTwoFactor('654321');
+    expect(verifyOk, true);
+    expect(auth.requiresTwoFactor, false);
+    expect(auth.isLoggedIn, true);
+    expect(auth.account?.role, 'Customer');
+    auth.dispose();
+  });
+
+  test('Google login sends token payload and establishes customer session', () async {
+    final client = ApiClient.withDio(
+      dio: transport((request) {
+        if (request.path == '/auth/google') {
+          expect(request.data['email'], 'googleuser@local.test');
+          expect(request.data['googleId'], 'gid_999888');
+          expect(request.data['fullName'], 'Google Test User');
+          expect(request.data['idToken'], 'mock-id-token');
+          return response(session(role: 'Customer'));
+        }
+        return response({}, 404);
+      }),
+      refreshDio: transport((_) => response(session())),
+    );
+    final auth = AuthProvider(client: client);
+    final ok = await auth.loginWithGoogleToken(
+      email: 'googleuser@local.test',
+      googleId: 'gid_999888',
+      fullName: 'Google Test User',
+      idToken: 'mock-id-token',
+    );
+    expect(ok, true);
+    expect(auth.isLoggedIn, true);
+    expect(auth.account?.role, 'Customer');
+    auth.dispose();
+  });
+  test('Google canceled after account selection reports configuration guidance', () async {
+    var requests = 0;
+    final client = ApiClient.withDio(
+      dio: transport((_) { requests++; return response(session()); }),
+      refreshDio: transport((_) => response(session())),
+    );
+    final auth = AuthProvider(
+      client: client,
+      initializeGoogle: () async {},
+      authenticateGoogle: () async => throw const GoogleSignInException(
+        code: GoogleSignInExceptionCode.canceled,
+        description: 'Account reauth failed',
+      ),
+    );
+    expect(await auth.loginWithGoogle(), false);
+    expect(auth.error, contains('SHA-1'));
+    expect(auth.googleLoading, false);
+    expect(requests, 0);
+    auth.dispose();
+  });
+
+  test('Google initialization errors are not swallowed', () async {
+    var authenticationCalls = 0;
+    final auth = AuthProvider(
+      initializeGoogle: () async => throw const GoogleSignInException(
+        code: GoogleSignInExceptionCode.clientConfigurationError,
+      ),
+      authenticateGoogle: () async { authenticationCalls++; throw StateError('must not run'); },
+    );
+    expect(await auth.loginWithGoogle(), false);
+    expect(authenticationCalls, 0);
+    expect(auth.error, contains('Cấu hình Google'));
+    expect(auth.googleLoading, false);
+    auth.dispose();
+  });
+
+  test('Google missing ID token never calls backend', () async {
+    var requests = 0;
+    final auth = AuthProvider(client: ApiClient.withDio(
+      dio: transport((_) { requests++; return response(session()); }),
+      refreshDio: transport((_) => response(session())),
+    ));
+    expect(await auth.loginWithGoogleToken(email: 'user@example.test', googleId: 'sub'), false);
+    expect(requests, 0);
+    expect(auth.error, contains('Google không trả mã xác thực'));
+    auth.dispose();
+  });
+
+  test('Google double tap opens only one authentication flow', () async {
+    final pending = Completer<GoogleSignInAccount>();
+    var calls = 0;
+    final auth = AuthProvider(initializeGoogle: () async {}, authenticateGoogle: () {
+      calls++; return pending.future;
+    });
+    final first = auth.loginWithGoogle();
+    await Future<void>.delayed(Duration.zero);
+    expect(auth.googleLoading, true);
+    expect(await auth.loginWithGoogle(), false);
+    pending.completeError(const GoogleSignInException(code: GoogleSignInExceptionCode.canceled));
+    expect(await first, false);
+    expect(calls, 1);
+    expect(auth.googleLoading, false);
+    auth.dispose();
+  });
+
+  test('Late Google result after disposal cannot update provider', () async {
+    final pending = Completer<GoogleSignInAccount>();
+    final auth = AuthProvider(initializeGoogle: () async {}, authenticateGoogle: () => pending.future);
+    final login = auth.loginWithGoogle();
+    await Future<void>.delayed(Duration.zero);
+    auth.dispose();
+    pending.completeError(const GoogleSignInException(code: GoogleSignInExceptionCode.canceled));
+    expect(await login, false);
+    expect(auth.error, null);
+  });
+
 }

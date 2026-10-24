@@ -40,7 +40,7 @@ class ApiError {
       return 'Dữ liệu không hợp lệ';
     }
 
-    if ((code == 400 || code == 401 || code == 409) &&
+    if ((code == 400 || code == 401 || code == 404 || code == 409) &&
         data is String &&
         data.trim().isNotEmpty) {
       return data.trim();

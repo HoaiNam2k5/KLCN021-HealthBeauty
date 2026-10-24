@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/catalog.dart';
+import '../models/review.dart';
 
 class CatalogProvider extends ChangeNotifier {
   final Dio _dio;
@@ -237,6 +238,26 @@ class CatalogProvider extends ChangeNotifier {
       if (c.id == id) return c.name;
     }
     return '';
+  }
+
+  Future<ReviewSummary> loadServiceReviews(int serviceId) async {
+    try {
+      final res = await _dio.get(
+        '/reviews',
+        queryParameters: {'serviceId': serviceId},
+      );
+      if (res.data is Map) {
+        return ReviewSummary.fromJson(
+          Map<String, dynamic>.from(res.data as Map),
+        );
+      }
+      return const ReviewSummary();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Error loading reviews for service $serviceId: $e');
+      }
+      return const ReviewSummary();
+    }
   }
 
   @override

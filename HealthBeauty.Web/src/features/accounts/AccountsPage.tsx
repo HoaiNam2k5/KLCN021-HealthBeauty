@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '../../components/apiError'
 import { useAdminRoles } from '../permissions/permissionQueries'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../hooks/useAuth'
+import { getRoleLabel } from '../../utils/displayLabels'
 
 export default function AccountsPage() {
   const { message } = App.useApp()
@@ -20,6 +21,8 @@ export default function AccountsPage() {
   const roles = useAdminRoles()
   const [keyword, setKeyword] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<AdminAccount | null>(null)
   const [saving, setSaving] = useState(false)
@@ -35,7 +38,7 @@ export default function AccountsPage() {
   const staffQuery = useQuery({ queryKey: ['staff', 'account-link', actorId], queryFn: getStaff, enabled: canWrite && canReadStaff && (creatingStaff || editingStaff) })
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['admin-accounts', actorId, search], queryFn: () => accountsApi.getAccounts(search) })
-  const roleOptions = (roles.data ?? []).map((role) => ({ value: role.roleId, label: role.tenVaiTro }))
+  const roleOptions = (roles.data ?? []).map((role) => ({ value: role.roleId, label: getRoleLabel(role.tenVaiTro) }))
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['admin-accounts', actorId] }), queryClient.invalidateQueries({ queryKey: ['staff'] })])
 
   async function submitCreate(body: CreateAccountRequest) {
@@ -64,9 +67,10 @@ export default function AccountsPage() {
     catch (error) { message.error(getApiErrorMessage(error, 'Không thể cập nhật tài khoản.')) }
   }
   const columns: TableColumnsType<AdminAccount> = [
+    { title: 'STT', key: 'stt', width: 64, align: 'center', render: (_value, _account, index) => (page - 1) * pageSize + index + 1 },
     { title: 'Email', dataIndex: 'email' },
     { title: 'Họ tên', render: (_, account) => account.fullName || account.tenTaiKhoan || '—' },
-    { title: 'Vai trò', dataIndex: 'role', render: (role: string) => <Tag>{role}</Tag> },
+    { title: 'Vai trò', dataIndex: 'role', render: (role: string) => <Tag>{getRoleLabel(role)}</Tag> },
     { title: 'Trạng thái', render: (_, account) => <Tag color={account.trangThai ? 'green' : 'default'}>{account.trangThai ? 'Hoạt động' : 'Đã khóa'}</Tag> },
     ...(canWrite ? [{ title: 'Thao tác', key: 'actions', render: (_: unknown, account: AdminAccount) => <Space wrap>
       <Button size="small" disabled={roles.isError || roles.isLoading || account.taiKhoanId === actorId} onClick={() => { setFormError(null); roleForm.resetFields(); roleForm.setFieldsValue({ roleId: account.roleId, staffId: undefined }); setEditing(account) }}>Gán vai trò</Button>
@@ -81,10 +85,10 @@ export default function AccountsPage() {
       {canWrite && <Button type="primary" disabled={roles.isError || roles.isLoading} onClick={() => { createForm.resetFields(); setFormError(null); setCreating(true) }}>Tạo tài khoản</Button>}
     </Space>
 
-    {roles.isError && <Alert type="error" showIcon message="Không tải được vai trò. Cần quyền ROLE.READ để chọn vai trò khi tạo hoặc sửa tài khoản." action={<Button onClick={() => void roles.refetch()}>Thử lại</Button>} style={{ marginBottom: 12 }} />}
-    <Input.Search className="filter-search" aria-label="Tìm tài khoản" placeholder="Tìm email hoặc tên tài khoản" value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={() => setSearch(keyword.trim())} allowClear enterButton style={{ width: '100%', maxWidth: 420, marginBottom: 16 }} />
+    {roles.isError && <Alert type="error" showIcon message="Không tải được vai trò. Cần quyền xem vai trò và quyền để chọn vai trò khi tạo hoặc sửa tài khoản." action={<Button onClick={() => void roles.refetch()}>Thử lại</Button>} style={{ marginBottom: 12 }} />}
+    <Input.Search className="filter-search" aria-label="Tìm tài khoản" placeholder="Tìm email hoặc tên tài khoản" value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={() => { setSearch(keyword.trim()); setPage(1) }} allowClear enterButton style={{ width: '100%', maxWidth: 420, marginBottom: 16 }} />
     {query.isError && <Alert type="error" showIcon message={getApiErrorMessage(query.error, 'Không tải được tài khoản.')} action={<Button onClick={() => void query.refetch()}>Thử lại</Button>} style={{ marginBottom: 12 }} />}
-    <Table<AdminAccount> className="responsive-table" rowKey="taiKhoanId" columns={columns} dataSource={query.data ?? []} loading={query.isLoading} pagination={{ responsive: true, pageSize: 20, showSizeChanger: true }} scroll={{ x: 750 }} />
+    <Table<AdminAccount> className="responsive-table" rowKey="taiKhoanId" columns={columns} dataSource={query.data ?? []} loading={query.isLoading} pagination={{ responsive: true, current: page, pageSize, showSizeChanger: true, onChange: (nextPage, size) => { setPage(size !== pageSize ? 1 : nextPage); setPageSize(size) } }} scroll={{ x: 814 }} />
 
     <Modal className="responsive-modal" title="Tạo tài khoản người dùng" open={creating && canWrite} onCancel={() => { if (!saving) { setCreating(false); createForm.resetFields() } }} onOk={() => createForm.submit()} confirmLoading={saving} okText="Tạo tài khoản" cancelText="Hủy" maskClosable={!saving}>
       {formError && <Alert type="error" showIcon message={formError} style={{ marginBottom: 12 }} />}

@@ -1,8 +1,9 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Thêm dòng dưới đây theo hướng dẫn của Firebase
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -52,4 +53,7 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // Thêm Firebase BoM (Tùy chọn nếu bạn muốn tích hợp sâu Firebase sau này)
+    implementation(platform("com.google.firebase:firebase-bom:35.0.1"))
 }

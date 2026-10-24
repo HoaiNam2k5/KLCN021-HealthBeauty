@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
 import type { Appointment, AppointmentUpdateRequest, CreateAppointmentRequest, Staff } from '../../types/appointments'
 import { useServices, useCombos } from '../services/serviceQueries'
+import { useCustomerPackages } from '../service-packages/packageQueries'
 import { APPOINTMENT_STATUSES, getAllowedNextAppointmentStatuses, getAppointmentStatusPresentation } from './appointmentStatus'
 import { bookingItems, bookingDuration, canReschedule, canCancel, localAppointmentDateTime } from './appointmentContract'
 import { appointmentKeys, useAppointmentDetail, useAppointmentCustomers, useAppointments, useAppointmentStaff, useAvailableSlots } from './appointmentQueries'
@@ -40,11 +41,15 @@ function AppointmentEditor({ appointment, staff, mode, onCancel, onSubmit, busy 
 }
 
 
-type CreateFields = { customerId: number; staffId?: number; appointmentDate: Dayjs; appointmentTime: Dayjs; itemKeys: string[]; note?: string }
+type CreateFields = { customerId: number; staffId?: number; appointmentDate: Dayjs; appointmentTime: Dayjs; itemKeys: string[]; note?: string; customerPackageId?: number }
 
 function AppointmentCreateDrawer({ open, staff, form, onClose, onSubmit, busy }: { open: boolean; staff: Staff[]; form: ReturnType<typeof Form.useForm<CreateFields>>[0]; onClose: () => void; onSubmit: (body: CreateAppointmentRequest) => void; busy: boolean }) {
   const date: Dayjs | null = Form.useWatch('appointmentDate', form) ?? null
   const staffId: number | undefined = Form.useWatch('staffId', form)
+  const customerId: number | undefined = Form.useWatch('customerId', form)
+  const customerPackageId: number | undefined = Form.useWatch('customerPackageId', form)
+  const customerPackages = useCustomerPackages(customerId)
+  const chosenPackage = customerPackages.data?.find(p => p.id === customerPackageId)
   const [customerKeyword, setCustomerKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
   const customers = useAppointmentCustomers(debouncedKeyword)
@@ -71,7 +76,7 @@ function AppointmentCreateDrawer({ open, staff, form, onClose, onSubmit, busy }:
     ...(services.data ?? []).map((service) => ({ value: `service:${service.id}`, label: `Dịch vụ: ${service.name ?? 'Không tên'} — ${money(service.price)}` })),
     ...(combos.data ?? []).map((combo) => ({ value: `combo:${combo.id}`, label: `Combo: ${combo.name ?? 'Không tên'} — ${money(combo.price)}` })),
   ]
-  const estimate = selectedKeys.reduce((total, key) => {
+  const estimate = chosenPackage ? 0 : selectedKeys.reduce((total, key) => {
     const [kind, rawId] = key.split(':')
     const id = Number(rawId)
     return total + (kind === 'service' ? serviceMap.get(id)?.price ?? 0 : combos.data?.find((combo) => combo.id === id)?.price ?? 0)
@@ -80,7 +85,12 @@ function AppointmentCreateDrawer({ open, staff, form, onClose, onSubmit, busy }:
   const finish = (values: CreateFields) => {
     try {
       const items = bookingItems(values.itemKeys, services.data ?? [], combos.data ?? [])
-      onSubmit({ appointmentAt: localAppointmentDateTime(values.appointmentDate, values.appointmentTime), items, note: values.note?.trim() || null, customerId: values.customerId, staffId: values.staffId ?? null })
+      if (chosenPackage) {
+        const counts = new Map<number, number>()
+        for (const item of items) { if (item.comboId !== null || !chosenPackage.items.some(p => p.serviceId === item.serviceId && p.available > (counts.get(item.serviceId) ?? 0))) throw new Error('Dịch vụ đã chọn không đủ lượt trong gói.') ; counts.set(item.serviceId, (counts.get(item.serviceId) ?? 0) + 1) }
+        items.forEach(item => { item.expectedPrice = 0 })
+      }
+      onSubmit({ appointmentAt: localAppointmentDateTime(values.appointmentDate, values.appointmentTime), items, note: values.note?.trim() || null, customerId: values.customerId, staffId: values.staffId ?? null, customerPackageId: chosenPackage?.id })
     } catch (error) {
       form.setFields([{ name: 'itemKeys', errors: [error instanceof Error ? error.message : 'Dịch vụ / combo không hợp lệ.'] }])
     }
@@ -97,6 +107,7 @@ function AppointmentCreateDrawer({ open, staff, form, onClose, onSubmit, busy }:
         {slotOptions.length > 0 && <Form.Item label="Khung giờ gợi ý"><Select options={slotOptions} placeholder="Chọn khung giờ trống" onChange={(value: string) => form.setFieldValue('appointmentTime', dayjs(`2000-01-01T${value}`))} /></Form.Item>}
       </>}
       <Form.Item label="Giờ hẹn" name="appointmentTime" rules={[{ required: true, message: 'Vui lòng chọn giờ hẹn' }, { validator: (_, value: Dayjs | undefined) => !value || !date || dayjs(localAppointmentDateTime(date, value)).isAfter(dayjs()) ? Promise.resolve() : Promise.reject(new Error('Vui lòng chọn thời điểm trong tương lai')) }]}><TimePicker format="HH:mm" minuteStep={5} style={{ width: '100%' }} /></Form.Item>
+      <Form.Item label="Gói dịch vụ đã thanh toán" name="customerPackageId"><Select allowClear placeholder="Không dùng gói" options={(customerPackages.data??[]).filter(p=>p.status==='Paid'&&(!p.expiresAt||dayjs(p.expiresAt).isAfter(dayjs()))&&p.items.some(i=>i.available>0)).map(p=>({value:p.id,label:`${p.name} — còn lượt khả dụng`}))} onChange={()=>form.setFieldValue('itemKeys',[])} /></Form.Item>
       <Form.Item label="Dịch vụ / combo" name="itemKeys" rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất một dịch vụ hoặc combo' }]}><Select mode="multiple" placeholder="Chọn dịch vụ hoặc combo" options={itemOptions} loading={services.isLoading || combos.isLoading} /></Form.Item>
       {selectionError && <Alert type="error" message={selectionError} style={{ marginBottom: 16 }} />}
       {(services.isError || combos.isError) && <Alert type="error" message="Không tải được danh sách dịch vụ/combo" style={{ marginBottom: 16 }} />}
@@ -154,7 +165,6 @@ export default function AppointmentsPage() {
   const staff = useAppointmentStaff(canReadStaff)
   const customers = useAppointmentCustomers('', has('CUSTOMER.READ'))
   const detail = useAppointmentDetail(selected?.id)
-  const pending = mutations.update.isPending || mutations.reschedule.isPending || mutations.status.isPending || mutations.remove.isPending || mutations.create.isPending
   const handleError = (error: unknown) => {
     const fallback = axios.isAxiosError(error) && error.response?.status === 409
       ? (typeof error.response.data === 'object' && error.response.data !== null && 'message' in error.response.data && error.response.data.message === 'Invalid appointment status transition'
@@ -193,7 +203,6 @@ export default function AppointmentsPage() {
     const mutation = editor === 'reschedule' ? mutations.reschedule : mutations.update
     mutation.mutate({ id: activeAppointment.id, body }, { onSuccess: () => { message.success(editor === 'reschedule' ? 'Đổi lịch hẹn thành công' : 'Cập nhật lịch hẹn thành công'); setEditor(null) }, onError: handleError })
   }
-  const confirmStatus = (appointment: Appointment, nextStatus: string) => modal.confirm({ title: `Đổi trạng thái thành “${statusLabels[nextStatus] ?? nextStatus}”?`, content: 'Xác nhận cập nhật trạng thái lịch hẹn.', okText: 'Xác nhận', cancelText: 'Hủy', onOk: () => new Promise<void>((resolve, reject) => mutations.status.mutate({ id: appointment.id, status: nextStatus }, { onSuccess: () => { message.success('Cập nhật trạng thái thành công'); resolve() }, onError: (error: unknown) => { handleError(error); reject(error) } })) })
   const error = appointments.isError || staff.isError || customers.isError
   const errorMessage = error
     ? getApiErrorMessage(appointments.error ?? staff.error ?? customers.error, 'Không thể tải danh sách lịch hẹn. Vui lòng thử lại.')
@@ -245,12 +254,6 @@ export default function AppointmentsPage() {
     { title: 'Đang phục vụ', count: (statusCounts.DangThucHien ?? 0) + (statusCounts.DaDen ?? 0), status: 'DaDen', color: '#1677ff' },
     { title: 'Đã hoàn thành', count: statusCounts.HoanThanh ?? 0, status: 'HoanThanh', color: '#52c41a' },
   ]
-  const quickAction: Record<string, { label: string; next: string }> = {
-    ChoXacNhan: { label: 'Xác nhận', next: 'DaXacNhan' },
-    DaXacNhan: { label: 'Khách đến', next: 'DaDen' },
-    DaDen: { label: 'Bắt đầu làm', next: 'DangThucHien' },
-    DangThucHien: { label: 'Hoàn thành', next: 'HoanThanh' },
-  }
 
   return <>
     {error && <Alert type="error" showIcon message="Không tải được dữ liệu lịch hẹn" description={errorMessage} style={{ marginBottom: 16 }} />}
@@ -265,16 +268,13 @@ export default function AppointmentsPage() {
     <ManagementTable<Appointment>
       title="Lịch hẹn"
       columns={[
-        { title: 'Ngày giờ', dataIndex: 'appointmentAt', key: 'appointmentAt', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') },
+        { title: 'Ngày giờ', dataIndex: 'appointmentAt', key: 'appointmentAt', render: (value: string, appointment: Appointment) => <Space>{dayjs(value).format('DD/MM/YYYY HH:mm')}{appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}</Space> },
         { title: 'Khách hàng', dataIndex: 'customerId', key: 'customer', render: (id: number) => customerNames.get(id) ?? `Khách #${id}` },
         { title: 'Nhân viên', dataIndex: 'staffId', key: 'staff', render: (id: number | null) => id === null ? 'Chưa phân công' : staffNames.get(id) ?? `Nhân viên #${id}` },
         { title: 'Dịch vụ', dataIndex: 'items', key: 'items', render: (items: Appointment['items']) => items.map((item) => item.serviceName).join(', ') || '—' },
-        { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent', fontWeight: 500 }}>{presentation.label}</Tag> } },
+        { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string, record) => { const presentation = getAppointmentStatusPresentation(value); const allowed = getAllowedNextAppointmentStatuses(value); return <Select disabled={!canWrite || allowed.length === 0} loading={mutations.status.isPending} value={value} style={{ minWidth: 160 }} options={[{ value, label: <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent', fontWeight: 500 }}>{presentation.label}</Tag> }, ...allowed.map((nextStatus) => ({ value: nextStatus, label: statusLabels[nextStatus] ?? nextStatus }))]} onChange={(nextStatus: string) => modal.confirm({ title: `Đổi trạng thái lịch hẹn #${record.id} thành "${statusLabels[nextStatus]}"?`, onOk: () => mutations.status.mutate({ id: record.id, status: nextStatus }, { onError: handleError }) })} /> } },
         { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
-        { title: 'Thao tác', key: 'details', render: (_, record) => <Space size="small" wrap>
-          {canWrite && quickAction[record.status] && <Button size="small" type={record.status === 'ChoXacNhan' ? 'primary' : 'default'} loading={mutations.status.isPending} onClick={() => modal.confirm({ title: `Xác nhận “${quickAction[record.status].label}” cho lịch #${record.id}?`, content: 'Xác nhận cập nhật trạng thái lịch hẹn.', okText: 'Xác nhận', okType: 'primary', cancelText: 'Hủy', centered: true, onOk: () => confirmStatus(record, quickAction[record.status].next) })}>{quickAction[record.status].label}</Button>}
-          <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button>
-        </Space> },
+        { title: 'Thao tác', key: 'details', render: (_, record) => <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button> },
       ]}
       data={appointmentItems}
       total={appointments.data?.totalCount ?? 0}
@@ -312,7 +312,6 @@ export default function AppointmentsPage() {
         <Typography.Title level={5} style={{ marginTop: 20 }}>Dịch vụ / combo</Typography.Title>
         {activeAppointment.items.length ? <>{activeAppointment.items.map((item) => <div className="booking-line" key={item.id} style={{ padding: '8px 0' }}><span>{item.serviceName}{item.comboId !== null ? ' (combo)' : ''}</span><span>{money(item.expectedPrice)}</span></div>)}<div style={{ borderTop: '1px solid #dedbd6', paddingTop: 12, textAlign: 'right', fontWeight: 500 }}>Tổng tiền: {money(activeAppointment.items.reduce((sum, item) => sum + item.expectedPrice, 0))}</div></> : <Typography.Text type="secondary">Chưa có dịch vụ</Typography.Text>}
         {canWrite && <Space wrap style={{ marginTop: 24 }}>
-          {getAllowedNextAppointmentStatuses(activeAppointment.status).map((next) => <Button key={next} loading={pending} onClick={() => confirmStatus(activeAppointment, next)}>{next === 'DaHuy' ? 'Hủy lịch' : `Chuyển: ${statusLabels[next] ?? next}`}</Button>)}
           {canReschedule(activeAppointment.status) && <>
             <Button onClick={() => setEditor('reschedule')}>Đổi lịch</Button><Button onClick={() => setEditor('edit')}>Sửa ghi chú / nhân viên</Button>
           </>}

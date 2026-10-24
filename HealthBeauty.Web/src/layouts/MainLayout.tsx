@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { App as AntApp, Alert, Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu } from 'antd'
-import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, UserOutlined, TeamOutlined, ContactsOutlined, ClockCircleOutlined, DollarOutlined, StarOutlined, SafetyCertificateOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, DownOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CalendarOutlined, DashboardOutlined, LogoutOutlined, TagsOutlined, GiftOutlined, UserOutlined, TeamOutlined, ContactsOutlined, ClockCircleOutlined, DollarOutlined, StarOutlined, SafetyCertificateOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, DownOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearSession, getRefreshToken } from '../api/session'
 import api from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { usePermissions } from '../hooks/usePermissions'
+import { getRoleLabel } from '../utils/displayLabels'
 import type { RefreshRequest } from '../types/auth'
 import { REPORTS_ROUTE, REPORT_MENU_LABEL } from '../types/reports'
 
@@ -28,6 +29,7 @@ export default function MainLayout() {
     { key: '/service-categories', icon: <TagsOutlined />, label: 'Loại dịch vụ' },
     { key: '/services', icon: <AppstoreOutlined />, label: 'Dịch vụ' },
     { key: '/combos', icon: <AppstoreOutlined />, label: 'Combo' },
+    { key: '/packages', icon: <GiftOutlined />, label: 'Gói dịch vụ' },
     { key: '/appointments', icon: <CalendarOutlined />, label: 'Lịch hẹn' },
     { key: '/customers', icon: <ContactsOutlined />, label: 'Khách hàng' },
     { key: '/staff', icon: <TeamOutlined />, label: 'Nhân viên' },
@@ -81,7 +83,7 @@ export default function MainLayout() {
         <div className="sider-inner">
           {brand}
           <nav className="sider-navigation" aria-label="Điều hướng chính">{navigation}</nav>
-          <div className="sider-footer"><span className="status-dot" /><span className="brand-label">{session?.account?.role}</span></div>
+          <div className="sider-footer"><span className="status-dot" /><span className="brand-label">{getRoleLabel(session?.account?.role)}</span></div>
         </div>
       </Sider>}
       <Drawer title={brand} placement="left" size="min(320px, calc(100vw - 32px))" open={mobile && menuOpen} onClose={() => setMenuOpen(false)} className="mobile-navigation" styles={{ body: { padding: 0 } }}>
@@ -90,10 +92,10 @@ export default function MainLayout() {
       <Layout className="app-main">
         <Header className="app-header">
           <div className="header-heading">
-            <Button type="text" className="menu-toggle" icon={mobile ? <MenuOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} aria-label={mobile ? 'Mở menu' : collapsed ? 'Mở rộng menu' : 'Thu gọn menu'} aria-expanded={mobile ? menuOpen : !collapsed} onClick={() => mobile ? setMenuOpen(true) : setCollapsed((value) => !value)} />
+            <Button type="text" className="menu-toggle" icon={mobile ? <MenuOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} aria-label={mobile ? 'Mở trình đơn' : collapsed ? 'Mở rộng trình đơn' : 'Thu gọn trình đơn'} aria-expanded={mobile ? menuOpen : !collapsed} onClick={() => mobile ? setMenuOpen(true) : setCollapsed((value) => !value)} />
             <span className="header-page-title">{pageTitle}</span>
           </div>
-          <Dropdown trigger={['click']} menu={{ items: [{ key: 'account-summary', disabled: true, label: <div className="account-dropdown-summary"><strong>{accountName}</strong><span>{session?.account?.role}</span></div> }, { type: 'divider' }, { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất' }], onClick: ({ key }) => { if (key === 'logout') void handleLogout() } }} placement="bottomRight">
+          <Dropdown trigger={['click']} menu={{ items: [{ key: 'account-summary', disabled: true, label: <div className="account-dropdown-summary"><strong>{accountName}</strong><span>{getRoleLabel(session?.account?.role)}</span></div> }, { type: 'divider' }, { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất' }], onClick: ({ key }) => { if (key === 'logout') void handleLogout() } }} placement="bottomRight">
             <Button type="text" className="account-menu" aria-label={`Tài khoản: ${accountName}`}>
               <Avatar size={34} icon={<UserOutlined />} />
               <span className="account-name">{accountName}</span>

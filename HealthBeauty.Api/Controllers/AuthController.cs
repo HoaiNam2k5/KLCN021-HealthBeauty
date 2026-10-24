@@ -5,11 +5,12 @@ using HealthBeauty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HealthBeauty.Api.Controllers;
 
 [ApiController, Route("api/v1/auth")]
-public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordService passwords, ITokenService tokens, IConfiguration config) : ControllerBase
+public sealed partial class AuthController(Klcn021HealthBeautyContext db, IPasswordService passwords, ITokenService tokens, IConfiguration config) : ControllerBase
 {
     [Authorize, HttpGet("permissions")]
     public async Task<IActionResult> CurrentPermissions(CancellationToken ct)
@@ -38,7 +39,7 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
         return Ok(await IssueTokens(account, cancellationToken));
     }
 
-    [HttpPost("login")]
+    [HttpPost("login"), EnableRateLimiting(MobileAuthenticationRateLimiting.LoginPolicy)]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -58,15 +59,19 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
             }
         }
         var userAgent = Request.Headers.UserAgent.ToString();
+        var requiresOtp = failure is null && account is not null && RequiresLoginOtp(account);
         db.Dangnhaplogs.Add(new Dangnhaplog { TaiKhoanId = account?.TaiKhoanId, Email = email.Length > 255 ? email[..255] : email,
-            ThanhCong = failure is null, LyDoThatBai = failure, CreatedAt = now,
+            ThanhCong = failure is null && !requiresOtp, LyDoThatBai = failure ?? (requiresOtp ? "TwoFactorRequired" : null), CreatedAt = now,
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(), UserAgent = userAgent.Length > 500 ? userAgent[..500] : userAgent });
         if (failure is not null)
         {
             await db.SaveChangesAsync(cancellationToken);
             return Unauthorized("Email hoặc mật khẩu không đúng.");
         }
-        account!.SoLanDangNhapSai = 0; account.KhoaDen = null; account.LanDangNhapCuoi = now;
+        account!.SoLanDangNhapSai = 0; account.KhoaDen = null;
+        await db.SaveChangesAsync(cancellationToken);
+        if (requiresOtp) return await BeginLoginOtp(account, cancellationToken);
+        account.LanDangNhapCuoi = now;
         await db.SaveChangesAsync(cancellationToken);
         return Ok(await IssueTokens(account, cancellationToken));
     }
@@ -88,7 +93,23 @@ public sealed class AuthController(Klcn021HealthBeautyContext db, IPasswordServi
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId)) return Unauthorized();
         var hash = tokens.HashRefreshToken(request.RefreshToken);
         var token = await db.Refreshtokens.FirstOrDefaultAsync(x => x.TokenHash == hash && x.TaiKhoanId == accountId && x.RevokedAt == null, cancellationToken);
-        if (token is not null) { token.RevokedAt = DateTime.UtcNow; token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString(); await db.SaveChangesAsync(cancellationToken); }
+        if (token is not null)
+        {
+            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+            token.RevokedAt = DateTime.UtcNow;
+            token.RevokedByIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            // Old clients clear credentials before deleting their push registration.
+            // If no device token is supplied, disable this account's registrations;
+            // other devices register again on their next sign-in/token sync.
+            var devices = db.ThietBiKhachHangs.Where(x => x.TaiKhoanId == accountId && x.TrangThai);
+            if (!string.IsNullOrWhiteSpace(request.DeviceToken)) devices = devices.Where(x => x.FcmToken == request.DeviceToken);
+            if (db.Database.IsRelational())
+                await devices.ExecuteUpdateAsync(set => set.SetProperty(x => x.TrangThai, false), cancellationToken);
+            else
+                foreach (var device in await devices.ToListAsync(cancellationToken)) device.TrangThai = false;
+            await db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        }
         return NoContent();
     }
 

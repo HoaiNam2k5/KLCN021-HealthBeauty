@@ -133,28 +133,55 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             durationMinutes = service.ThoiLuongPhut > 0 ? service.ThoiLuongPhut : 30;
             if (durationMinutes > 1440) return BadRequest("Service duration exceeds one working day.");
         }
-        var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam == date && x.TrangThai != "NghiPhep");
+        var slots = await LoadAvailableSlots(date, date, staffId, durationMinutes, ct);
+        return Ok(slots.Select(x => new { NhanVienId = x.StaffId, GioBatDau = TimeOnly.FromDateTime(x.Start), GioKetThuc = TimeOnly.FromDateTime(x.End) }));
+    }
+
+    [AllowAnonymous, HttpGet("availability/days")]
+    public async Task<IActionResult> AvailableDays([FromQuery] DateOnly from, [FromQuery] DateOnly to,
+        CancellationToken ct, [FromQuery] int? staffId = null, [FromQuery] int durationMinutes = 30)
+    {
+        if (from == default || to == default || to == DateOnly.MaxValue || to < from || to.DayNumber - from.DayNumber > 60)
+            return BadRequest("Provide an ordered date range of at most 61 days.");
+        if (durationMinutes <= 0 || durationMinutes > 1440)
+            return BadRequest("Duration must be between 1 and 1440 minutes.");
+        if (staffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == staffId.Value, ct))
+            return BadRequest("Staff does not exist.");
+
+        var slots = await LoadAvailableSlots(from, to, staffId, durationMinutes, ct);
+        return Ok(slots.GroupBy(x => DateOnly.FromDateTime(x.Start)).OrderBy(x => x.Key)
+            .Select(x => new { Date = x.Key, StartTimes = x.Select(s => TimeOnly.FromDateTime(s.Start)).Distinct().Order().ToArray() }));
+    }
+
+    private sealed record AvailableStaffSlot(int StaffId, DateTime Start, DateTime End);
+
+    private async Task<List<AvailableStaffSlot>> LoadAvailableSlots(DateOnly from, DateOnly to, int? staffId, int durationMinutes, CancellationToken ct)
+    {
+        var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam >= from && x.NgayLam <= to && x.TrangThai != "NghiPhep");
         if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
         var shifts = await query.ToListAsync(ct);
         var staffIds = shifts.Select(x => x.NhanVienId).Distinct().ToList();
-        var dayEnd = date.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        if (shifts.Count == 0) return [];
+        var dayEnd = to.AddDays(1).ToDateTime(TimeOnly.MinValue);
         var busy = await db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu)
             .Where(x => x.TrangThai != "DaHuy" && x.NgayGioHen < dayEnd && x.NhanVienId.HasValue && staffIds.Contains(x.NhanVienId.Value))
             .ToListAsync(ct);
-        var slots = new List<object>();
+        var busyByStaff = busy.ToLookup(x => x.NhanVienId!.Value);
+        var slots = new List<AvailableStaffSlot>();
         var seen = new HashSet<(int, DateTime)>();
         var now = DateTime.Now;
-        foreach (var shift in shifts.OrderBy(x => x.NhanVienId).ThenBy(x => x.GioBatDau))
+        foreach (var shift in shifts.OrderBy(x => x.NgayLam).ThenBy(x => x.NhanVienId).ThenBy(x => x.GioBatDau))
         {
+            var date = shift.NgayLam;
             var shiftEnd = date.ToDateTime(shift.GioKetThuc);
             for (var start = date.ToDateTime(shift.GioBatDau); start.AddMinutes(durationMinutes) <= shiftEnd; start = start.AddMinutes(30))
             {
                 var end = start.AddMinutes(durationMinutes);
-                if (start <= now || busy.Any(x => x.NhanVienId == shift.NhanVienId && x.NgayGioHen < end && start < x.NgayGioHen.AddMinutes(AppointmentTiming.DurationMinutes(x)))) continue;
-                if (seen.Add((shift.NhanVienId, start))) slots.Add(new { shift.NhanVienId, GioBatDau = TimeOnly.FromDateTime(start), GioKetThuc = TimeOnly.FromDateTime(end) });
+                if (start <= now || busyByStaff[shift.NhanVienId].Any(x => x.NgayGioHen < end && start < x.NgayGioHen.AddMinutes(AppointmentTiming.DurationMinutes(x)))) continue;
+                if (seen.Add((shift.NhanVienId, start))) slots.Add(new AvailableStaffSlot(shift.NhanVienId, start, end));
             }
         }
-        return Ok(slots);
+        return slots;
     }
 }
 

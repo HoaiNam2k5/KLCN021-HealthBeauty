@@ -31,6 +31,8 @@ export interface Appointment {
   appointmentAt: string
   status: string
   note: string | null
+  customerPackageId?: number | null
+  fundingSource?: string
   items: AppointmentItem[]
 }
 
@@ -63,6 +65,7 @@ export interface CreateAppointmentRequest {
   note: string | null
   customerId: number
   staffId: number | null
+  customerPackageId?: number | null
 }
 
 export interface AppointmentUpdateRequest {

@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../providers/appointment_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
+import '../providers/notification_provider.dart';
 import '../providers/profile_provider.dart';
 import 'account_screen.dart';
 import 'appointments_screen.dart';
 import 'booking_screen.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 import 'offers_screen.dart';
 import 'services_screen.dart';
 
@@ -31,6 +34,7 @@ class _MainShellState extends State<MainShell> {
       context.read<CatalogProvider>().load();
       context.read<AppointmentProvider>().load();
       context.read<ProfileProvider>().load();
+      context.read<NotificationProvider>().fetchUnreadCount();
     });
   }
 
@@ -54,10 +58,25 @@ class _MainShellState extends State<MainShell> {
           ),
           floatingActionButton: (index == 0 || index == 2)
               ? FloatingActionButton.extended(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BookingScreen()),
-                  ),
+                  onPressed: () async {
+                    final auth = context.read<AuthProvider>();
+                    if (!auth.isLoggedIn) {
+                      final loggedIn = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                      if (loggedIn != true ||
+                          !context.mounted ||
+                          !context.read<AuthProvider>().isLoggedIn) {
+                        return;
+                      }
+                    }
+                    if (!context.mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BookingScreen()),
+                    );
+                  },
                   icon: const Icon(Icons.add),
                   label: const Text('Đặt lịch'),
                 )
@@ -66,7 +85,23 @@ class _MainShellState extends State<MainShell> {
             backgroundColor: Colors.white,
             indicatorColor: AppColors.roseContainer,
             selectedIndex: index,
-            onDestinationSelected: (i) => mainTab.value = i,
+            onDestinationSelected: (i) async {
+              final auth = context.read<AuthProvider>();
+              // Tab 2 (Lịch hẹn) và Tab 4 (Tài khoản) là tính năng liên quan đến tài khoản
+              if (!auth.isLoggedIn && (i == 2 || i == 4)) {
+                final loggedIn = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+                if (loggedIn == true &&
+                    context.mounted &&
+                    context.read<AuthProvider>().isLoggedIn) {
+                  mainTab.value = i;
+                }
+                return;
+              }
+              mainTab.value = i;
+            },
             destinations: const [
               NavigationDestination(
                   icon: Icon(Icons.home_outlined),

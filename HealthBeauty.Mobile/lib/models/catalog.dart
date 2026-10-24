@@ -27,6 +27,10 @@ class Service {
   final double price;
   final int durationMinutes;
   final String? description;
+  final double? averageRating;
+  final String? imageUrl;
+  final int totalReviews;
+  final int bookedCount;
 
   const Service({
     required this.id,
@@ -35,6 +39,10 @@ class Service {
     required this.price,
     required this.durationMinutes,
     this.description,
+    this.averageRating,
+    this.imageUrl,
+    this.totalReviews = 0,
+    this.bookedCount = 0,
   });
 
   factory Service.fromJson(Map<String, dynamic> j) => Service(
@@ -44,6 +52,10 @@ class Service {
     price: _num(j['price']),
     durationMinutes: j['durationMinutes'] as int? ?? 0,
     description: j['description'] as String?,
+    averageRating: (j['averageRating'] as num?)?.toDouble(),
+    imageUrl: (j['imageUrl'] as String?)?.trim(),
+    totalReviews: (j['totalReviews'] as num?)?.toInt() ?? 0,
+    bookedCount: (j['bookedCount'] as num?)?.toInt() ?? 0,
   );
 }
 
@@ -73,6 +85,7 @@ class Combo {
   final DateTime? validTo;
   final bool active;
   final List<ComboItem> items;
+  final String? imageUrl;
 
   const Combo({
     required this.id,
@@ -82,6 +95,7 @@ class Combo {
     this.validTo,
     required this.active,
     required this.items,
+    this.imageUrl,
   });
 
   factory Combo.fromJson(Map<String, dynamic> j) => Combo(
@@ -92,6 +106,7 @@ class Combo {
     validFrom: DateTime.tryParse(j['validFrom']?.toString() ?? ''),
     validTo: DateTime.tryParse(j['validTo']?.toString() ?? ''),
     active: j['active'] as bool? ?? true,
+    imageUrl: (j['imageUrl'] as String?)?.trim(),
     items: ((j['items'] as List?) ?? [])
         .map((e) => ComboItem.fromJson(e as Map<String, dynamic>))
         .toList(),

@@ -127,6 +127,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
       onRefresh: () => catalog.load(force: true),
       child: count == 0
           ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
                 SizedBox(
                   height: 320,
@@ -140,14 +141,20 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 ),
               ],
             )
-          : ListView.separated(
+          : GridView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               itemCount: count,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.60,
+              ),
               itemBuilder: (context, i) {
                 if (isServiceTab) {
                   final s = services[i];
-                  return ServiceTile(
+                  return ServiceCard(
                     service: s,
                     categoryName: catalog.categoryName(s.categoryId),
                     onTap: () => Navigator.push(
@@ -157,7 +164,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   );
                 }
                 final c = combos[i];
-                return ComboTile(
+                return ComboCard(
                   combo: c,
                   onTap: () => Navigator.push(
                     context,

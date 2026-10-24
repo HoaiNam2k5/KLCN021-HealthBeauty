@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { forgotPassword, login, resetPassword } from '../../api/auth'
 import { saveAuthResponse } from '../../api/session'
 import { isAuthResponse, isWebAccount } from '../../types/auth'
+import { getApiErrorMessage } from '../../components/apiError'
 
 interface LoginFields {
   email: string
@@ -21,15 +22,9 @@ interface RecoveryFields {
 
 const forgotNotice = 'Nếu email thuộc tài khoản đang hoạt động, mã xác nhận sẽ được gửi đến email đó. Vui lòng kiểm tra hộp thư và thư rác.'
 
-function getErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const data: unknown = error.response?.data
-    if (typeof data === 'object' && data !== null && 'message' in data && typeof data.message === 'string') {
-      return data.message
-    }
-    if (error.response?.status === 401) return 'Email hoặc mật khẩu không chính xác.'
-  }
-  return 'Không thể đăng nhập. Vui lòng thử lại.'
+function getErrorMessage(error: unknown, fallback = 'Không thể đăng nhập. Vui lòng thử lại.'): string {
+  if (axios.isAxiosError(error) && error.response?.status === 401) return 'Email hoặc mật khẩu không chính xác.'
+  return getApiErrorMessage(error, fallback)
 }
 
 export default function LoginPage() {
@@ -69,14 +64,14 @@ export default function LoginPage() {
       await recoveryForm.validateFields(['email'])
       setRecoveryLoading(true)
       setRecoveryError('')
-      const response = await forgotPassword({ email })
+      await forgotPassword({ email })
       setRecoveryEmail(email)
-      setRecoveryNotice(response.message || forgotNotice)
+      setRecoveryNotice(forgotNotice)
       setRecoveryStep(2)
       setResendSeconds(60)
     } catch (error: unknown) {
-      if (axios.isAxiosError(error)) setRecoveryError(getErrorMessage(error))
-      else if (!(typeof error === 'object' && error !== null && 'errorFields' in error)) setRecoveryError(getErrorMessage(error))
+      if (axios.isAxiosError(error)) setRecoveryError(getErrorMessage(error, 'Không thể xử lý yêu cầu khôi phục mật khẩu. Vui lòng thử lại.'))
+      else if (!(typeof error === 'object' && error !== null && 'errorFields' in error)) setRecoveryError(getErrorMessage(error, 'Không thể xử lý yêu cầu khôi phục mật khẩu. Vui lòng thử lại.'))
     } finally {
       setRecoveryLoading(false)
     }
@@ -90,7 +85,7 @@ export default function LoginPage() {
       message.success('Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.')
       resetRecovery()
     } catch (error: unknown) {
-      setRecoveryError(getErrorMessage(error))
+      setRecoveryError(getErrorMessage(error, 'Không thể xử lý yêu cầu khôi phục mật khẩu. Vui lòng thử lại.'))
     } finally {
       setRecoveryLoading(false)
     }

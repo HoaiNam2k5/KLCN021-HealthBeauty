@@ -4,6 +4,7 @@ class Customer {
   final String? phone;
   final String? gender;
   final int rewardPoints;
+  final String? avatarUrl;
 
   const Customer({
     required this.id,
@@ -11,15 +12,17 @@ class Customer {
     this.phone,
     this.gender,
     required this.rewardPoints,
+    this.avatarUrl,
   });
 
   factory Customer.fromJson(Map<String, dynamic> j) => Customer(
-        id: j['id'] as int,
-        fullName: j['fullName'] as String? ?? '',
-        phone: j['phone'] as String?,
-        gender: j['gender'] as String?,
-        rewardPoints: j['rewardPoints'] as int? ?? 0,
-      );
+    id: j['id'] as int,
+    fullName: j['fullName'] as String? ?? '',
+    phone: j['phone'] as String?,
+    gender: j['gender'] as String?,
+    rewardPoints: j['rewardPoints'] as int? ?? 0,
+    avatarUrl: (j['avatarUrl'] as String?)?.trim(),
+  );
 }
 
 class PointTransaction {
@@ -40,10 +43,10 @@ class PointTransaction {
   /// GET /customers/me/points trả object ẩn danh nên tên trường là
   /// giaoDichId, soDiem, loaiGiaoDich, ngayGiaoDich, ghiChu
   factory PointTransaction.fromJson(Map<String, dynamic> j) => PointTransaction(
-        id: j['giaoDichId'] as int? ?? 0,
-        points: (j['soDiem'] as num?)?.toInt() ?? 0,
-        type: j['loaiGiaoDich']?.toString() ?? '',
-        date: DateTime.tryParse(j['ngayGiaoDich']?.toString() ?? ''),
-        note: j['ghiChu'] as String?,
-      );
+    id: j['giaoDichId'] as int? ?? 0,
+    points: (j['soDiem'] as num?)?.toInt() ?? 0,
+    type: j['loaiGiaoDich']?.toString() ?? '',
+    date: DateTime.tryParse(j['ngayGiaoDich']?.toString() ?? ''),
+    note: j['ghiChu'] as String?,
+  );
 }

@@ -26,7 +26,7 @@ export default function ReviewsPage() {
   const visibility = useSetReviewVisibility()
   const replyMutation = useReplyReview()
   const deleteMutation = useDeleteReview()
-  const filterParams = useMemo<ReviewFilterParams>(() => ({ status, stars: rating, serviceId, page, pageSize, from: dateRange?.[0]?.startOf('day').toISOString(), to: dateRange?.[1]?.endOf('day').toISOString() }), [status, rating, serviceId, page, pageSize, dateRange])
+  const filterParams = useMemo<ReviewFilterParams>(() => ({ status, stars: rating, serviceId, page, pageSize, from: dateRange?.[0]?.startOf('day').format('YYYY-MM-DDTHH:mm:ss'), to: dateRange?.[1]?.endOf('day').format('YYYY-MM-DDTHH:mm:ss') }), [status, rating, serviceId, page, pageSize, dateRange])
   const managementQuery = useManagementReviews(filterParams, canModerate)
   const rows = managementQuery.data?.items ?? []
   const filtered = rows.filter((item) => (item.tenKhachHang ?? '').toLocaleLowerCase().includes(customerSearch.trim().toLocaleLowerCase()))

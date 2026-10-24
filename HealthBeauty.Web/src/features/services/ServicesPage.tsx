@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { App, Button, Form, Image, Input, InputNumber, Modal, Select, Space, Typography, Upload } from 'antd'
 import type { UploadProps } from 'antd'
 import ManagementTable from '../../components/ManagementTable'
@@ -45,7 +45,7 @@ export default function ServicesPage() {
     if (!acceptedTypes.includes(file.type)) { message.error('Chỉ hỗ trợ ảnh PNG, JPEG hoặc WebP.'); return false }
     if (file.size > 5 * 1024 * 1024) { message.error('Kích thước ảnh tối đa là 5MB.'); return false }
     setUploading(true)
-    try { const uploaded = await uploadImage(file); form.setFieldValue('imageUrl', uploaded.imageUrl); message.success('Tải ảnh lên Cloudinary thành công.') }
+    try { const uploaded = await uploadImage(file); form.setFieldValue('imageUrl', uploaded.imageUrl); message.success('Tải ảnh lên thành công.') }
     catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể tải ảnh lên.')) }
     finally { setUploading(false) }
     return false
@@ -83,8 +83,8 @@ export default function ServicesPage() {
         <Form.Item name="price" label="Giá (₫)" rules={[{ required: true }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="durationMinutes" label="Thời lượng (phút)" rules={[{ required: true }]}><InputNumber min={1} precision={0} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="description" label="Mô tả"><Input.TextArea rows={3} /></Form.Item>
-        <Form.Item name="imageUrl" label="Link ảnh đại diện"><Input placeholder="Dán URL ảnh hoặc tải ảnh lên" /></Form.Item>
-        <Upload accept="image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeUpload as UploadProps['beforeUpload']}><Button loading={uploading}>Tải ảnh lên (Cloudinary)</Button></Upload>
+        <Form.Item name="imageUrl" label="Đường dẫn ảnh đại diện"><Input placeholder="Dán đường dẫn ảnh hoặc tải ảnh lên" /></Form.Item>
+        <Upload accept="image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeUpload as UploadProps['beforeUpload']}><Button loading={uploading}>Tải ảnh lên</Button></Upload>
         {imageUrl && <div style={{ marginTop: 12 }}><Space><Typography.Text type="secondary">Xem trước</Typography.Text><Button danger onClick={() => form.setFieldValue('imageUrl', '')}>Xóa ảnh</Button></Space><br /><Image src={imageUrl} width={128} height={96} style={{ objectFit: 'cover', borderRadius: 8 }} /></div>}
       </Form>
     </Modal>

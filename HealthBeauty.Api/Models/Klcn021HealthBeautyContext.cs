@@ -17,6 +17,8 @@ public partial class Klcn021HealthBeautyContext : DbContext
 
     public virtual DbSet<PasswordResetChallenge> PasswordResetChallenges { get; set; }
 
+    public virtual DbSet<LoginTwoFactorChallenge> LoginTwoFactorChallenges { get; set; }
+
     public virtual DbSet<Auditlog> Auditlogs { get; set; }
 
     public virtual DbSet<Chitietcombo> Chitietcombos { get; set; }
@@ -354,6 +356,7 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.Property(e => e.KhachHangId).HasColumnName("KhachHangID");
             entity.Property(e => e.GioiTinh).HasMaxLength(20);
             entity.Property(e => e.HoTen).HasMaxLength(100);
+            entity.Property(e => e.AvatarUrl).HasMaxLength(2048);
             entity.Property(e => e.SoDienThoai)
                 .HasMaxLength(15)
                 .IsUnicode(false);
@@ -502,6 +505,22 @@ public partial class Klcn021HealthBeautyContext : DbContext
                 .HasConstraintName("FK_REFRESHTOKEN_TAIKHOAN");
         });
 
+        modelBuilder.Entity<LoginTwoFactorChallenge>(entity =>
+        {
+            entity.ToTable("LOGINTWOFACTORCHALLENGE", table => {
+                table.HasCheckConstraint("CK_LOGINTWOFACTOR_Attempts", "[Attempts] BETWEEN 0 AND 5");
+                table.HasCheckConstraint("CK_LOGINTWOFACTOR_SendCount", "[SendCount] BETWEEN 0 AND 5");
+                table.HasCheckConstraint("CK_LOGINTWOFACTOR_Expiry", "[ExpiresAt] > [PasswordVerifiedAt] AND [ExpiresAt] <= DATEADD(minute,5,[PasswordVerifiedAt])");
+            });
+            entity.HasKey(x => x.TaiKhoanId);
+            entity.Property(x => x.TaiKhoanId).HasColumnName("TaiKhoanID").ValueGeneratedNever();
+            entity.Property(x => x.ChallengeId).HasMaxLength(32).IsUnicode(false);
+            entity.Property(x => x.Version).HasMaxLength(32).IsUnicode(false).IsConcurrencyToken();
+            entity.Property(x => x.OtpHash).HasMaxLength(64).IsUnicode(false);
+            entity.Property(x => x.SecurityStampAtIssue).HasMaxLength(32).IsUnicode(false);
+            entity.HasOne(x => x.TaiKhoan).WithOne().HasForeignKey<LoginTwoFactorChallenge>(x => x.TaiKhoanId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<PasswordResetChallenge>(entity =>
         {
             entity.ToTable("PASSWORDRESETCHALLENGE", table => {
@@ -531,12 +550,12 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.Property(e => e.LanDangNhapCuoi).HasPrecision(0);
             entity.Property(e => e.MatKhauHash)
                 .HasMaxLength(255)
-                .IsUnicode(false);
+                .IsUnicode(false).IsConcurrencyToken();
             entity.Property(e => e.NgayTao)
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.TenTaiKhoan).HasMaxLength(100);
-            entity.Property(e => e.SecurityStamp).HasMaxLength(32).IsUnicode(false);
+            entity.Property(e => e.SecurityStamp).HasMaxLength(32).IsUnicode(false).IsConcurrencyToken();
             entity.Property(e => e.TrangThai).HasDefaultValue(true);
             entity.Property(e => e.VaiTroId).HasColumnName("VaiTroID");
 

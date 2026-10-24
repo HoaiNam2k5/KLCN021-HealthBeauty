@@ -61,6 +61,7 @@ public sealed class PermissionRegressionTests
     [Theory]
     [InlineData("Appointments","GetMine")][InlineData("Appointments","Create")][InlineData("AppointmentManagement","Cancel")]
     [InlineData("Invoices","List")][InlineData("Invoices","Create")][InlineData("Staff","List")][InlineData("Promotions","ValidateVoucher")]
+    [InlineData("Auth","ChangePassword")][InlineData("CustomerAvatar","Upload")][InlineData("CustomerAvatar","Delete")]
     public void CustomerOwnedOperationsDoNotRequireManagementGrants(string controller,string action) => Assert.Null(DatabasePermissionFilter.RequiredPermission(controller,action,User("Customer")));
     [Fact] public void EveryExistingRoleRestrictedActionHasPermissionMapping()
     {
@@ -69,6 +70,13 @@ public sealed class PermissionRegressionTests
         {
             var roles=type.GetCustomAttributes(typeof(AuthorizeAttribute),true).Cast<AuthorizeAttribute>().Concat(method.GetCustomAttributes(typeof(AuthorizeAttribute),true).Cast<AuthorizeAttribute>()).Where(a=>!string.IsNullOrEmpty(a.Roles)).ToList();
             if(roles.Count==0 || method.GetCustomAttributes(typeof(AllowAnonymousAttribute),true).Any()) continue;
+            if ((type.Name, method.Name) is ("AuthController", "ChangePassword") or ("CustomerAvatarController", "Upload") or ("CustomerAvatarController", "Delete"))
+            {
+                // These new endpoints are customer-owned only, never management actions.
+                Assert.All(roles, role => Assert.Equal("Customer", role.Roles));
+                Assert.Null(DatabasePermissionFilter.RequiredPermission(type.Name.Replace("Controller", ""), method.Name, User("Customer")));
+                continue;
+            }
             Assert.True(DatabasePermissionFilter.RequiredPermission(type.Name.Replace("Controller",""),method.Name,User()) is not null,$"Unmapped: {type.Name}.{method.Name}");
         }
     }

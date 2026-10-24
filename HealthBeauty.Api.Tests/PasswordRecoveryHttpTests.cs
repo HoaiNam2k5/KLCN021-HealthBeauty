@@ -53,6 +53,7 @@ public sealed class PasswordRecoveryHttpTests
         });
         builder.Services.AddAuthorization();
         builder.Services.AddPasswordRecoveryRateLimiting();
+        builder.Services.AddMobileAuthenticationRateLimiting();
         var app = builder.Build();
         app.UseRateLimiter(); app.UseAuthentication(); app.UseAuthorization(); app.MapControllers();
         app.Urls.Add("http://127.0.0.1:0");

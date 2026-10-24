@@ -725,3 +725,65 @@ SQL13 thêm5 bảng (thiết kế tổng33), liên kết lịch hẹn/lịch s�
 Kiểm chứng cuối: **420/420 test đạt** (403 test cũ +12 unit test gói +5 HTTP test). Luồng HTTP đã đi qua mua/thanh toán/đặt/hủy/đặt lại/hoàn thành/hóa đơn0đ/đánh giá; kiểm tra hết hạn qua cả PUT và reschedule, quyền bị thu hồi, giả giá/trạng thái từ client và không cộng điểm hai lần. Hai DbContext kiểm tra concurrency token gói/số lượt. Swagger trả200, có111 thao tác, trong đó12 thao tác gói, customerPackageId đặt lịch là trường tùy chọn. SQL13 đã sửa kiểm tra Paid bắt buộc có ExpiresAt; chưa chạy SQL Server hoặc kiểm chứng tranh chấp SQL thật do môi trường bị chặn kết nối.
 
 Cập nhật sau khi anh Nam chạy SQL (19/10/2026): API thật tại localhost:5230 đã vượt **14/14 kiểm tra HTTP**, gồm đăng nhập200, danh mục gói200, quản trị gói200, lịch hẹn đọc cột SQL13 trả200, khách mới SQL12 trả200 và doanh thu gói200. Anonymous thanh toán401, ID thiếu404, body danh mục không hợp lệ400, đăng xuất204. Có12 thao tác gói trong Swagger. Bộ test chạy lại **420/420 đạt**. Môi trường agent vẫn không nối SQL trực tiếp được; kiểm chứng qua API anh chạy trong PowerShell thường. Đây là kiểm tra tích hợp đọc SQL và validation/phân quyền, chưa phải kiểm thử tranh chấp hay luồng ghi SQL thực. Không tạo/sửa gói, thanh toán hay lượt dùng trên dữ liệu thật.
+
+
+## 23/10/2026 — Bổ sung backend khớp Flutter b1bbb99
+
+Bản code: worktree `.local-integration/mobile-api-integration`, nhánh `feature/mobile-api-integration`; chưa push. Không ghi đè Web/Flutter hoặc ReportingWorkbook.cs đang sửa ở worktree chính. Chi tiết hợp đồng/cách chạy: [MOBILE_AUTH_INTEGRATION.md](MOBILE_AUTH_INTEGRATION.md).
+
+- Thêm POST /api/v1/auth/google: xác minh signed Google ID token và audience cấu hình từ bộ Firebase nhóm; tạo/liên kết Customer qua EXTERNALLOGIN. Chặn token giả, tài khoản khóa, vai trò quản trị và tự liên kết email bên thứ ba chưa chứng minh tài khoản cũ.
+- Thêm POST /api/v1/auth/verify-2fa, /resend-2fa; login mật khẩu Customer có response requiresTwoFactor khi bật. Mặc định tắt, vai trò web giữ nguyên. OTP riêng5phút,5lần thử,60giây gửi lại,5lần gửi/giờ; hash, single-use, concurrency, SMTPqueue/worker và rate limiting.
+- SQL14 thêm LOGINTWOFACTORCHALLENGE và được đưa vào base schema. Chưa áp dụng SQL thật do lỗi kết nối Number20; phải chạy script trước khi bật Authentication:TwoFactor:Enabled.
+- Lịch hẹn thêm reviewComment/reviewedAt/reviewReply/reviewRepliedAt; review xóa mềm không lộ nội dung, vẫn giữ hasReviewed để chặn trùng.
+- Logout thu hồi refresh và tắt push bằng owner predicate; nhận deviceToken tùy chọn. Client cũ không gửi token thì tắt đăng ký push toàn tài khoản, thiết bị khác sync lại khi đăng nhập.
+- Cấu hình client Google không thay thế Firebase service account máy chủ; không ghi private key/mật khẩu vào source. File cấu hình máy-local ở worktree mới vẫn gitignore.
+- Chưa test Google OAuth/SMTP/push thật trên thiết bị. Không sửa các lỗi phía Flutter đã ghi trong báo cáo23/10.
+
+Kết quả cuối: **487/487 test đạt**, build0warning/0error, **11/11 probe HTTP trên bản chạy thật đạt**, diffcheck sạch; Web/Mobile không đổi. SQL14 chưa được áp dụng, OTP mặc định tắt; Google OAuth/SMTP/push thực chưa kiểm thử.
+
+## 21/10/2026 — Đồng bộ tiếng Việt trên web quản trị
+
+Thực hiện tại worktree `.local-integration/huynh-web-publish`, nhánh `feature/huynh-web`, trên bản cập nhật `2ca4f83`. Chưa commit/push đợt sửa này.
+
+- Nhật ký hoạt động: bỏ dòng mã tiếng Anh dưới tên hoạt động; dịch cả danh sách lọc, tên đối tượng và các sự kiện đặt lại mật khẩu/tạo tài khoản nhân viên. Vẫn tìm kiếm được bằng tên tiếng Việt hoặc mã kỹ thuật cũ; giá trị lọc gửi theo mã gốc.
+- Phân quyền: các vai trò hiển thị Quản trị viên/Quản lý/Lễ tân/Nhân viên/Khách hàng; nhóm ACCOUNT/AUTHORIZATION/... đổi thành nhãn tiếng Việt; bỏ mã quyền khỏi nội dung hiển thị và dịch thông báo lưu lỗi.
+- Tài khoản, thanh điều hướng, menu tài khoản dùng chung nhãn vai trò.
+- Hồ sơ khách: dịch trạng thái mua gói, phương thức thanh toán, loại giao dịch điểm. Hóa đơn và lịch hẹn có nhãn dự phòng tiếng Việt cho mã trạng thái/phương thức chưa nhận diện.
+- Báo cáo: đổi Q1 thành Quý 1; thông báo tải/xuất lỗi và nhãn gợi ý biểu đồ lịch hẹn dùng tiếng Việt.
+- Dịch vụ, combo, gói, nhân viên: thống nhất Đường dẫn ảnh/Ảnh đại diện/Tải ảnh lên; khuyến mãi hiển thị SoTien là Số tiền.
+- Chuẩn hóa xử lý lỗi API: thêm bản dịch cho xung đột gói/voucher, lịch hẹn, tải ảnh, báo cáo, tài khoản. Ưu tiên chi tiết lỗi xác thực dữ liệu thay vì tiêu đề lỗi chung; lỗi tiếng Anh chưa nhận diện dùng thông báo tiếng Việt dự phòng. Đăng nhập/quên mật khẩu dùng cùng cơ chế.
+- Tệp dùng chung mới: `HealthBeauty.Web/src/utils/displayLabels.ts`, `HealthBeauty.Web/src/utils/apiMessages.ts`.
+- Không đổi dữ liệu, mã quyền/vai trò/trạng thái gửi API, endpoint hoặc schema database. Không cần chạy SQL cho đợt này.
+
+Kiểm chứng: `npm test` **40/40 đạt** (thêm 5 test cho nhãn và lỗi tiếng Việt); `npm run build -- --configLoader native` **thành công**. `npm run lint` còn đúng 3 lỗi cũ tại BillingPage.tsx:64,205; không phát sinh lỗi mới ở các file còn lại. Build có cảnh báo chunk lớn như trước. Chưa kiểm thử trực quan bằng trình duyệt do Chrome bị chặn khởi chạy với `spawn EPERM`.
+
+Anh/thành viên web chạy web trong đúng worktree trên, tải lại trang rồi kiểm tra Nhật ký hoạt động, Phân quyền, Tài khoản, chi tiết gói và lịch sử điểm. Các thuật ngữ nghiệp vụ quen dùng như combo/voucher, tên thương hiệu, tên dịch vụ và nội dung khách nhập được giữ nguyên.
+
+### Bổ sung cột STT trang tài khoản
+- Thêm STT ở đầu bảng, đánh số liên tục theo trang và kích thước trang. Tìm kiếm mới hoặc đổi kích thước trang đưa về trang 1.
+- Kiểm chứng: TypeScript build và ESLint AccountsPage.tsx đạt; 5 trường hợp đánh số phân trang đạt (1, 20, 21, 40, 51). Chưa push.
+
+## 24/10/2026 — Hợp nhất về thư mục gốc
+
+API mới, web và Flutter hiện đã ở cùng KLCN021_HealthBeauty. Các đường dẫn worktree trong mục lịch sử chỉ mô tả quá trình cũ; chạy theo README tại gốc. API kiểm thử lại 487/487 đạt. Không tự chạy SQL14 hoặc bật OTP. Xem ../REVIEWS.md để bàn giao.
+
+## 24/10/2026 — Ngày còn lịch trống theo nhân viên
+
+- Thêm GET `/api/v1/appointments/availability/days?from=yyyy-MM-dd&to=yyyy-MM-dd&staffId=...&durationMinutes=...`; staffId tùy chọn, khoảng tối đa 61 ngày, thời lượng 1–1440 phút.
+- Trả ngày còn chỗ và các giờ bắt đầu duy nhất, có sắp xếp; không trả dữ liệu cá nhân. Flutter dùng toàn bộ giờ để lọc thêm lịch riêng của khách và hiệu lực combo, tránh bỏ sót ngày có giờ hợp lệ sau giờ đầu tiên bị trùng.
+- Endpoint khoảng ngày và endpoint một ngày dùng chung tính ca làm/nghỉ phép, đủ thời lượng trong một ca, loại giờ quá khứ, chống trùng nhân viên kể cả lịch kéo dài từ hôm trước. Đọc ca/lịch theo lô, không truy vấn từng ngày.
+- Không đổi schema, hợp đồng endpoint cũ hoặc cách phân công khi chọn bất kỳ nhân viên.
+- Kiểm chứng **500/500 test API đạt**, gồm 12 test khoảng ngày mới, HTTP kiểm tra binding/JSON thật và route trong Swagger. Test HTTP dùng database InMemory cô lập, không sửa SQL thật.
+- Hướng dẫn: [Ngày còn lịch theo nhân viên](../docs/LICH_TRONG_NHAN_VIEN.md).
+
+## Khách tự đổi avatar/mật khẩu — bản cập nhật đã test, chưa áp dụng root
+
+Backend mới tại D:/KhoaLuan/_Work/customer-self-service-api đạt523/523test, đóng gói15file có hash tại D:/KhoaLuan/_Updates/customer-self-service-20261024. API gốc vẫn bản500test vì4file API/SQL bị Windows từ chối ghi; không chép dở. SQL15 đã có trong DB_KLCN021 nhưng chưa chạy, probeSQLCMD lỗi kết nối/encryption trước thực thi.
+
+Thêm POST/DELETEcustomers/me/avatar đúng chủ qua Cloudinary và avatarUrl trongCustomerResponse; thêm PUTauth/change-password xác minh mật khẩu cũ, đổi stamp/revoke mọi phiên, audit không mật khẩu/rate/concurrency. Bản SQL15 chỉ thêm1cột nullable, không thêm bảng, chạy lặp an toàn. Client cũ sửa tên không mất avatar. Không mở quyền upload ảnh quản trị cho khách.
+
+Anh áp dụng bằng D:/KhoaLuan/AP_DUNG_HO_SO_KHACH_HANG.ps1 -ApplySql trong PowerShell quản trị; script kiểm tra source/root hash, backup, SQL15, copy/verify/test. Nếu SQL15 đã chạy bằngSSMS dùng -SqlAlreadyApplied. Chi tiết: ../docs/HO_SO_KHACH_HANG.md. Chưa Cloudinary/SQL/thay mật khẩu thật; không push.
+
+## Phát hành main 24/10/2026
+
+Bản main đã ghép đủ API ảnh đại diện/đổi mật khẩu và SQL15; trạng thái chờ áp dụng/khóa file trong các mục lịch sử chỉ thuộc máy làm việc cũ. Thành viên clone/pull main dùng API ngay trong repo, cập nhật database qua SSMS (SQL15) và cấu hình local theo README. Không cần script chép API bên ngoài repository.

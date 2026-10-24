@@ -10,7 +10,7 @@ export interface InvoiceDraft {
 
 export function eligibleInvoiceAppointments(appointments: Appointment[], invoices: Invoice[]): Appointment[] {
   const invoicedIds = new Set(invoices.map((invoice) => invoice.appointmentId))
-  return appointments.filter((appointment) => appointment.status === 'HoanThanh' && !invoicedIds.has(appointment.id))
+  return appointments.filter((appointment) => appointment.status === 'HoanThanh' && appointment.fundingSource !== 'ServicePackage' && !invoicedIds.has(appointment.id))
 }
 
 export function buildInvoiceDraft(appointment: Appointment, services: Service[], combos: Combo[]): InvoiceDraft {

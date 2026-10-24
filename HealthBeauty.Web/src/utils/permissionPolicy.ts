@@ -38,7 +38,7 @@ export function canVisitRoute(path: string, role: string | null, permissions: re
   if (route === '/accounts') return role === 'Admin' && hasPermission(permissions, 'ACCOUNT.READ')
   if (route === '/staff' && role === 'Staff') return false
   const requirements: Record<string, readonly string[]> = {
-    '/service-categories': ['SERVICE.READ', 'SERVICE.WRITE'], '/services': ['SERVICE.READ', 'SERVICE.WRITE'], '/combos': ['SERVICE.READ', 'SERVICE.WRITE'],
+    '/service-categories': ['SERVICE.READ', 'SERVICE.WRITE'], '/services': ['SERVICE.READ', 'SERVICE.WRITE'], '/combos': ['SERVICE.READ', 'SERVICE.WRITE'], '/packages': ['SERVICE.READ', 'SERVICE.WRITE'],
     '/appointments': ['APPOINTMENT.READ'], '/customers': ['CUSTOMER.READ'], '/staff': ['STAFF.READ'],
     '/staff-schedules': ['STAFF.READ'], '/billing': ['INVOICE.READ'],
     '/promotions': ['PROMOTION.WRITE'], '/reviews': ['REVIEW.MODERATE'], '/reports': ['REPORT.READ'],

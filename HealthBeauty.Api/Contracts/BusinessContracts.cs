@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace HealthBeauty.Api.Contracts;
 
 public sealed record UpdateCustomerRequest([param: Required, StringLength(100)] string FullName, [param: Phone, StringLength(15)] string? Phone, [param: StringLength(20)] string? Gender);
-public sealed record CustomerResponse(int Id, string FullName, string? Phone, string? Gender, int RewardPoints);
+public sealed record CustomerResponse(int Id, string FullName, string? Phone, string? Gender, int RewardPoints, string? AvatarUrl = null);
 public sealed record VoucherResponse(int Id, string Code, int PromotionId, string PromotionName, int? CustomerId, string? CustomerName, decimal DiscountValue, DateTime ExpiresAt, bool Active, int PointsCost = 0);
 public sealed record StaffRequest([param: Required, StringLength(100)] string FullName, [param: StringLength(50)] string? Position, [param: StringLength(255)] string? Specialty, [param: Phone, StringLength(15)] string? Phone, DateOnly? HireDate);
 public sealed record CreateStaffRequest(

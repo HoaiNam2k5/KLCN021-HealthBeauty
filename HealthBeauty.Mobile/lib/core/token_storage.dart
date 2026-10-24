@@ -8,6 +8,9 @@ class TokenStorage {
   static Future<void> _writes = Future.value();
   static int _generation = 0;
   static int get generation => _generation;
+  // Token refresh rotates credentials within one login, not its identity.
+  static int _sessionGeneration = 0;
+  static int get sessionGeneration => _sessionGeneration;
 
   // Serialize secure-storage writes so an in-flight refresh cannot outlive logout.
   static Future<void> _enqueue(Future<void> Function() action) {
@@ -20,8 +23,16 @@ class TokenStorage {
     String access,
     String? refresh, {
     String? accountJson,
+  }) => _save(access, refresh, accountJson: accountJson, newSession: true);
+
+  static Future<void> _save(
+    String access,
+    String? refresh, {
+    String? accountJson,
+    required bool newSession,
   }) {
     _generation++;
+    if (newSession) _sessionGeneration++;
     return _enqueue(() async {
       await _storage.write(key: _accessKey, value: access);
       if (refresh == null) {
@@ -44,7 +55,12 @@ class TokenStorage {
     required String accountJson,
   }) async {
     if (_generation != expected) return false;
-    final write = save(access, refresh, accountJson: accountJson);
+    final write = _save(
+      access,
+      refresh,
+      accountJson: accountJson,
+      newSession: false,
+    );
     final savedGeneration = _generation;
     await write;
     return _generation == savedGeneration;
@@ -61,6 +77,7 @@ class TokenStorage {
 
   static Future<void> clear() {
     _generation++;
+    _sessionGeneration++;
     return _enqueue(() async {
       await _storage.delete(key: _accessKey);
       await _storage.delete(key: _refreshKey);

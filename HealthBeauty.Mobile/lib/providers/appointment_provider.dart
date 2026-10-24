@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/appointment.dart';
 import '../models/booking_contract.dart';
+import '../models/availability_day.dart';
 
 class AppointmentProvider extends ChangeNotifier {
   AppointmentProvider({Dio? dio}) : _dio = dio ?? ApiClient().dio;
@@ -156,6 +158,49 @@ class AppointmentProvider extends ChangeNotifier {
         .toList();
   }
 
+  Future<List<AvailableAppointmentDay>> availableDays({
+    required DateTime from,
+    required DateTime to,
+    int? staffId,
+    required int durationMinutes,
+  }) async {
+    final generation = _generation;
+    if (!_current(generation)) return [];
+    final range = DateTime.utc(
+      to.year,
+      to.month,
+      to.day,
+    ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
+    if (range < 0 ||
+        range > 60 ||
+        durationMinutes < 1 ||
+        durationMinutes > 1440) {
+      throw const FormatException(
+        'Khoảng lịch tối đa 61 ngày và thời lượng từ 1 đến 1440 phút.',
+      );
+    }
+    final response = await _dio.get(
+      '/appointments/availability/days',
+      queryParameters: {
+        'from': localBookingDateTime(from).split('T').first,
+        'to': localBookingDateTime(to).split('T').first,
+        'staffId': ?staffId,
+        'durationMinutes': durationMinutes,
+      },
+    );
+    if (!_current(generation)) return [];
+    if (response.data is! List) {
+      throw const FormatException('Invalid availability days response.');
+    }
+    return (response.data as List)
+        .map(
+          (row) => AvailableAppointmentDay.fromJson(
+            Map<String, dynamic>.from(row as Map),
+          ),
+        )
+        .toList();
+  }
+
   Future<bool> cancel(int id) async {
     final generation = _generation;
     if (!_current(generation)) return false;
@@ -224,5 +269,50 @@ class AppointmentProvider extends ChangeNotifier {
       }
     }
     return null;
+  }
+
+  Future<bool> submitReview({
+    required int appointmentId,
+    required int stars,
+    String? comment,
+  }) async {
+    final generation = _generation;
+    if (!_current(generation)) return false;
+    error = null;
+    notifyListeners();
+    try {
+      await _dio.post(
+        '/reviews/appointments/$appointmentId',
+        data: {
+          'stars': stars,
+          'comment': comment == null || comment.trim().isEmpty
+              ? null
+              : comment.trim(),
+        },
+      );
+      if (!_current(generation)) return false;
+      _revision++;
+      final index = items.indexWhere((item) => item.id == appointmentId);
+      if (index != -1) {
+        items[index] = items[index].copyWith(
+          hasReviewed: true,
+          reviewStars: stars,
+          reviewComment: comment == null || comment.trim().isEmpty
+              ? null
+              : comment.trim(),
+          reviewedAt: DateTime.now(),
+        );
+      }
+      notifyListeners();
+      return true;
+    } on DioException catch (exception) {
+      if (_current(generation)) error = ApiError.message(exception);
+    } catch (_) {
+      if (_current(generation)) {
+        error = 'Không thể gửi đánh giá dịch vụ';
+      }
+    }
+    if (_current(generation)) notifyListeners();
+    return false;
   }
 }

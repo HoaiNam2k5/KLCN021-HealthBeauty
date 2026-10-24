@@ -141,7 +141,7 @@ CREATE TABLE dbo.KHACHHANG (
     KhachHangID int IDENTITY(1,1) NOT NULL CONSTRAINT PK_KHACHHANG PRIMARY KEY,
     TaiKhoanID int NULL,
     HoTen nvarchar(100) NOT NULL, SoDienThoai varchar(15) NULL,
-    GioiTinh nvarchar(20) NULL, DiemThuong int NOT NULL CONSTRAINT DF_KHACHHANG_Diem DEFAULT 0,
+    GioiTinh nvarchar(20) NULL, AvatarUrl nvarchar(2048) NULL, DiemThuong int NOT NULL CONSTRAINT DF_KHACHHANG_Diem DEFAULT 0,
     CONSTRAINT FK_KHACHHANG_TAIKHOAN FOREIGN KEY (TaiKhoanID) REFERENCES dbo.TAIKHOAN(TaiKhoanID)
 );
 IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = N'UQ_KHACHHANG_TaiKhoan' AND parent_object_id = OBJECT_ID(N'dbo.KHACHHANG'))
@@ -393,6 +393,11 @@ IF COL_LENGTH(N'dbo.HOADON', N'RowVersion') IS NULL
 COMMIT TRANSACTION;
 GO
 
+-- SQL15: customer avatar; rerunnable for existing databases.
+IF COL_LENGTH(N'dbo.KHACHHANG', N'AvatarUrl') IS NULL
+    ALTER TABLE dbo.KHACHHANG ADD AvatarUrl nvarchar(2048) NULL;
+GO
+
 -- Integrated migration: 07_ServiceImages.sql
 USE [KLCN021_HealthBeauty];
 GO
@@ -532,4 +537,34 @@ GO
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_LICHHEN_CustomerPackage') ALTER TABLE dbo.LICHHEN ADD CONSTRAINT FK_LICHHEN_CustomerPackage FOREIGN KEY(CustomerPackageId) REFERENCES dbo.CustomerPackage(Id);
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_GIAODICHDIEM_CustomerPackage') ALTER TABLE dbo.GIAODICHDIEM ADD CONSTRAINT FK_GIAODICHDIEM_CustomerPackage FOREIGN KEY(CustomerPackageId) REFERENCES dbo.CustomerPackage(Id);
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.CustomerPackage') AND name=N'IX_CustomerPackage_CustomerId_CreatedAt') CREATE INDEX IX_CustomerPackage_CustomerId_CreatedAt ON dbo.CustomerPackage(CustomerId,CreatedAt);
+GO
+
+
+-- SQL14: optional customer password-login OTP.
+GO
+-- Optional customer login OTP. Run before enabling Authentication:TwoFactor:Enabled.
+-- Safe to rerun; no existing account, session, or password-recovery data is changed.
+GO
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+IF OBJECT_ID(N'dbo.LOGINTWOFACTORCHALLENGE', N'U') IS NULL
+CREATE TABLE dbo.LOGINTWOFACTORCHALLENGE (
+    TaiKhoanID int NOT NULL CONSTRAINT PK_LOGINTWOFACTORCHALLENGE PRIMARY KEY,
+    ChallengeId varchar(32) NOT NULL,
+    Version varchar(32) NOT NULL,
+    OtpHash varchar(64) NULL,
+    PasswordVerifiedAt datetime2(7) NOT NULL,
+    ExpiresAt datetime2(7) NOT NULL,
+    Attempts int NOT NULL,
+    LastRequestedAt datetime2(7) NOT NULL,
+    SendWindowStartedAt datetime2(7) NOT NULL,
+    SendCount int NOT NULL,
+    UsedAt datetime2(7) NULL,
+    SecurityStampAtIssue varchar(32) NULL,
+    CONSTRAINT FK_LOGINTWOFACTOR_TAIKHOAN FOREIGN KEY (TaiKhoanID) REFERENCES dbo.TAIKHOAN(TaiKhoanID) ON DELETE CASCADE,
+    CONSTRAINT CK_LOGINTWOFACTOR_Attempts CHECK (Attempts BETWEEN 0 AND 5),
+    CONSTRAINT CK_LOGINTWOFACTOR_SendCount CHECK (SendCount BETWEEN 0 AND 5),
+    CONSTRAINT CK_LOGINTWOFACTOR_Expiry CHECK (ExpiresAt > PasswordVerifiedAt AND ExpiresAt <= DATEADD(minute,5,PasswordVerifiedAt))
+);
+COMMIT TRANSACTION;
 GO

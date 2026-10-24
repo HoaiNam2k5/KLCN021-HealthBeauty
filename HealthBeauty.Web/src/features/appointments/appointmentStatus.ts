@@ -28,7 +28,7 @@ const statusTransitions: Record<string, string[]> = {
 }
 
 export function getAppointmentStatusPresentation(status: string) {
-  return statusPresentation[status] ?? { label: status, color: '#585858', background: '#f0efed' }
+  return statusPresentation[status] ?? { label: 'Trạng thái chưa xác định', color: '#585858', background: '#f0efed' }
 }
 
 export function getAllowedNextAppointmentStatuses(status: string): string[] {

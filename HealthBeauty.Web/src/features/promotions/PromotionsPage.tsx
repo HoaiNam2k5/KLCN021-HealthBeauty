@@ -82,7 +82,7 @@ export default function PromotionsPage() {
       title="Khuyến mãi"
       columns={[
         { title: 'Tên khuyến mãi', dataIndex: 'name', key: 'name', render: (value: string | null) => value || '—' },
-        { title: 'Loại giảm', dataIndex: 'discountType', key: 'discountType', render: (value: string | null) => value === 'PhanTram' ? 'Phần trăm' : value || '—' },
+        { title: 'Loại giảm', dataIndex: 'discountType', key: 'discountType', render: (value: string | null) => value === 'PhanTram' ? 'Phần trăm' : value === 'SoTien' ? 'Số tiền' : '—' },
         { title: 'Mức giảm', dataIndex: 'discount', key: 'discount', render: (value: number, record) => record.discountType === 'PhanTram' ? `${value}%` : `${new Intl.NumberFormat('vi-VN').format(value)} ₫` },
         { title: 'Điều kiện', dataIndex: 'condition', key: 'condition', render: (value: string | null) => value || '—' },
         { title: 'Bắt đầu', dataIndex: 'startsAt', key: 'startsAt', render: displayDate },

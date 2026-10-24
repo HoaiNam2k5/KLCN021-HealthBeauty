@@ -20,7 +20,7 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
     {
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var item = await db.Khachhangs.AsNoTracking().Where(x => x.TaiKhoanId == accountId)
-            .Select(x => new CustomerResponse(x.KhachHangId, x.HoTen, x.SoDienThoai, x.GioiTinh, x.DiemThuong)).FirstOrDefaultAsync(ct);
+            .Select(x => new CustomerResponse(x.KhachHangId, x.HoTen, x.SoDienThoai, x.GioiTinh, x.DiemThuong, x.AvatarUrl)).FirstOrDefaultAsync(ct);
         return item is null ? NotFound() : Ok(item);
     }
 
@@ -32,7 +32,7 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
         if (customer is null) return NotFound();
         customer.HoTen = request.FullName.Trim(); customer.SoDienThoai = request.Phone?.Trim(); customer.GioiTinh = request.Gender?.Trim();
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Customer profile or reward balance changed. Please reload.");
-        return Ok(new CustomerResponse(customer.KhachHangId, customer.HoTen, customer.SoDienThoai, customer.GioiTinh, customer.DiemThuong));
+        return Ok(new CustomerResponse(customer.KhachHangId, customer.HoTen, customer.SoDienThoai, customer.GioiTinh, customer.DiemThuong, customer.AvatarUrl));
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpGet]
@@ -40,7 +40,7 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
     {
         var query = db.Khachhangs.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.HoTen.Contains(keyword) || (x.SoDienThoai != null && x.SoDienThoai.Contains(keyword)));
-        return Ok(await query.OrderBy(x => x.HoTen).Take(200).Select(x => new CustomerResponse(x.KhachHangId, x.HoTen, x.SoDienThoai, x.GioiTinh, x.DiemThuong)).ToListAsync(ct));
+        return Ok(await query.OrderBy(x => x.HoTen).Take(200).Select(x => new CustomerResponse(x.KhachHangId, x.HoTen, x.SoDienThoai, x.GioiTinh, x.DiemThuong, x.AvatarUrl)).ToListAsync(ct));
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpPut("{id:int}")]
@@ -50,7 +50,7 @@ public sealed class CustomersController(Klcn021HealthBeautyContext db) : Control
         if (customer is null) return NotFound();
         customer.HoTen = request.FullName.Trim(); customer.SoDienThoai = request.Phone?.Trim(); customer.GioiTinh = request.Gender?.Trim();
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Customer profile or reward balance changed. Please reload.");
-        return Ok(new CustomerResponse(customer.KhachHangId, customer.HoTen, customer.SoDienThoai, customer.GioiTinh, customer.DiemThuong));
+        return Ok(new CustomerResponse(customer.KhachHangId, customer.HoTen, customer.SoDienThoai, customer.GioiTinh, customer.DiemThuong, customer.AvatarUrl));
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpGet("{id:int}/points")]

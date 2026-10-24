@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import * as reportsApi from '../../api/reports'
+import * as packageApi from '../../api/servicePackages'
+import type { PackageSalesResponse } from '../../types/servicePackages'
+import * as reviewsApi from '../../api/reviews'
 import { REPORT_QUERY_KEY, REPORT_STALE_TIME, type ReportFilterParams } from '../../types/reports'
 
 export const reportKeys = {
@@ -62,11 +65,15 @@ export function useReportCustomers(enabled = true) {
 }
 
 export function useReportReviews() {
-  return useQuery({ queryKey: reportKeys.reviews, queryFn: reportsApi.getReportReviews, staleTime: REPORT_STALE_TIME })
+  return useQuery({ queryKey: reportKeys.reviews, queryFn: () => reviewsApi.getManagementReviews({ page: 1, pageSize: 1 }), staleTime: REPORT_STALE_TIME })
 }
 
 export function useReportAppointments(enabled = true) {
   return useQuery({ queryKey: reportKeys.appointments, queryFn: reportsApi.getReportAppointments, enabled, staleTime: REPORT_STALE_TIME })
+}
+
+export function usePackageSales(from: string, to: string, enabled = true) {
+  return useQuery<PackageSalesResponse>({ queryKey: [...REPORT_QUERY_KEY, 'package-sales', from, to], queryFn: () => packageApi.getPackageSales(from, to), enabled, staleTime: REPORT_STALE_TIME })
 }
 
 export function useReportServices() {

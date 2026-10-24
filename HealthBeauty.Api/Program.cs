@@ -30,6 +30,7 @@ builder.Services.AddDbContext<Klcn021HealthBeautyContext>(options =>
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<AccountTokenValidation>();
+builder.Services.AddScoped<IGoogleIdentityVerifier, GoogleIdentityVerifier>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<PasswordRecoveryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -38,6 +39,8 @@ builder.Services.AddAppointmentReminders(builder.Configuration);
 builder.Services.AddCloudinaryImages(builder.Configuration);
 builder.Services.AddPasswordRecoveryEmail(builder.Configuration);
 builder.Services.AddPasswordRecoveryRateLimiting();
+builder.Services.AddMobileAuthenticationRateLimiting();
+builder.Services.AddLoginTwoFactor(builder.Configuration);
 var jwt = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {

@@ -1,8 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/customer.dart';
+import '../core/avatar_image.dart';
+import '../core/token_storage.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final Dio _dio;
@@ -15,6 +18,7 @@ class ProfileProvider extends ChangeNotifier {
   List<PointTransaction> transactions = [];
   bool loading = false;
   bool saving = false;
+  bool avatarSaving = false;
   String? error;
 
   void bind(int? accountId) {
@@ -26,6 +30,7 @@ class ProfileProvider extends ChangeNotifier {
     error = null;
     loading = false;
     saving = false;
+    avatarSaving = false;
   }
 
   bool _current(int epoch) => !_disposed && epoch == _epoch;
@@ -83,7 +88,7 @@ class ProfileProvider extends ChangeNotifier {
     String? phone,
     String? gender,
   }) async {
-    if (_accountId == null || saving || _disposed) return false;
+    if (_accountId == null || saving || avatarSaving || _disposed) return false;
     final epoch = _epoch;
     saving = true;
     error = null;
@@ -112,6 +117,79 @@ class ProfileProvider extends ChangeNotifier {
     } finally {
       if (_current(epoch)) {
         saving = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> updateAvatar({List<int>? bytes, bool remove = false}) async {
+    if (_accountId == null || saving || avatarSaving || _disposed) return false;
+    final epoch = _epoch;
+    final session = TokenStorage.sessionGeneration;
+    avatarSaving = true;
+    error = null;
+    notifyListeners();
+    try {
+      late final Response<dynamic> response;
+      if (remove) {
+        response = await _dio.delete(
+          '/customers/me/avatar',
+          options: Options(extra: {'sessionGeneration': session}),
+        );
+      } else {
+        if (bytes == null ||
+            bytes.isEmpty ||
+            bytes.length > maximumAvatarBytes) {
+          throw const FormatException(
+            'Ảnh đại diện phải có dung lượng từ 1 byte đến 5 MB.',
+          );
+        }
+        final type = avatarImageContentType(bytes);
+        if (type == null) {
+          throw const FormatException('Vui lòng chọn ảnh JPG, PNG hoặc WebP.');
+        }
+        final extension = type == 'image/jpeg' ? 'jpg' : type.split('/').last;
+        response = await _dio.post(
+          '/customers/me/avatar',
+          data: FormData.fromMap({
+            'File': MultipartFile.fromBytes(
+              bytes,
+              filename: 'avatar.$extension',
+              contentType: DioMediaType.parse(type),
+            ),
+          }),
+          options: Options(extra: {'sessionGeneration': session}),
+        );
+      }
+      if (!_current(epoch)) return false;
+      customer = Customer.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      _revision++;
+      return true;
+    } on FormatException catch (exception) {
+      if (_current(epoch)) error = exception.message;
+      return false;
+    } on DioException catch (exception) {
+      if (_current(epoch)) {
+        error = switch (exception.response?.statusCode) {
+          400 => 'Ảnh không hợp lệ. Vui lòng chọn ảnh JPG, PNG hoặc WebP.',
+          413 => 'Ảnh vượt quá 5 MB. Vui lòng chọn ảnh nhỏ hơn.',
+          409 => 'Hồ sơ vừa thay đổi. Vui lòng tải lại rồi thử lại.',
+          503 => 'Dịch vụ tải ảnh chưa được cấu hình. Vui lòng liên hệ Spa.',
+          502 || 504 => 'Dịch vụ lưu ảnh đang bận. Vui lòng thử lại.',
+          _ => ApiError.message(exception),
+        };
+      }
+      return false;
+    } catch (_) {
+      if (_current(epoch)) {
+        error = 'Không cập nhật được ảnh đại diện. Vui lòng thử lại.';
+      }
+      return false;
+    } finally {
+      if (_current(epoch)) {
+        avatarSaving = false;
         notifyListeners();
       }
     }

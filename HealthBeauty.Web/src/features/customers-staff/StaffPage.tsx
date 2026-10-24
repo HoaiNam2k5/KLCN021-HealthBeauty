@@ -72,7 +72,7 @@ export default function StaffPage() {
   return <>
     <ManagementTable<Staff>
       title="Nhân viên" columns={[
-        { title: 'Avatar', key: 'avatar', render: (_, record) => <Avatar size={42} src={readStaffAvatar(record.nhanVienId) || undefined} style={{ backgroundColor: '#b58a70', color: '#fff' }}>{staffInitials(record.hoTen)}</Avatar> },
+        { title: 'Ảnh đại diện', key: 'avatar', render: (_, record) => <Avatar size={42} src={readStaffAvatar(record.nhanVienId) || undefined} style={{ backgroundColor: '#b58a70', color: '#fff' }}>{staffInitials(record.hoTen)}</Avatar> },
         { title: 'Họ tên', dataIndex: 'hoTen', key: 'hoTen', render: (value: string | null) => value || '—' },
         { title: 'Mã tài khoản', dataIndex: 'taiKhoanId', key: 'taiKhoanId', render: (value: number | null | undefined) => value ?? 'Chưa có' },
         { title: 'Chức vụ', dataIndex: 'chucVu', key: 'chucVu', render: (value: string | null) => value || '—' },
@@ -102,7 +102,7 @@ export default function StaffPage() {
           <Form.Item name="password" label="Mật khẩu ban đầu" rules={[{ required: true, message: 'Nhập mật khẩu.' }, { min: 8, message: 'Mật khẩu tối thiểu 8 ký tự.' }, { max: 128 }]}><Input.Password autoComplete="new-password" maxLength={128} /></Form.Item>
         </>}
         <Form.Item name="hireDate" label="Ngày vào làm" rules={[{ required: true, message: 'Vui lòng chọn ngày vào làm.' }]}><DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} /></Form.Item>
-        <Form.Item name="avatarUrl" label="Link ảnh đại diện (tùy chọn)"><Input type="url" placeholder="https://..." /></Form.Item>
+        <Form.Item name="avatarUrl" label="Đường dẫn ảnh đại diện (tùy chọn)"><Input type="url" placeholder="https://..." /></Form.Item>
         {avatarUrl && <div style={{ marginBottom: 16 }}><Typography.Text type="secondary">Xem trước</Typography.Text><br /><Image src={avatarUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: '50%' }} fallback="" /></div>}
       </Form>
     </Modal>

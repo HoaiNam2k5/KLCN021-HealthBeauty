@@ -50,7 +50,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(auth.error ?? 'Lỗi')));
     } else if (ok && mounted) {
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     }
   }
 

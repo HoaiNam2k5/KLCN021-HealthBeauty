@@ -10,6 +10,7 @@ import type { AdminPermission, RolePermission } from '../../types/permissions'
 import { permissionKeys, useAdminPermissions, useAdminRoles, useReloadRolePermissions } from './permissionQueries'
 import { currentPermissionKeys, usePermissions } from '../../hooks/usePermissions'
 import { supportsPermission } from '../../utils/permissionPolicy'
+import { getPermissionGroupLabel, getRoleLabel } from '../../utils/displayLabels'
 
 interface MatrixRow extends AdminPermission { key: number }
 type Draft = Record<number, boolean>
@@ -61,24 +62,24 @@ export default function PermissionsPage() {
       if (!role || !permission.active || !supportsPermission(role.tenVaiTro, permission.maQuyen)) return []
       const granted = original.find((item) => item.permissionId === permission.permissionId)?.granted ?? false
       return draft[permission.permissionId] !== undefined && draft[permission.permissionId] !== granted
-        ? [{ roleId, permissionId: permission.permissionId, granted: draft[permission.permissionId], permissionName: permission.tenQuyen, roleName: roles.find((role) => role.roleId === roleId)?.tenVaiTro ?? '' }]
+        ? [{ roleId, permissionId: permission.permissionId, granted: draft[permission.permissionId], permissionName: permission.tenQuyen, roleName: getRoleLabel(roles.find((role) => role.roleId === roleId)?.tenVaiTro) }]
         : []
     })
   })
 
   const columns: TableColumnsType<MatrixRow> = [
-    { title: 'Quyền', dataIndex: 'tenQuyen', key: 'permission', width: '48%', render: (_value, record) => <Tooltip title={record.moTa || 'Không có mô tả'}><div><Typography.Text>{record.tenQuyen}</Typography.Text><br /><Typography.Text type="secondary" style={{ fontSize: 12 }}>{record.maQuyen}</Typography.Text></div></Tooltip> },
-    ...(adminRole ? [{ title: 'Admin', key: 'admin', align: 'center' as const, width: 100, render: (_value: unknown, record: MatrixRow) => <Checkbox checked={record.active && (currentPermissions[adminRole.roleId]?.find((item) => item.permissionId === record.permissionId)?.granted ?? false)} disabled aria-label={`Admin: ${record.tenQuyen}`} /> }] : []),
+    { title: 'Quyền', dataIndex: 'tenQuyen', key: 'permission', width: '48%', render: (_value, record) => <Tooltip title={record.moTa || 'Không có mô tả'}><div><Typography.Text>{record.tenQuyen}</Typography.Text></div></Tooltip> },
+    ...(adminRole ? [{ title: 'Quản trị viên', key: 'admin', align: 'center' as const, width: 100, render: (_value: unknown, record: MatrixRow) => <Checkbox checked={record.active && (currentPermissions[adminRole.roleId]?.find((item) => item.permissionId === record.permissionId)?.granted ?? false)} disabled aria-label={`Quản trị viên: ${record.tenQuyen}`} /> }] : []),
     ...editableRoles.map((role) => ({
-      title: role.tenVaiTro, key: role.roleId, align: 'center' as const, width: 130,
+      title: getRoleLabel(role.tenVaiTro), key: role.roleId, align: 'center' as const, width: 130,
       render: (_value: unknown, record: MatrixRow) => {
         const granted = currentPermissions[role.roleId]?.find((item) => item.permissionId === record.permissionId)?.granted ?? false
         const checked = drafts[role.roleId]?.[record.permissionId] ?? granted
         const changed = checked !== granted
         const supported = supportsPermission(role.tenVaiTro, record.maQuyen)
-        const reason = !supported ? 'Quyền này không áp dụng cho vai trò này. Tài khoản và phân quyền chỉ dành cho Admin; Staff chỉ xem dữ liệu được phân công.'
+        const reason = !supported ? 'Quyền này không áp dụng cho vai trò này. Tài khoản và phân quyền chỉ dành cho quản trị viên; nhân viên chỉ xem dữ liệu được phân công.'
           : !record.active ? 'Quyền hệ thống đã ngừng hoạt động.' : !canEdit ? 'Cần quyền quản lý phân quyền để thay đổi.' : undefined
-        return <Tooltip title={reason}><Checkbox checked={checked} disabled={!record.active || !supported || !canEdit || saving} onChange={(event) => setDrafts((current) => ({ ...current, [role.roleId]: { ...current[role.roleId], [record.permissionId]: event.target.checked } }))} style={changed ? { outline: '2px solid #B7791F', outlineOffset: 3, borderRadius: 2 } : undefined} aria-label={`${role.tenVaiTro}: ${record.tenQuyen}`} /></Tooltip>
+        return <Tooltip title={reason}><Checkbox checked={checked} disabled={!record.active || !supported || !canEdit || saving} onChange={(event) => setDrafts((current) => ({ ...current, [role.roleId]: { ...current[role.roleId], [record.permissionId]: event.target.checked } }))} style={changed ? { outline: '2px solid #B7791F', outlineOffset: 3, borderRadius: 2 } : undefined} aria-label={`${getRoleLabel(role.tenVaiTro)}: ${record.tenQuyen}`} /></Tooltip>
       },
     })),
   ]
@@ -96,9 +97,7 @@ export default function PermissionsPage() {
         message.success(`${change.roleName} · ${change.permissionName}: đã lưu.`)
       } catch (saveError: unknown) {
         failed += 1
-        const exactError = axios.isAxiosError(saveError)
-          ? `${saveError.response?.status ?? 'Network error'}: ${typeof saveError.response?.data === 'string' ? saveError.response.data : JSON.stringify(saveError.response?.data ?? saveError.message)}`
-          : saveError instanceof Error ? saveError.message : String(saveError)
+        const exactError = getApiErrorMessage(saveError, 'Không thể lưu quyền. Vui lòng thử lại.')
         message.error(`${change.roleName} · ${change.permissionName}: ${exactError}`)
       }
     }
@@ -118,7 +117,7 @@ export default function PermissionsPage() {
   if (permissionRows.length === 0) return <Empty description="Chưa có quyền nào được cấu hình." />
 
   const groupedRows = permissionRows.reduce<Record<string, MatrixRow[]>>((groups, permission) => {
-    const groupName = permission.nhomQuyen || 'Khác'
+    const groupName = getPermissionGroupLabel(permission.nhomQuyen)
     groups[groupName] = [...(groups[groupName] ?? []), { ...permission, key: permission.permissionId }]
     return groups
   }, {})

@@ -33,6 +33,14 @@ class Appointment {
   final String status;
   final String? note;
   final List<AppointmentItem> items;
+  final int? invoiceId;
+  final String? invoiceStatus;
+  final bool hasReviewed;
+  final int? reviewStars;
+  final String? reviewComment;
+  final DateTime? reviewedAt;
+  final String? reviewReply;
+  final DateTime? reviewRepliedAt;
 
   const Appointment({
     required this.id,
@@ -42,6 +50,14 @@ class Appointment {
     required this.status,
     this.note,
     required this.items,
+    this.invoiceId,
+    this.invoiceStatus,
+    this.hasReviewed = false,
+    this.reviewStars,
+    this.reviewComment,
+    this.reviewedAt,
+    this.reviewReply,
+    this.reviewRepliedAt,
   });
 
   factory Appointment.fromJson(Map<String, dynamic> j) => Appointment(
@@ -55,6 +71,18 @@ class Appointment {
     items: ((j['items'] as List?) ?? [])
         .map((e) => AppointmentItem.fromJson(e as Map<String, dynamic>))
         .toList(),
+    invoiceId: (j['invoiceId'] as num?)?.toInt(),
+    invoiceStatus: j['invoiceStatus'] as String?,
+    hasReviewed: j['hasReviewed'] as bool? ?? false,
+    reviewStars: (j['reviewStars'] as num?)?.toInt(),
+    reviewComment: j['reviewComment'] as String?,
+    reviewedAt: j['reviewedAt'] != null
+        ? DateTime.parse(j['reviewedAt'] as String).toLocal()
+        : null,
+    reviewReply: j['reviewReply'] as String?,
+    reviewRepliedAt: j['reviewRepliedAt'] != null
+        ? DateTime.parse(j['reviewRepliedAt'] as String).toLocal()
+        : null,
   );
 
   /// Mã hiển thị, ví dụ #LH12
@@ -117,6 +145,14 @@ class Appointment {
     String? status,
     String? note,
     List<AppointmentItem>? items,
+    int? invoiceId,
+    String? invoiceStatus,
+    bool? hasReviewed,
+    int? reviewStars,
+    String? reviewComment,
+    DateTime? reviewedAt,
+    String? reviewReply,
+    DateTime? reviewRepliedAt,
   }) => Appointment(
     id: id ?? this.id,
     customerId: customerId ?? this.customerId,
@@ -125,5 +161,13 @@ class Appointment {
     status: status ?? this.status,
     note: note ?? this.note,
     items: items ?? this.items,
+    invoiceId: invoiceId ?? this.invoiceId,
+    invoiceStatus: invoiceStatus ?? this.invoiceStatus,
+    hasReviewed: hasReviewed ?? this.hasReviewed,
+    reviewStars: reviewStars ?? this.reviewStars,
+    reviewComment: reviewComment ?? this.reviewComment,
+    reviewedAt: reviewedAt ?? this.reviewedAt,
+    reviewReply: reviewReply ?? this.reviewReply,
+    reviewRepliedAt: reviewRepliedAt ?? this.reviewRepliedAt,
   );
 }

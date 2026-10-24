@@ -132,13 +132,13 @@ export default function BillingPage() {
     { title: 'Ngày tạo', dataIndex: 'createdAt', key: 'createdAt', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') },
     { title: 'Tạm tính', dataIndex: 'subtotal', key: 'subtotal', align: 'right', render: (value: number) => money(value) },
     { title: 'Tổng tiền', dataIndex: 'total', key: 'total', align: 'right', render: (value: number) => money(value) },
-    { title: 'Thanh toán', dataIndex: 'status', key: 'status', render: (value: string) => <Tag color={value === INVOICE_STATUS.PAID ? 'success' : value === INVOICE_STATUS.UNPAID ? 'warning' : undefined}>{INVOICE_STATUS_LABELS[value] ?? value}</Tag> },
+    { title: 'Thanh toán', dataIndex: 'status', key: 'status', render: (value: string) => <Tag color={value === INVOICE_STATUS.PAID ? 'success' : value === INVOICE_STATUS.UNPAID ? 'warning' : undefined}>{INVOICE_STATUS_LABELS[value] ?? 'Trạng thái chưa xác định'}</Tag> },
     { title: 'Phương thức', key: 'method', render: (_, invoice) => {
       const successfulPayments = invoice.status === INVOICE_STATUS.PAID
         ? invoice.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS)
         : []
       return successfulPayments.length
-        ? <Space size={[4, 4]} wrap>{successfulPayments.map((payment) => <Tag key={payment.id}>{PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}</Tag>)}</Space>
+        ? <Space size={[4, 4]} wrap>{successfulPayments.map((payment) => <Tag key={payment.id}>{PAYMENT_METHOD_LABELS[payment.method] ?? 'Phương thức khác'}</Tag>)}</Space>
         : '—'
     } },
     { title: 'Thao tác', key: 'actions', render: (_, invoice) => <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button> },
@@ -148,7 +148,7 @@ export default function BillingPage() {
   const receiptPaid = receiptInvoice?.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS).reduce((sum, payment) => sum + payment.amount, 0) ?? 0
   const receiptDiscount = receiptInvoice ? Math.max(0, receiptInvoice.subtotal - receiptInvoice.total) : 0
   const receiptMethod = receiptInvoice?.payments.find((payment) => payment.status === PAYMENT_STATUS.SUCCESS)?.method
-  const receiptMethodLabel = receiptMethod ? PAYMENT_METHOD_LABELS[receiptMethod] || receiptMethod : 'Tiền mặt'
+  const receiptMethodLabel = receiptMethod ? PAYMENT_METHOD_LABELS[receiptMethod] || 'Phương thức khác' : 'Tiền mặt'
   const printNow = () => window.print()
 
   return <section>
@@ -157,7 +157,7 @@ export default function BillingPage() {
       <Typography.Title level={4} style={{ margin: 0 }}>Hóa đơn và thanh toán</Typography.Title>
       <Space className="filter-bar" wrap>
         <Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm theo tên khách" style={{ width: 220, maxWidth: '100%' }} />
-        <Select allowClear value={status} onChange={setStatus} placeholder="Trạng thái thanh toán" style={{ width: 210, maxWidth: '100%' }} options={[...new Set(list.map((invoice) => invoice.status))].map((value) => ({ value, label: INVOICE_STATUS_LABELS[value] ?? value }))} />
+        <Select allowClear value={status} onChange={setStatus} placeholder="Trạng thái thanh toán" style={{ width: 210, maxWidth: '100%' }} options={[...new Set(list.map((invoice) => invoice.status))].map((value) => ({ value, label: INVOICE_STATUS_LABELS[value] ?? 'Trạng thái chưa xác định' }))} />
         <DatePicker.RangePicker value={range} onChange={setRange} format="DD/MM/YYYY" />
         {canWrite && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo hóa đơn</Button>}
       </Space>
@@ -186,7 +186,7 @@ export default function BillingPage() {
           <Descriptions.Item label="Tổng">{money(selected.total)}</Descriptions.Item>
         </Descriptions>
         <Typography.Title level={5}>Các lần thanh toán</Typography.Title>
-        {selected.payments.length ? <Table className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" size="small" pagination={false} dataSource={selected.payments} columns={[{ title: 'Phương thức', dataIndex: 'method', render: (value: string) => <Tag>{PAYMENT_METHOD_LABELS[value] ?? value}</Tag> }, { title: 'Trạng thái', dataIndex: 'status', render: (value: string) => <Tag color={value === PAYMENT_STATUS.SUCCESS ? 'success' : undefined}>{PAYMENT_STATUS_LABELS[value] ?? value}</Tag> }, { title: 'Số tiền', dataIndex: 'amount', render: (value: number) => money(value) }, { title: 'Ngày', dataIndex: 'paidAt', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') }]} /> : <Empty description="Chưa có lần thanh toán" />}
+        {selected.payments.length ? <Table className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" size="small" pagination={false} dataSource={selected.payments} columns={[{ title: 'Phương thức', dataIndex: 'method', render: (value: string) => <Tag>{PAYMENT_METHOD_LABELS[value] ?? 'Phương thức khác'}</Tag> }, { title: 'Trạng thái', dataIndex: 'status', render: (value: string) => <Tag color={value === PAYMENT_STATUS.SUCCESS ? 'success' : undefined}>{PAYMENT_STATUS_LABELS[value] ?? 'Trạng thái chưa xác định'}</Tag> }, { title: 'Số tiền', dataIndex: 'amount', render: (value: number) => money(value) }, { title: 'Ngày', dataIndex: 'paidAt', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') }]} /> : <Empty description="Chưa có lần thanh toán" />}
         {canPay && selected.status === INVOICE_STATUS.UNPAID && <Form className="responsive-form" form={paymentForm} layout="vertical" initialValues={{ method: PAYMENT_METHOD.CASH, status: PAYMENT_STATUS.SUCCESS }} onFinish={(values: PaymentFields) => void submitPayment(values)} style={{ marginTop: 20 }}>
           <Typography.Title level={5}>Ghi nhận thanh toán</Typography.Title>
           <Form.Item name="method" label="Phương thức" rules={[{ required: true }]}><Select options={PAYMENT_METHOD_OPTIONS} /></Form.Item>
@@ -221,7 +221,7 @@ export default function BillingPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #b88b62', paddingTop: 5, fontSize: 18, fontWeight: 700 }}><span>TỔNG TIỀN PHẢI TRẢ:</span><span>{money(receiptInvoice.total)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Đã thanh toán:</span><span>{money(receiptPaid)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Phương thức thanh toán:</span><span>{receiptMethodLabel}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>Trạng thái:</span><Tag color={receiptInvoice.status === INVOICE_STATUS.PAID ? 'success' : 'warning'}>{(INVOICE_STATUS_LABELS[receiptInvoice.status] ?? receiptInvoice.status).toLocaleUpperCase('vi-VN')}</Tag></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>Trạng thái:</span><Tag color={receiptInvoice.status === INVOICE_STATUS.PAID ? 'success' : 'warning'}>{(INVOICE_STATUS_LABELS[receiptInvoice.status] ?? 'Trạng thái chưa xác định').toLocaleUpperCase('vi-VN')}</Tag></div>
         </section>
         <footer style={{ marginTop: 34, textAlign: 'center' }}>
           <em>Cảm ơn quý khách đã tin tưởng và đồng hành cùng HealthBeauty!</em>
