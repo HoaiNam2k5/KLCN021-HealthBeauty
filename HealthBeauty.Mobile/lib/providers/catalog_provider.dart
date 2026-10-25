@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/catalog.dart';
@@ -15,6 +17,7 @@ class CatalogProvider extends ChangeNotifier {
   List<Combo> combos = [];
   List<Promotion> promotions = [];
   List<CustomerVoucher> myVouchers = [];
+  List<VoucherOffer> voucherOffers = [];
   List<Staff> staffList = [];
 
   bool loading = false;
@@ -22,6 +25,9 @@ class CatalogProvider extends ChangeNotifier {
   String? error;
   bool vouchersLoading = false;
   String? voucherError;
+  bool offersLoading = false;
+  String? offerError;
+  int? redeemingVoucherId;
   bool staffLoading = false;
   String? staffError;
   int? _accountId;
@@ -29,6 +35,7 @@ class CatalogProvider extends ChangeNotifier {
   int? get accountId => _accountId;
   int _accountVersion = 0;
   int _voucherRequest = 0;
+  int _offerRequest = 0;
   int _staffRequest = 0;
   bool _disposed = false;
 
@@ -38,12 +45,17 @@ class CatalogProvider extends ChangeNotifier {
     _accountId = accountId;
     final version = ++_accountVersion;
     _voucherRequest++;
+    _offerRequest++;
     _staffRequest++;
     myVouchers = [];
+    voucherOffers = [];
     staffList = [];
     vouchersLoading = false;
+    offersLoading = false;
+    redeemingVoucherId = null;
     staffLoading = false;
     voucherError = null;
+    offerError = null;
     staffError = null;
     // ProxyProvider may bind while building. Notify and refresh after that build.
     scheduleMicrotask(() {
@@ -51,6 +63,7 @@ class CatalogProvider extends ChangeNotifier {
       _notify();
       if (_accountId != null) {
         unawaited(loadMyVouchers());
+        unawaited(loadVoucherOffers());
         unawaited(loadStaff());
       }
     });
@@ -92,7 +105,7 @@ class CatalogProvider extends ChangeNotifier {
       combos = nextCombos;
       promotions = nextPromotions;
       loaded = true;
-      await Future.wait([loadMyVouchers(), loadStaff()]);
+      await Future.wait([loadMyVouchers(), loadVoucherOffers(), loadStaff()]);
     } on DioException catch (e) {
       if (!_disposed) error = ApiError.message(e);
     } catch (e) {
@@ -224,6 +237,79 @@ class CatalogProvider extends ChangeNotifier {
         message: 'Dữ liệu kiểm tra voucher trả về không đúng định dạng.',
       );
     }
+  }
+
+  Future<void> loadVoucherOffers() async {
+    if (_disposed || _accountId == null || offersLoading) return;
+    final version = _accountVersion;
+    final request = ++_offerRequest;
+    voucherOffers = [];
+    offerError = null;
+    offersLoading = true;
+    _notify();
+    try {
+      final response = await _dio.get('/customers/me/voucher-offers');
+      final now = DateTime.now();
+      final next =
+          (response.data as List)
+              .map(
+                (item) => VoucherOffer.fromJson(item as Map<String, dynamic>),
+              )
+              .where((offer) => offer.isAvailableAt(now))
+              .toList()
+            ..sort((a, b) => a.pointsCost.compareTo(b.pointsCost));
+      if (!_isCurrent(version) || request != _offerRequest) return;
+      voucherOffers = next;
+    } on DioException catch (exception) {
+      if (_isCurrent(version) && request == _offerRequest) {
+        offerError = ApiError.message(exception);
+      }
+    } catch (_) {
+      if (_isCurrent(version) && request == _offerRequest) {
+        offerError = 'Dữ liệu voucher đổi điểm trả về không đúng định dạng';
+      }
+    } finally {
+      if (_isCurrent(version) && request == _offerRequest) {
+        offersLoading = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<VoucherRedemption?> redeemVoucher(int voucherId) async {
+    if (_disposed || _accountId == null || redeemingVoucherId != null) {
+      return null;
+    }
+    final version = _accountVersion;
+    offerError = null;
+    redeemingVoucherId = voucherId;
+    _notify();
+    try {
+      final response = await _dio.post(
+        '/customers/me/vouchers/$voucherId/redeem',
+      );
+      if (!_isCurrent(version)) return null;
+      final result = VoucherRedemption.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      voucherOffers = voucherOffers
+          .where((offer) => offer.id != voucherId)
+          .toList();
+      await loadMyVouchers();
+      return _isCurrent(version) ? result : null;
+    } on DioException catch (exception) {
+      if (_isCurrent(version)) offerError = ApiError.message(exception);
+    } catch (_) {
+      if (_isCurrent(version)) {
+        offerError = 'Không đọc được kết quả đổi voucher từ máy chủ';
+      }
+    } finally {
+      if (_isCurrent(version)) {
+        redeemingVoucherId = null;
+        _notify();
+      }
+    }
+    return null;
   }
 
   Service? serviceById(int id) {

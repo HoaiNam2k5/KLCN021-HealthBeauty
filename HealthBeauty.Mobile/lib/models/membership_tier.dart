@@ -46,70 +46,18 @@ class MembershipTier {
   }
 
   static MembershipTier fromPoints(int points) {
-    if (points >= 1000) {
-      return const MembershipTier(
-        name: 'Hạng Kim Cương',
-        code: 'DIAMOND',
-        minPoints: 1000,
-        nextPoints: null,
-        primaryColor: Color(0xFF007A99),
-        backgroundColor: Color(0xFFE8F6FA),
-        icon: Icons.diamond_outlined,
-        benefits: [
-          'Giảm 15% tất cả dịch vụ và gói trị liệu cao cấp',
-          'Tặng gói chăm sóc da chuyên sâu vào tháng sinh nhật',
-          'Ưu tiên chọn chuyên viên tay nghề cao nhất',
-          'Phòng trị liệu VIP riêng biệt miễn phí',
-        ],
-      );
-    } else if (points >= 500) {
-      return const MembershipTier(
-        name: 'Hạng Vàng',
-        code: 'GOLD',
-        minPoints: 500,
-        nextPoints: 1000,
-        primaryColor: Color(0xFFC28B00),
-        backgroundColor: Color(0xFFFFF9E6),
-        icon: Icons.workspace_premium_outlined,
-        benefits: [
-          'Giảm 10% tất cả dịch vụ tại Spa',
-          'Voucher giảm 30% nhân dịp sinh nhật',
-          'Ưu tiên giữ lịch hẹn vào khung giờ cao điểm',
-          'Miễn phí đồ uống thảo mộc & dịch vụ ngâm chân thư giãn',
-        ],
-      );
-    } else if (points >= 100) {
-      return const MembershipTier(
-        name: 'Hạng Bạc',
-        code: 'SILVER',
-        minPoints: 100,
-        nextPoints: 500,
-        primaryColor: Color(0xFF5A6B7C),
-        backgroundColor: Color(0xFFEEF2F6),
-        icon: Icons.military_tech_outlined,
-        benefits: [
-          'Giảm 5% cho tất cả dịch vụ từ lần thứ 2',
-          'Tặng voucher 50.000đ vào ngày sinh nhật',
-          'Tích lũy điểm thưởng x1.2 vào các ngày hội viên',
-        ],
-      );
-    } else {
-      return const MembershipTier(
-        name: 'Thành viên Mới',
-        code: 'BRONZE',
-        minPoints: 0,
-        nextPoints: 100,
-        primaryColor: Color(0xFF8B5A2B),
-        backgroundColor: Color(0xFFFBF1E6),
-        icon: Icons.card_membership_outlined,
-        benefits: [
-          'Tích lũy điểm thưởng 5% giá trị mỗi hóa đơn',
-          'Nhận thông báo ưu đãi và khuyến mãi sớm nhất',
-          'Miễn phí kiểm tra và tư vấn soi da',
-        ],
-      );
-    }
+    if (points >= 1000) return allTiers[3];
+    if (points >= 500) return allTiers[2];
+    if (points >= 100) return allTiers[1];
+    return allTiers[0];
   }
+
+  static const List<String> commonBenefits = [
+    'Tích điểm sau khi thanh toán thành công',
+    'Dùng điểm đổi voucher tại mục Ưu đãi',
+    'Theo dõi số dư và lịch sử giao dịch điểm',
+    'Nhận thông báo lịch hẹn, voucher và chương trình khuyến mãi',
+  ];
 
   static const List<MembershipTier> allTiers = [
     MembershipTier(
@@ -121,9 +69,9 @@ class MembershipTier {
       backgroundColor: Color(0xFFFBF1E6),
       icon: Icons.card_membership_outlined,
       benefits: [
-        'Tích lũy điểm thưởng 5% giá trị mỗi hóa đơn',
-        'Nhận thông báo ưu đãi và khuyến mãi sớm nhất',
-        'Miễn phí kiểm tra và tư vấn soi da',
+        'Bắt đầu tích lũy điểm thưởng',
+        'Sử dụng điểm để đổi voucher',
+        'Theo dõi ưu đãi và lịch sử điểm trên ứng dụng',
       ],
     ),
     MembershipTier(
@@ -135,9 +83,9 @@ class MembershipTier {
       backgroundColor: Color(0xFFEEF2F6),
       icon: Icons.military_tech_outlined,
       benefits: [
-        'Giảm 5% cho tất cả dịch vụ từ lần thứ 2',
-        'Tặng voucher 50.000đ vào ngày sinh nhật',
-        'Tích lũy điểm thưởng x1.2 vào các ngày hội viên',
+        'Bao gồm toàn bộ quyền lợi chung',
+        'Thẻ thành viên và huy hiệu Hạng Bạc',
+        'Có thể nhận voucher tri ân theo từng chương trình',
       ],
     ),
     MembershipTier(
@@ -149,10 +97,9 @@ class MembershipTier {
       backgroundColor: Color(0xFFFFF9E6),
       icon: Icons.workspace_premium_outlined,
       benefits: [
-        'Giảm 10% tất cả dịch vụ tại Spa',
-        'Voucher giảm 30% nhân dịp sinh nhật',
-        'Ưu tiên giữ lịch hẹn vào khung giờ cao điểm',
-        'Miễn phí đồ uống thảo mộc & dịch vụ ngâm chân thư giãn',
+        'Bao gồm toàn bộ quyền lợi chung',
+        'Thẻ thành viên và huy hiệu Hạng Vàng',
+        'Có thể nhận ưu đãi khách hàng thân thiết theo từng chương trình',
       ],
     ),
     MembershipTier(
@@ -164,10 +111,9 @@ class MembershipTier {
       backgroundColor: Color(0xFFE8F6FA),
       icon: Icons.diamond_outlined,
       benefits: [
-        'Giảm 15% tất cả dịch vụ và gói trị liệu cao cấp',
-        'Tặng gói chăm sóc da chuyên sâu vào tháng sinh nhật',
-        'Ưu tiên chọn chuyên viên tay nghề cao nhất',
-        'Phòng trị liệu VIP riêng biệt miễn phí',
+        'Bao gồm toàn bộ quyền lợi chung',
+        'Thẻ thành viên và huy hiệu hạng cao nhất',
+        'Có thể nhận quà tặng hoặc voucher tri ân đặc biệt theo từng chương trình',
       ],
     ),
   ];

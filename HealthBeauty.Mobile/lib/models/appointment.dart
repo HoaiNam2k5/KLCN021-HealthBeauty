@@ -85,6 +85,65 @@ class Appointment {
         : null,
   );
 
+  /// Endpoint đổi lịch hiện trả DTO chi tiết với tên trường theo entity
+  /// (lichHenId/ngayGioHen/chitietlichhens), khác DTO danh sách. Chuẩn hóa
+  /// response đó về model mobile và giữ metadata hóa đơn/đánh giá hiện có.
+  factory Appointment.fromRescheduleJson(
+    Map<String, dynamic> j, {
+    required Appointment fallback,
+  }) {
+    if (j['id'] != null) return Appointment.fromJson(j);
+
+    final rawItems = j['chitietlichhens'];
+    final items = rawItems is List
+        ? rawItems.map((raw) {
+            final item = Map<String, dynamic>.from(raw as Map);
+            final rawService = item['dichVu'];
+            final service = rawService is Map
+                ? Map<String, dynamic>.from(rawService)
+                : const <String, dynamic>{};
+            return AppointmentItem(
+              id: (item['chiTietLichHenId'] as num).toInt(),
+              serviceId: (item['dichVuId'] as num).toInt(),
+              serviceName:
+                  service['tenDichVu'] as String? ??
+                  fallback.items
+                      .where(
+                        (existing) =>
+                            existing.serviceId ==
+                            (item['dichVuId'] as num).toInt(),
+                      )
+                      .map((existing) => existing.serviceName)
+                      .firstOrNull ??
+                  '',
+              comboId: (item['comboId'] as num?)?.toInt(),
+              expectedPrice: (item['giaDuKien'] as num?)?.toDouble() ?? 0,
+              durationMinutes: (item['durationMinutes'] as num?)?.toInt() ?? 30,
+            );
+          }).toList()
+        : fallback.items;
+
+    return Appointment(
+      id: (j['lichHenId'] as num?)?.toInt() ?? fallback.id,
+      customerId: (j['khachHangId'] as num?)?.toInt() ?? fallback.customerId,
+      staffId: (j['nhanVienId'] as num?)?.toInt(),
+      appointmentAt: j['ngayGioHen'] is String
+          ? DateTime.parse(j['ngayGioHen'] as String).toLocal()
+          : fallback.appointmentAt,
+      status: j['trangThai'] as String? ?? fallback.status,
+      note: j.containsKey('ghiChu') ? j['ghiChu'] as String? : fallback.note,
+      items: items,
+      invoiceId: fallback.invoiceId,
+      invoiceStatus: fallback.invoiceStatus,
+      hasReviewed: fallback.hasReviewed,
+      reviewStars: fallback.reviewStars,
+      reviewComment: fallback.reviewComment,
+      reviewedAt: fallback.reviewedAt,
+      reviewReply: fallback.reviewReply,
+      reviewRepliedAt: fallback.reviewRepliedAt,
+    );
+  }
+
   /// Mã hiển thị, ví dụ #LH12
   String get code => '#LH$id';
 

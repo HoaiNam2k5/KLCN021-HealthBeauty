@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
 import '../core/format.dart';
 import '../models/customer.dart';
@@ -57,8 +58,10 @@ class _AccountScreenState extends State<AccountScreen> {
       return ListView(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
         children: [
-          const Text('Tài khoản',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+          const Text(
+            'Tài khoản',
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 24),
           AppCard(
             child: Padding(
@@ -68,7 +71,11 @@ class _AccountScreenState extends State<AccountScreen> {
                   CircleAvatar(
                     radius: 36,
                     backgroundColor: cs.primaryContainer,
-                    child: Icon(Icons.person, size: 40, color: cs.onPrimaryContainer),
+                    child: Icon(
+                      Icons.person,
+                      size: 40,
+                      color: cs.onPrimaryContainer,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -102,7 +109,9 @@ class _AccountScreenState extends State<AccountScreen> {
                       label: const Text('Đăng ký tài khoản'),
                       onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const RegisterScreen(),
+                        ),
                       ),
                     ),
                   ),
@@ -117,7 +126,9 @@ class _AccountScreenState extends State<AccountScreen> {
     final displayName = (c?.fullName.trim().isNotEmpty ?? false)
         ? c!.fullName
         : (auth.account?.name ?? auth.account?.email ?? '');
-    final initial = displayName.isEmpty ? '?' : displayName.trim()[0].toUpperCase();
+    final initial = displayName.isEmpty
+        ? '?'
+        : displayName.trim()[0].toUpperCase();
     final points = c?.rewardPoints ?? 0;
     final tier = MembershipTier.fromPoints(points);
 
@@ -126,8 +137,10 @@ class _AccountScreenState extends State<AccountScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
-          const Text('Tài khoản',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+          const Text(
+            'Tài khoản',
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 16),
 
           // Header thông tin người dùng
@@ -189,7 +202,11 @@ class _AccountScreenState extends State<AccountScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(tier.icon, size: 13, color: tier.primaryColor),
+                                Icon(
+                                  tier.icon,
+                                  size: 13,
+                                  color: tier.primaryColor,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   tier.name,
@@ -209,13 +226,19 @@ class _AccountScreenState extends State<AccountScreen> {
                         auth.account?.email ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
                       ),
                       if (c?.phone != null && c!.phone!.isNotEmpty) ...[
                         const SizedBox(height: 1),
                         Text(
                           c.phone!,
-                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                          style: TextStyle(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ],
@@ -254,8 +277,8 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               _MenuItem(
                 icon: Icons.military_tech_outlined,
-                title: 'Đặc quyền hạng thành viên',
-                subtitle: 'Xem quyền lợi các hạng thẻ VIP',
+                title: 'Hạng thành viên & quyền lợi',
+                subtitle: 'Xem mốc điểm và quyền lợi hội viên',
                 onTap: () => _showTierBenefits(context, tier),
               ),
               _MenuItem(
@@ -387,8 +410,8 @@ class _AccountScreenState extends State<AccountScreen> {
             tier.code == 'DIAMOND'
                 ? const Color(0xFF16323B)
                 : tier.code == 'GOLD'
-                    ? const Color(0xFF3D2E14)
-                    : const Color(0xFF3B272D),
+                ? const Color(0xFF3D2E14)
+                : const Color(0xFF3B272D),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -426,7 +449,10 @@ class _AccountScreenState extends State<AccountScreen> {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: tier.primaryColor.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(16),
@@ -543,7 +569,9 @@ class _AccountScreenState extends State<AccountScreen> {
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -552,9 +580,13 @@ class _AccountScreenState extends State<AccountScreen> {
                     icon: const Icon(Icons.qr_code, size: 18),
                     label: const Text(
                       'QR Check-in',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    onPressed: () => _showQrCheckIn(context, cardId, c?.fullName ?? ''),
+                    onPressed: () =>
+                        _showQrCheckIn(context, cardId, c?.fullName ?? ''),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -571,7 +603,10 @@ class _AccountScreenState extends State<AccountScreen> {
                     icon: const Icon(Icons.history, size: 18),
                     label: const Text(
                       'Lịch sử điểm',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     onPressed: () => _showPoints(context, profile),
                   ),
@@ -715,18 +750,60 @@ class _AccountScreenState extends State<AccountScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Đặc quyền hạng thành viên',
+                  'Hạng thành viên & quyền lợi',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Tích lũy điểm khi sử dụng dịch vụ để nâng hạng và nhận nhiều ưu đãi độc quyền.',
+                  'Hạng được xác định theo số điểm hiện có và có thể thay đổi sau khi sử dụng điểm. Ưu đãi áp dụng theo điều kiện của từng chương trình.',
                   style: TextStyle(
                     fontSize: 13,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.outline),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Quyền lợi chung',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final benefit in MembershipTier.commonBenefits)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '• ',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  benefit,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Expanded(
                   child: ListView.separated(
                     itemCount: MembershipTier.allTiers.length,
@@ -741,7 +818,9 @@ class _AccountScreenState extends State<AccountScreen> {
                           color: isCurrent ? t.backgroundColor : Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isCurrent ? t.primaryColor : AppColors.outline,
+                            color: isCurrent
+                                ? t.primaryColor
+                                : AppColors.outline,
                             width: isCurrent ? 1.6 : 1.0,
                           ),
                         ),
@@ -800,8 +879,12 @@ class _AccountScreenState extends State<AccountScreen> {
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('• ',
-                                        style: TextStyle(fontWeight: FontWeight.bold)),
+                                    const Text(
+                                      '• ',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                     Expanded(
                                       child: Text(
                                         b,
@@ -846,14 +929,20 @@ class _AccountScreenState extends State<AccountScreen> {
           children: [
             Text('Bạn cần hỗ trợ về dịch vụ hoặc thay đổi lịch hẹn?'),
             SizedBox(height: 12),
-            Text('• Hotline miễn phí: 1900 8888',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              '• Hotline miễn phí: 1900 8888',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 4),
-            Text('• Thời gian hỗ trợ: 08:00 - 21:00 (Tất cả các ngày)',
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+            Text(
+              '• Thời gian hỗ trợ: 08:00 - 21:00 (Tất cả các ngày)',
+              style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+            ),
             SizedBox(height: 4),
-            Text('• Email tiếp nhận: hotro@healthbeauty.vn',
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+            Text(
+              '• Email tiếp nhận: hotro@healthbeauty.vn',
+              style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+            ),
           ],
         ),
         actions: [
@@ -894,23 +983,19 @@ class _AccountScreenState extends State<AccountScreen> {
                     children: const [
                       _FaqItem(
                         question: '1. Làm thế nào để tích lũy điểm thưởng?',
-                        answer:
-                            'Điểm thưởng được tự động cộng vào tài khoản sau khi bạn hoàn thành và thanh toán các liệu trình dịch vụ tại spa (tỷ lệ 5% giá trị hóa đơn).',
+                        answer: 'Điểm thưởng được tự động cộng vào tài khoản sau khi bạn hoàn thành và thanh toán các liệu trình dịch vụ tại spa (tỷ lệ 5% giá trị hóa đơn).',
                       ),
                       _FaqItem(
                         question: '2. Tôi có thể hủy hoặc đổi lịch hẹn không?',
-                        answer:
-                            'Bạn có thể bấm vào tab "Lịch hẹn" để hủy hoặc chọn giờ hẹn mới trước tối thiểu 2 giờ trước giờ hẹn dự kiến.',
+                        answer: 'Bạn có thể bấm vào tab "Lịch hẹn" để hủy hoặc chọn giờ hẹn mới trước tối thiểu 2 giờ trước giờ hẹn dự kiến.',
                       ),
                       _FaqItem(
                         question: '3. Điểm thưởng có thời hạn sử dụng không?',
-                        answer:
-                            'Điểm thưởng của thành viên có hiệu lực trong vòng 12 tháng kể từ ngày giao dịch gần nhất.',
+                        answer: 'Điểm thưởng của thành viên có hiệu lực trong vòng 12 tháng kể từ ngày giao dịch gần nhất.',
                       ),
                       _FaqItem(
                         question: '4. Check-in tại quầy lễ tân như thế nào?',
-                        answer:
-                            'Khi đến cơ sở, bạn chỉ cần mở mục "QR Check-in" trên thẻ VIP để nhân viên quét xác nhận tiếp đón nhanh chóng.',
+                        answer: 'Khi đến cơ sở, bạn chỉ cần mở mục "QR Check-in" trên thẻ VIP để nhân viên quét xác nhận tiếp đón nhanh chóng.',
                       ),
                     ],
                   ),
@@ -968,8 +1053,10 @@ class _AccountScreenState extends State<AccountScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Lịch sử điểm thưởng',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                const Text(
+                  'Lịch sử điểm thưởng',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 12),
                 if (profile.transactions.isEmpty)
                   const SizedBox(
@@ -985,7 +1072,8 @@ class _AccountScreenState extends State<AccountScreen> {
                       shrinkWrap: true,
                       itemCount: profile.transactions.length,
                       separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) => _pointRow(profile.transactions[i], cs),
+                      itemBuilder: (_, i) =>
+                          _pointRow(profile.transactions[i], cs),
                     ),
                   ),
               ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
 import '../core/format.dart';
 import '../models/appointment.dart';
@@ -8,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
 import '../widgets/common.dart';
 import 'login_screen.dart';
+import 'reschedule_screen.dart';
 
 class AppointmentsScreen extends StatefulWidget {
   const AppointmentsScreen({super.key});
@@ -33,7 +35,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.calendar_month_outlined, size: 72, color: AppColors.rose),
+              const Icon(
+                Icons.calendar_month_outlined,
+                size: 72,
+                color: AppColors.rose,
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Xem lịch hẹn của bạn',
@@ -65,14 +71,19 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Text('Lịch hẹn',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+          child: Text(
+            'Lịch hẹn',
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: SegmentedButton<int>(
             segments: [
-              ButtonSegment(value: 0, label: Text('Sắp tới (${ap.upcoming.length})')),
+              ButtonSegment(
+                value: 0,
+                label: Text('Sắp tới (${ap.upcoming.length})'),
+              ),
               const ButtonSegment(value: 1, label: Text('Lịch sử')),
             ],
             selected: {_tab},
@@ -104,7 +115,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     title: _tab == 0
                         ? 'Bạn chưa có lịch hẹn sắp tới'
                         : 'Chưa có lịch sử lịch hẹn',
-                    subtitle: _tab == 0 ? 'Bấm "Đặt lịch" để tạo lịch hẹn mới' : null,
+                    subtitle: _tab == 0
+                        ? 'Bấm "Đặt lịch" để tạo lịch hẹn mới'
+                        : null,
                   ),
                 ),
               ],
@@ -141,13 +154,18 @@ class _AppointmentCard extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Text(two(d.day),
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: cs.onPrimaryContainer)),
-                Text('Thg ${d.month}',
-                    style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer)),
+                Text(
+                  two(d.day),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onPrimaryContainer,
+                  ),
+                ),
+                Text(
+                  'Thg ${d.month}',
+                  style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer),
+                ),
               ],
             ),
           ),
@@ -159,8 +177,13 @@ class _AppointmentCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(a.code,
-                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+                      child: Text(
+                        a.code,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                     if (a.isDone && a.hasReviewed)
                       Padding(
@@ -170,17 +193,27 @@ class _AppointmentCard extends StatelessWidget {
                           color: AppColors.warn,
                         ),
                       ),
-                    StatusChip(label: a.statusLabel, color: statusColor(a.status)),
+                    StatusChip(
+                      label: a.statusLabel,
+                      color: statusColor(a.status),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(a.serviceSummary,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(
+                  a.serviceSummary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('${weekdayStr(d)} · ${timeStr(d)} · ${durationStr(a.durationMinutes)}',
-                    style: TextStyle(color: cs.onSurfaceVariant)),
+                Text(
+                  '${weekdayStr(d)} · ${timeStr(d)} · ${durationStr(a.durationMinutes)}',
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
               ],
             ),
           ),
@@ -194,7 +227,9 @@ class _AppointmentCard extends StatelessWidget {
     final catalog = context.read<CatalogProvider>();
     final staff = a.staffId != null ? catalog.staffById(a.staffId!) : null;
     final staffDisplay = a.staffId != null
-        ? (staff != null ? '${staff.fullName} (${staff.displayTitle})' : 'KTV #${a.staffId}')
+        ? (staff != null
+              ? '${staff.fullName} (${staff.displayTitle})'
+              : 'KTV #${a.staffId}')
         : 'Spa tự sắp xếp KTV';
     showModalBottomSheet(
       context: context,
@@ -213,10 +248,18 @@ class _AppointmentCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text('Lịch hẹn ${a.code}',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    child: Text(
+                      'Lịch hẹn ${a.code}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                  StatusChip(label: a.statusLabel, color: statusColor(a.status)),
+                  StatusChip(
+                    label: a.statusLabel,
+                    color: statusColor(a.status),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -234,13 +277,20 @@ class _AppointmentCard extends StatelessWidget {
                     style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
                   ),
                   const SizedBox(width: 16),
-                  const Icon(Icons.person_outline, size: 16, color: AppColors.rose),
+                  const Icon(
+                    Icons.person_outline,
+                    size: 16,
+                    color: AppColors.rose,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'KTV: $staffDisplay',
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -258,8 +308,10 @@ class _AppointmentCard extends StatelessWidget {
                               : it.serviceName,
                         ),
                       ),
-                      Text(vnd(it.expectedPrice),
-                          style: TextStyle(color: cs.onSurfaceVariant)),
+                      Text(
+                        vnd(it.expectedPrice),
+                        style: TextStyle(color: cs.onSurfaceVariant),
+                      ),
                     ],
                   ),
                 ),
@@ -267,15 +319,44 @@ class _AppointmentCard extends StatelessWidget {
               Row(
                 children: [
                   const Expanded(
-                      child: Text('Tạm tính', style: TextStyle(fontWeight: FontWeight.w700))),
-                  Text(vnd(a.total),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w800, color: AppColors.rose)),
+                    child: Text(
+                      'Tạm tính',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text(
+                    vnd(a.total),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.rose,
+                    ),
+                  ),
                 ],
               ),
               ..._buildNoteDetails(a.note, cs),
-              if (a.canCancel) ...[
+              if (a.canReschedule) ...[
                 const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.rose,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: const Icon(Icons.event_repeat),
+                    label: const Text(
+                      'Đổi lịch hẹn',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    onPressed: () => _openReschedule(context, sheetContext),
+                  ),
+                ),
+              ],
+              if (a.canCancel) ...[
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -283,11 +364,15 @@ class _AppointmentCard extends StatelessWidget {
                       foregroundColor: AppColors.danger,
                       side: const BorderSide(color: AppColors.danger),
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     icon: const Icon(Icons.cancel_outlined),
-                    label: const Text('Hủy lịch hẹn',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
+                    label: const Text(
+                      'Hủy lịch hẹn',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     onPressed: () => _confirmCancel(context, sheetContext),
                   ),
                 ),
@@ -325,7 +410,9 @@ class _AppointmentCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.roseContainer.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: AppColors.rose.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,7 +469,8 @@ class _AppointmentCard extends StatelessWidget {
                               ? '"${a.reviewComment!.trim()}"'
                               : '(Bạn không để lại nhận xét bằng chữ)',
                           style: TextStyle(
-                            fontStyle: (a.reviewComment != null &&
+                            fontStyle:
+                                (a.reviewComment != null &&
                                     a.reviewComment!.trim().isNotEmpty)
                                 ? FontStyle.normal
                                 : FontStyle.italic,
@@ -401,15 +489,19 @@ class _AppointmentCard extends StatelessWidget {
                               color: Colors.white.withValues(alpha: 0.8),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                  color: AppColors.rose.withValues(alpha: 0.2)),
+                                color: AppColors.rose.withValues(alpha: 0.2),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.reply_rounded,
-                                        size: 14, color: AppColors.rose),
+                                    const Icon(
+                                      Icons.reply_rounded,
+                                      size: 14,
+                                      color: AppColors.rose,
+                                    ),
                                     const SizedBox(width: 4),
                                     const Text(
                                       'Phản hồi từ Spa:',
@@ -435,7 +527,9 @@ class _AppointmentCard extends StatelessWidget {
                                 Text(
                                   a.reviewReply!.trim(),
                                   style: const TextStyle(
-                                      fontSize: 12, height: 1.4),
+                                    fontSize: 12,
+                                    height: 1.4,
+                                  ),
                                 ),
                               ],
                             ),
@@ -452,7 +546,10 @@ class _AppointmentCard extends StatelessWidget {
     );
   }
 
-  Future<void> _openReviewDialog(BuildContext context, BuildContext sheetContext) async {
+  Future<void> _openReviewDialog(
+    BuildContext context,
+    BuildContext sheetContext,
+  ) async {
     int selectedStars = 5;
     final commentController = TextEditingController();
     bool isSubmitting = false;
@@ -494,7 +591,10 @@ class _AppointmentCard extends StatelessWidget {
                   Text(
                     a.serviceSummary,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   // Chọn sao
@@ -507,7 +607,9 @@ class _AppointmentCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 2),
                         onPressed: isSubmitting
                             ? null
-                            : () => setDialogState(() => selectedStars = starValue),
+                            : () => setDialogState(
+                                () => selectedStars = starValue,
+                              ),
                         icon: Icon(
                           starValue <= selectedStars
                               ? Icons.star_rounded
@@ -532,10 +634,11 @@ class _AppointmentCard extends StatelessWidget {
                     maxLength: 1000,
                     enabled: !isSubmitting,
                     decoration: InputDecoration(
-                      hintText:
-                          'Hãy chia sẻ cảm nhận của bạn về trải nghiệm dịch vụ, tay nghề kỹ thuật viên...',
-                      hintStyle:
-                          const TextStyle(fontSize: 13, color: AppColors.inkMuted),
+                      hintText: 'Hãy chia sẻ cảm nhận của bạn về trải nghiệm dịch vụ, tay nghề kỹ thuật viên...',
+                      hintStyle: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.inkMuted,
+                      ),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
@@ -548,8 +651,10 @@ class _AppointmentCard extends StatelessWidget {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide:
-                            const BorderSide(color: AppColors.rose, width: 1.5),
+                        borderSide: const BorderSide(
+                          color: AppColors.rose,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -557,8 +662,10 @@ class _AppointmentCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       submitError!,
-                      style:
-                          const TextStyle(color: AppColors.danger, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppColors.danger,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ],
@@ -566,14 +673,17 @@ class _AppointmentCard extends StatelessWidget {
             ),
             actions: [
               TextButton(
-                onPressed: isSubmitting ? null : () => Navigator.pop(dialogCtx, false),
+                onPressed: isSubmitting
+                    ? null
+                    : () => Navigator.pop(dialogCtx, false),
                 child: const Text('Bỏ qua'),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.rose,
-                  shape:
-                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: isSubmitting
                     ? null
@@ -603,10 +713,14 @@ class _AppointmentCard extends StatelessWidget {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
-                    : const Text('Gửi đánh giá',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
+                    : const Text(
+                        'Gửi đánh giá',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
               ),
             ],
           );
@@ -625,14 +739,20 @@ class _AppointmentCard extends StatelessWidget {
     }
   }
 
-  Future<void> _confirmCancel(BuildContext context, BuildContext sheetContext) async {
+  Future<void> _confirmCancel(
+    BuildContext context,
+    BuildContext sheetContext,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: sheetContext,
       builder: (d) => AlertDialog(
         title: const Text('Xác nhận hủy lịch'),
         content: Text('Bạn có chắc chắn muốn hủy lịch hẹn ${a.code}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Không')),
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Không'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(d, true),
@@ -649,8 +769,28 @@ class _AppointmentCard extends StatelessWidget {
       final ok = await ap.cancel(a.id);
       messenger.showSnackBar(
         SnackBar(
-          content: Text(ok ? 'Đã hủy lịch hẹn ${a.code}' : (ap.error ?? 'Hủy lịch thất bại')),
+          content: Text(
+            ok
+                ? 'Đã hủy lịch hẹn ${a.code}'
+                : (ap.error ?? 'Hủy lịch thất bại'),
+          ),
         ),
+      );
+    }
+  }
+
+  Future<void> _openReschedule(
+    BuildContext context,
+    BuildContext sheetContext,
+  ) async {
+    Navigator.pop(sheetContext);
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => RescheduleScreen(appointment: a)),
+    );
+    if (changed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã đổi lịch hẹn ${a.code} thành công.')),
       );
     }
   }
@@ -768,11 +908,7 @@ class _AppointmentCard extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.notes_outlined,
-              size: 17,
-              color: cs.outline,
-            ),
+            Icon(Icons.notes_outlined, size: 17, color: cs.outline),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

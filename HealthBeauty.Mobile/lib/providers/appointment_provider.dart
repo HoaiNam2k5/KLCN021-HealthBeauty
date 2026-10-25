@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../models/appointment.dart';
@@ -183,6 +184,69 @@ class AppointmentProvider extends ChangeNotifier {
     return false;
   }
 
+  Future<Appointment?> reschedule({
+    required int id,
+    required DateTime at,
+    int? staffId,
+    String? note,
+  }) async {
+    final generation = _generation;
+    if (!_current(generation) || submitting) return null;
+    final matches = items.where((item) => item.id == id);
+    if (matches.isNotEmpty && !matches.first.canReschedule) {
+      error = 'Lịch hẹn này không còn được phép đổi.';
+      notifyListeners();
+      return null;
+    }
+    if (!at.isAfter(DateTime.now())) {
+      error = 'Thời gian hẹn mới phải ở trong tương lai.';
+      notifyListeners();
+      return null;
+    }
+
+    submitting = true;
+    error = null;
+    notifyListeners();
+    try {
+      final response = await _dio.post(
+        '/appointments/$id/reschedule',
+        data: {
+          'appointmentAt': localBookingDateTime(at),
+          'staffId': staffId,
+          'note': note == null || note.trim().isEmpty ? null : note.trim(),
+        },
+      );
+      if (!_current(generation)) return null;
+      final fallback = matches.isNotEmpty
+          ? matches.first
+          : throw const FormatException('Không tìm thấy lịch hẹn cần đổi.');
+      final updated = Appointment.fromRescheduleJson(
+        Map<String, dynamic>.from(response.data as Map),
+        fallback: fallback,
+      );
+      _revision++;
+      final index = items.indexWhere((item) => item.id == id);
+      if (index == -1) {
+        items = [updated, ...items];
+      } else {
+        items[index] = updated;
+      }
+      return updated;
+    } on DioException catch (exception) {
+      if (_current(generation)) error = ApiError.message(exception);
+    } catch (_) {
+      if (_current(generation)) {
+        error = 'Không đọc được phản hồi đổi lịch từ máy chủ';
+      }
+    } finally {
+      if (_current(generation)) {
+        submitting = false;
+        notifyListeners();
+      }
+    }
+    return null;
+  }
+
   Future<Appointment?> create({
     required DateTime at,
     required List<Map<String, dynamic>> lines,
@@ -240,8 +304,9 @@ class AppointmentProvider extends ChangeNotifier {
         '/reviews/appointments/$appointmentId',
         data: {
           'stars': stars,
-          'comment':
-              comment == null || comment.trim().isEmpty ? null : comment.trim(),
+          'comment': comment == null || comment.trim().isEmpty
+              ? null
+              : comment.trim(),
         },
       );
       if (!_current(generation)) return false;
@@ -251,8 +316,9 @@ class AppointmentProvider extends ChangeNotifier {
         items[index] = items[index].copyWith(
           hasReviewed: true,
           reviewStars: stars,
-          reviewComment:
-              comment == null || comment.trim().isEmpty ? null : comment.trim(),
+          reviewComment: comment == null || comment.trim().isEmpty
+              ? null
+              : comment.trim(),
           reviewedAt: DateTime.now(),
         );
       }

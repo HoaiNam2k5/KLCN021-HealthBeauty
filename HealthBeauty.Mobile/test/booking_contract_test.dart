@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app_doancunhan/models/appointment.dart';
@@ -428,6 +429,127 @@ void main() {
       ];
       expect(await provider.cancel(1), false);
       expect(requests, 0);
+    },
+  );
+
+  test(
+    'reschedule sends the existing note and replaces cached appointment',
+    () async {
+      late RequestOptions captured;
+      final provider = AppointmentProvider(
+        dio: fakeDio((request) {
+          captured = request;
+          return {
+            'customerPackageId': null,
+            'fundingSource': 'Cash',
+            'lichHenId': 1,
+            'khachHangId': 1,
+            'nhanVienId': 2,
+            'ngayGioHen': '2026-11-20T09:30:00',
+            'trangThai': 'DaXacNhan',
+            'ghiChu': '[Nhắc hẹn: 30 phút trước] Giữ nguyên ghi chú',
+            'chitietlichhens': [
+              {
+                'chiTietLichHenId': 1,
+                'lichHenId': 1,
+                'dichVuId': 1,
+                'comboId': null,
+                'giaDuKien': 100000,
+                'durationMinutes': 60,
+                'dichVu': {
+                  'dichVuId': 1,
+                  'tenDichVu': 'First',
+                  'gia': 100000,
+                  'thoiLuongPhut': 60,
+                },
+              },
+            ],
+          };
+        }),
+      )..bind(1);
+      addTearDown(provider.dispose);
+      provider.items = [
+        Appointment.fromJson({
+          ...appointmentJson(1),
+          'note': '[Nhắc hẹn: 30 phút trước] Giữ nguyên ghi chú',
+        }),
+      ];
+
+      final updated = await provider.reschedule(
+        id: 1,
+        at: DateTime(2026, 11, 20, 9, 30),
+        staffId: 2,
+        note: provider.items.single.note,
+      );
+
+      expect(captured.method, 'POST');
+      expect(captured.path, '/appointments/1/reschedule');
+      expect(captured.data, {
+        'appointmentAt': '2026-11-20T09:30:00',
+        'staffId': 2,
+        'note': '[Nhắc hẹn: 30 phút trước] Giữ nguyên ghi chú',
+      });
+      expect(updated?.appointmentAt, DateTime(2026, 11, 20, 9, 30));
+      expect(provider.items.single.staffId, 2);
+      expect(provider.items.single.items.single.serviceName, 'First');
+      expect(provider.items.single.items.single.expectedPrice, 100000);
+      expect(provider.submitting, false);
+      expect(provider.error, null);
+    },
+  );
+
+  test('reschedule is blocked locally for an ineligible appointment', () async {
+    var requests = 0;
+    final provider = AppointmentProvider(
+      dio: fakeDio((_) {
+        requests++;
+        return null;
+      }),
+    )..bind(1);
+    addTearDown(provider.dispose);
+    provider.items = [
+      Appointment.fromJson(appointmentJson(1, status: 'DaDen')),
+    ];
+
+    final result = await provider.reschedule(
+      id: 1,
+      at: DateTime.now().add(const Duration(days: 1)),
+    );
+
+    expect(result, null);
+    expect(requests, 0);
+    expect(provider.error, 'Lịch hẹn này không còn được phép đổi.');
+  });
+
+  test(
+    'late reschedule response cannot overwrite a different account',
+    () async {
+      final response = Completer<dynamic>();
+      final provider = AppointmentProvider(dio: fakeDio((_) => response.future))
+        ..bind(1);
+      addTearDown(provider.dispose);
+      provider.items = [Appointment.fromJson(appointmentJson(1))];
+
+      final changing = provider.reschedule(
+        id: 1,
+        at: DateTime.now().add(const Duration(days: 1)),
+      );
+      await Future<void>.delayed(Duration.zero);
+      provider.bind(2);
+      provider.items = [
+        Appointment.fromJson(appointmentJson(1, customerId: 2)),
+      ];
+      response.complete(
+        appointmentJson(
+          1,
+          at: DateTime.now().add(const Duration(days: 1)).toIso8601String(),
+        ),
+      );
+
+      expect(await changing, null);
+      expect(provider.items.single.customerId, 2);
+      expect(provider.submitting, false);
+      expect(provider.error, null);
     },
   );
   for (final mutate in ['create', 'cancel']) {

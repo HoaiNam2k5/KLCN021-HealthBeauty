@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app_doancunhan/models/catalog.dart';
@@ -49,6 +50,19 @@ Map<String, dynamic> _validation({bool valid = true}) => {
   'tenKhuyenMai': 'Care',
   'hanSuDung': DateTime.now().add(const Duration(days: 1)).toIso8601String(),
 };
+Map<String, dynamic> _offer({
+  int id = 41,
+  int pointsCost = 250,
+  DateTime? expiresAt,
+}) => {
+  'id': id,
+  'promotionId': 9,
+  'promotionName': 'Đổi điểm chăm sóc da',
+  'discountValue': 75000,
+  'expiresAt': (expiresAt ?? DateTime.now().add(const Duration(days: 10)))
+      .toIso8601String(),
+  'pointsCost': pointsCost,
+};
 
 void main() {
   test(
@@ -80,9 +94,8 @@ void main() {
         isTrue,
       );
       expect(
-        CustomerVoucher.fromJson(
-          _voucher('FALSE', flag: false),
-        ).isAvailableAt(now),
+        CustomerVoucher.fromJson(_voucher('FALSE', flag: false))
+            .isAvailableAt(now),
         isFalse,
       );
       expect(
@@ -99,9 +112,8 @@ void main() {
   test('expiry boundary is inclusive and expired vouchers cannot be shown', () {
     final now = DateTime(2026, 10, 20, 12);
     expect(
-      CustomerVoucher.fromJson(
-        _voucher('EXACT', expiresAt: now),
-      ).isAvailableAt(now),
+      CustomerVoucher.fromJson(_voucher('EXACT', expiresAt: now))
+          .isAvailableAt(now),
       isTrue,
     );
     expect(
@@ -117,30 +129,27 @@ void main() {
     expect(VoucherCheck.fromJson(response, now: now).valid, isFalse);
   });
 
-  test(
-    'validation POST uses normalized query code and actual response field names',
-    () async {
-      RequestOptions? request;
-      final provider = CatalogProvider(
-        dio: _dio((options) async {
-          if (options.path == '/promotions/vouchers/validate') {
-            request = options;
-            return _body(_validation());
-          }
-          return _body([]);
-        }),
-      );
-      addTearDown(provider.dispose);
-      provider.bind(1);
-      final result = await provider.validateVoucher(' save ');
-      expect(request?.method, 'POST');
-      expect(request?.queryParameters, {'code': 'SAVE'});
-      expect(request?.data, isNull);
-      expect(result.valid, isTrue);
-      expect(result.code, 'SAVE');
-      expect(result.value, 100000);
-    },
-  );
+  test('validation POST uses normalized query code and actual response field names', () async {
+    RequestOptions? request;
+    final provider = CatalogProvider(
+      dio: _dio((options) async {
+        if (options.path == '/promotions/vouchers/validate') {
+          request = options;
+          return _body(_validation());
+        }
+        return _body([]);
+      }),
+    );
+    addTearDown(provider.dispose);
+    provider.bind(1);
+    final result = await provider.validateVoucher(' save ');
+    expect(request?.method, 'POST');
+    expect(request?.queryParameters, {'code': 'SAVE'});
+    expect(request?.data, isNull);
+    expect(result.valid, isTrue);
+    expect(result.code, 'SAVE');
+    expect(result.value, 100000);
+  });
 
   test(
     'validation handles 404, false and malformed successful responses',
@@ -207,6 +216,84 @@ void main() {
     await provider.loadMyVouchers();
     expect(provider.myVouchers.map((voucher) => voucher.code), ['CURRENT']);
   });
+
+  test('voucher offer DTO validates point cost and expiry', () {
+    final offer = VoucherOffer.fromJson(_offer());
+    expect(offer.id, 41);
+    expect(offer.pointsCost, 250);
+    expect(offer.discountValue, 75000);
+    expect(offer.isAvailableAt(DateTime.now()), isTrue);
+    expect(
+      () => VoucherOffer.fromJson(_offer(pointsCost: 0)),
+      throwsFormatException,
+    );
+  });
+
+  test('loads point offers and redeems one into the customer wallet', () async {
+    var redeemed = false;
+    RequestOptions? redeemRequest;
+    final provider = CatalogProvider(
+      dio: _dio((options) async {
+        if (options.path == '/customers/me/voucher-offers') {
+          return _body([_offer()]);
+        }
+        if (options.path == '/customers/me/vouchers/41/redeem') {
+          redeemRequest = options;
+          redeemed = true;
+          return _body({
+            'voucherId': 41,
+            'code': 'POINTS-41',
+            'pointsSpent': 250,
+            'remainingPoints': 750,
+          });
+        }
+        if (options.path == '/customers/me/vouchers') {
+          return _body(redeemed ? [_voucher('POINTS-41')] : []);
+        }
+        return _body([]);
+      }),
+    );
+    addTearDown(provider.dispose);
+    provider.bind(1);
+    await provider.loadVoucherOffers();
+    expect(provider.voucherOffers.single.pointsCost, 250);
+
+    final result = await provider.redeemVoucher(41);
+
+    expect(redeemRequest?.method, 'POST');
+    expect(redeemRequest?.data, isNull);
+    expect(result?.code, 'POINTS-41');
+    expect(result?.remainingPoints, 750);
+    expect(provider.voucherOffers, isEmpty);
+    expect(provider.myVouchers.single.code, 'POINTS-41');
+    expect(provider.redeemingVoucherId, isNull);
+    expect(provider.offerError, isNull);
+  });
+
+  test(
+    'failed point redemption keeps the offer and exposes API error',
+    () async {
+      final provider = CatalogProvider(
+        dio: _dio((options) async {
+          if (options.path == '/customers/me/voucher-offers') {
+            return _body([_offer()]);
+          }
+          if (options.path.endsWith('/redeem')) {
+            return _body('Insufficient reward points.', 400);
+          }
+          return _body([]);
+        }),
+      );
+      addTearDown(provider.dispose);
+      provider.bind(1);
+      await provider.loadVoucherOffers();
+
+      expect(await provider.redeemVoucher(41), isNull);
+      expect(provider.voucherOffers.single.id, 41);
+      expect(provider.offerError, isNotNull);
+      expect(provider.redeemingVoucherId, isNull);
+    },
+  );
 
   for (final lateFailure in [false, true]) {
     test(
