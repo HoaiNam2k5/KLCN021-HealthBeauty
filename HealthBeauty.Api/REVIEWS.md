@@ -783,7 +783,3 @@ Backend mới tại D:/KhoaLuan/_Work/customer-self-service-api đạt523/523tes
 Thêm POST/DELETEcustomers/me/avatar đúng chủ qua Cloudinary và avatarUrl trongCustomerResponse; thêm PUTauth/change-password xác minh mật khẩu cũ, đổi stamp/revoke mọi phiên, audit không mật khẩu/rate/concurrency. Bản SQL15 chỉ thêm1cột nullable, không thêm bảng, chạy lặp an toàn. Client cũ sửa tên không mất avatar. Không mở quyền upload ảnh quản trị cho khách.
 
 Anh áp dụng bằng D:/KhoaLuan/AP_DUNG_HO_SO_KHACH_HANG.ps1 -ApplySql trong PowerShell quản trị; script kiểm tra source/root hash, backup, SQL15, copy/verify/test. Nếu SQL15 đã chạy bằngSSMS dùng -SqlAlreadyApplied. Chi tiết: ../docs/HO_SO_KHACH_HANG.md. Chưa Cloudinary/SQL/thay mật khẩu thật; không push.
-
-## Phát hành main 24/10/2026
-
-Bản main đã ghép đủ API ảnh đại diện/đổi mật khẩu và SQL15; trạng thái chờ áp dụng/khóa file trong các mục lịch sử chỉ thuộc máy làm việc cũ. Thành viên clone/pull main dùng API ngay trong repo, cập nhật database qua SSMS (SQL15) và cấu hình local theo README. Không cần script chép API bên ngoài repository.

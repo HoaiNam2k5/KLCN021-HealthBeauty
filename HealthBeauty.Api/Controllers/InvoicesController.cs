@@ -14,16 +14,33 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificat
 {
     private INotificationService Notifications => notifications ?? new NotificationService(db);
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct)
+    public async Task<IActionResult> List(CancellationToken ct, [FromQuery] int offset = 0, [FromQuery] int limit = 100, [FromQuery] string? status = null, [FromQuery] int? appointmentId = null)
     {
+        if (offset < 0 || limit is < 1 or > 100) return BadRequest("Phân trang không hợp lệ.");
+        if (status is not null && status is not ("ChuaThanhToan" or "DaThanhToan" or "DaHuy")) return BadRequest("Trạng thái hóa đơn không hợp lệ.");
+        if (appointmentId.HasValue && appointmentId.Value <= 0) return BadRequest("Mã lịch hẹn không hợp lệ.");
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
         var query = db.Hoadons.AsNoTracking().Include(x => x.Chitiethoadons).ThenInclude(x => x.DichVu).Include(x => x.Chitiethoadons).ThenInclude(x => x.Combo).Include(x => x.Thanhtoans).AsQueryable();
         if (!isStaff && customerId.HasValue) query = query.Where(x => x.KhachHangId == customerId.Value);
         else if (!isStaff) return Forbid();
-        var list = await query.OrderByDescending(x => x.NgayLap).Take(100).ToListAsync(ct);
+        if (status is not null) query = query.Where(x => x.TrangThai == status);
+        if (appointmentId.HasValue) query = query.Where(x => x.LichHenId == appointmentId.Value);
+        var list = await query.OrderByDescending(x => x.NgayLap).ThenByDescending(x => x.HoaDonId).Skip(offset).Take(limit).ToListAsync(ct);
         return Ok(list.Select(Map));
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> Detail(int id, CancellationToken ct)
+    {
+        var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
+        var query = db.Hoadons.AsNoTracking().Include(x => x.Chitiethoadons).ThenInclude(x => x.DichVu)
+            .Include(x => x.Chitiethoadons).ThenInclude(x => x.Combo).Include(x => x.Thanhtoans).Where(x => x.HoaDonId == id);
+        if (!isStaff) query = query.Where(x => db.Khachhangs.Any(c => c.KhachHangId == x.KhachHangId && c.TaiKhoanId == accountId));
+        var invoice = await query.FirstOrDefaultAsync(ct);
+        return invoice is null ? NotFound() : Ok(Map(invoice));
     }
 
     [HttpPost]
@@ -77,6 +94,7 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificat
         invoice.TongTienTruocGiam = subtotal; invoice.TongTienSauGiam = Math.Max(0, subtotal - discount);
         if (appliedVoucher is not null) { appliedVoucher.TrangThai = false; appliedVoucher.UsedAt = DateTime.Now; }
         db.Hoadons.Add(invoice);
+        await NotificationEvents.InvoiceReadyAsync(Notifications, invoice, ct);
         try
         {
             if (!await NotificationPersistence.TrySaveAsync(db, ct))
@@ -88,6 +106,52 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificat
             return Conflict("Appointment already has an invoice. Please reload.");
         }
         return CreatedAtAction(nameof(List), new { id = invoice.HoaDonId }, new { invoice.HoaDonId, invoice.TongTienTruocGiam, invoice.TongTienSauGiam, invoice.TrangThai });
+    }
+
+    [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("{id:int}/discounts")]
+    public async Task<IActionResult> Discounts(int id, InvoiceDiscountRequest request, CancellationToken ct)
+    {
+        if (!User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
+        if (request.PointsToRedeem < 0 || request.PointsToRedeem > 1000000 ||
+            (string.IsNullOrWhiteSpace(request.VoucherCode) && request.PointsToRedeem == 0))
+            return BadRequest("Chọn voucher hoặc số điểm muốn sử dụng.");
+        var invoice = await db.Hoadons.Include(x => x.Thanhtoans).FirstOrDefaultAsync(x => x.HoaDonId == id, ct);
+        if (invoice is null) return NotFound();
+        if (invoice.TrangThai != "ChuaThanhToan" || invoice.TongTienSauGiam <= 0 ||
+            invoice.TongTienSauGiam != invoice.TongTienTruocGiam || invoice.Thanhtoans.Any(x => x.TrangThai == "ThanhCong") ||
+            await db.Giaodichdiems.AnyAsync(x => x.HoaDonId == id && x.SoDiem < 0, ct) ||
+            await db.Lichhens.AnyAsync(x => x.LichHenId == invoice.LichHenId && x.CustomerPackageId.HasValue, ct))
+            return Conflict("Chỉ áp dụng ưu đãi một lần cho hóa đơn chưa thanh toán và chưa giảm giá.");
+        Voucher? voucher = null;
+        var discount = 0m;
+        if (!string.IsNullOrWhiteSpace(request.VoucherCode))
+        {
+            voucher = await VoucherRules.FindApplicableAsync(db, request.VoucherCode, invoice.KhachHangId, ct);
+            if (voucher is null) return BadRequest("Voucher không hợp lệ cho khách hàng hoặc thời điểm này.");
+            var configured = VoucherRules.NormalizeDiscount(voucher.KhuyenMai.LoaiGiam) == "PhanTram"
+                ? invoice.TongTienTruocGiam * voucher.KhuyenMai.MucGiam / 100m : voucher.KhuyenMai.MucGiam;
+            discount = Math.Min(invoice.TongTienTruocGiam, Math.Min(voucher.GiaTriGiam, configured));
+        }
+        var customer = await db.Khachhangs.FirstAsync(x => x.KhachHangId == invoice.KhachHangId, ct);
+        if (request.PointsToRedeem > customer.DiemThuong) return BadRequest("Số điểm sử dụng vượt quá số dư.");
+        var points = (int)Math.Min(decimal.Floor(Math.Max(0, invoice.TongTienTruocGiam - discount)), request.PointsToRedeem);
+        discount += points;
+        if (discount <= 0) return BadRequest("Ưu đãi không làm thay đổi số tiền hóa đơn.");
+        invoice.TongTienSauGiam = Math.Max(0, invoice.TongTienTruocGiam - discount);
+        if (voucher is not null) { voucher.TrangThai = false; voucher.UsedAt = DateTime.Now; }
+        if (points > 0)
+        {
+            customer.DiemThuong -= points;
+            db.Giaodichdiems.Add(new Giaodichdiem { HoaDonId = id, KhachHangId = invoice.KhachHangId,
+                SoDiem = -points, LoaiGiaoDich = "SuDung", NgayGiaoDich = DateTime.Now, GhiChu = "Đổi điểm trên hóa đơn" });
+        }
+        if (invoice.TongTienSauGiam == 0)
+            await InvoiceSettlement.StageAsync(db, Notifications, invoice, "KhongPhatSinh", DateTime.Now, ct);
+        else
+            await NotificationEvents.InvoiceReadyAsync(Notifications, invoice, ct);
+        if (!await NotificationPersistence.TrySaveAsync(db, ct))
+            return Conflict("Hóa đơn, voucher hoặc số dư điểm vừa thay đổi. Vui lòng tải lại dữ liệu.");
+        return await Detail(id, ct);
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("{id:int}/payments")]
@@ -106,12 +170,7 @@ public sealed class InvoicesController(Klcn021HealthBeautyContext db, INotificat
             if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Hóa đơn vừa được cập nhật hoặc thanh toán. Vui lòng tải lại dữ liệu.");
             return Ok(new { InvoiceId = invoice.HoaDonId, Status = invoice.TrangThai, Amount = 0m, PaymentRequired = false });
         }
-        var payment = new Thanhtoan { HoaDonId = invoice.HoaDonId, PhuongThuc = request.Method.Trim(), SoTien = invoice.TongTienSauGiam, NgayGioThanhToan = DateTime.Now, TrangThai = "ThanhCong" };
-        invoice.TrangThai = "DaThanhToan"; invoice.Thanhtoans.Add(payment);
-        var customer = await db.Khachhangs.FirstAsync(x => x.KhachHangId == invoice.KhachHangId, ct);
-        var earned = decimal.ToInt32(decimal.Floor(invoice.TongTienSauGiam / 10000m));
-        if (earned > 0) { customer.DiemThuong += earned; db.Giaodichdiems.Add(new Giaodichdiem { KhachHangId = customer.KhachHangId, HoaDonId = invoice.HoaDonId, SoDiem = earned, LoaiGiaoDich = "TichLuy", NgayGiaoDich = DateTime.Now, GhiChu = "Tích điểm thanh toán" }); }
-        await NotificationEvents.PaidAsync(Notifications, invoice, earned, ct);
+        var payment = (await InvoiceSettlement.StageAsync(db, Notifications, invoice, request.Method.Trim(), DateTime.Now, ct))!;
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Hóa đơn vừa được cập nhật hoặc thanh toán. Vui lòng tải lại dữ liệu.");
         return Ok(new PaymentResponse(payment.ThanhToanId, payment.PhuongThuc, payment.SoTien, payment.NgayGioThanhToan, payment.TrangThai));
     }

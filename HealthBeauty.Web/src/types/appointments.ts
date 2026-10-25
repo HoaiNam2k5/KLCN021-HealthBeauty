@@ -33,6 +33,8 @@ export interface Appointment {
   note: string | null
   customerPackageId?: number | null
   fundingSource?: string
+  invoiceId?: number | null
+  invoiceStatus?: string | null
   items: AppointmentItem[]
 }
 

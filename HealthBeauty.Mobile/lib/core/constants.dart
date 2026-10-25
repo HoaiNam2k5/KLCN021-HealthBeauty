@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 class Constants {
-  // Android emulator reaches the development machine through 10.0.2.2.
-  // Override for a physical phone, web, iOS or a deployed HTTPS API.
+  // Use the deployed API on mobile and the current origin on web.
+  // Override with API_BASE_URL when running against another environment.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: kIsWeb ? '/api/v1' : 'http://10.0.2.2:5230/api/v1',
+    defaultValue: kIsWeb ? '/api/v1' : 'https://healthbeauty.duckdns.org/api/v1',
   );
 }

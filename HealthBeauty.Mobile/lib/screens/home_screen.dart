@@ -6,7 +6,9 @@ import '../providers/appointment_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/invoice_provider.dart';
 import '../widgets/common.dart';
+import '../widgets/pending_invoice_reminder.dart';
 import '../widgets/service_tile.dart';
 import 'booking_screen.dart';
 import 'login_screen.dart';
@@ -38,6 +40,7 @@ class HomeScreen extends StatelessWidget {
         catalog.load(force: true),
         appts.load(),
         if (auth.isLoggedIn) notif.fetchUnreadCount(),
+        if (auth.isLoggedIn) context.read<InvoiceProvider>().refreshPending(),
       ]),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
@@ -122,6 +125,7 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Lịch hẹn sắp tới
+          if (auth.isLoggedIn) const PendingInvoiceReminder(),
           if (auth.isLoggedIn && next != null)
             AppCard(
               color: AppColors.roseContainer,

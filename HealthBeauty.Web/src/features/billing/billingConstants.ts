@@ -5,7 +5,7 @@ export const INVOICE_STATUS = {
 
 export const INVOICE_STATUS_LABELS: Record<string, string> = {
   [INVOICE_STATUS.PAID]: 'Đã thanh toán',
-  [INVOICE_STATUS.UNPAID]: 'Chưa thanh toán',
+  [INVOICE_STATUS.UNPAID]: 'Chờ thanh toán',
 }
 
 export const PAYMENT_METHOD = {

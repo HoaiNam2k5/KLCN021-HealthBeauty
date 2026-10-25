@@ -21,6 +21,7 @@ public sealed record ComboItemResponse(int ServiceId, string ServiceName, int Qu
 public sealed record ComboResponse(int Id, string Name, decimal Price, DateOnly? ValidFrom, DateOnly? ValidTo, bool Active, IReadOnlyList<ComboItemResponse> Items, string? ImageUrl = null);
 public sealed record InvoiceLineRequest(int? ServiceId, int? ComboId, [param: Range(1, 100)] int Quantity);
 public sealed record CreateInvoiceRequest([param: Range(1, int.MaxValue)] int AppointmentId, [param: MinLength(1)] List<InvoiceLineRequest> Items, string? VoucherCode, [param: Range(0, 1000000)] int PointsToRedeem = 0);
+public sealed record InvoiceDiscountRequest([param: StringLength(30)] string? VoucherCode, [param: Range(0, 1000000)] int PointsToRedeem = 0);
 public sealed record PaymentRequest([param: Required, StringLength(30)] string Method, [param: Required] string Status = "ThanhCong");
 public sealed record InvoiceLineResponse(int Id, int? ServiceId, string? ServiceName, int? ComboId, string? ComboName, int Quantity, decimal UnitPrice);
 public sealed record PaymentResponse(int Id, string Method, decimal Amount, DateTime? PaidAt, string Status);

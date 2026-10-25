@@ -70,17 +70,22 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         };
         if (!nextStatuses.Contains(request.Status)) return Conflict("Invalid appointment status transition.");
         if (request.Status is "HoanThanh" or "DaHuy") await ServicePackageLifecycle.SettleAsync(db, item, request.Status == "HoanThanh", ct);
+        if (request.Status == "HoanThanh" && !item.CustomerPackageId.HasValue)
+        {
+            var invoiceError = await AppointmentInvoicing.StageAsync(db, Notifications, item, ct);
+            if (invoiceError is not null) return Conflict(invoiceError);
+        }
         item.TrangThai = request.Status;
         await NotificationEvents.AppointmentAsync(Notifications, item, request.Status, ct);
         try
         {
             if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Appointment or package balance changed. Please reload.");
         }
-        catch (DbUpdateException error) when (item.CustomerPackageId.HasValue && error.InnerException is SqlException { Number: 2601 or 2627 })
+        catch (DbUpdateException error) when (error.InnerException is SqlException { Number: 2601 or 2627 })
         {
-            // Concurrent package completion can reach the unique receipt insert before the CAS update.
+            // Concurrent completion can reach the unique invoice insert before the CAS update.
             db.ChangeTracker.Clear();
-            return Conflict("The package appointment was already completed. Please reload.");
+            return Conflict("The appointment already has an invoice or was completed. Please reload.");
         }
         return NoContent();
     }

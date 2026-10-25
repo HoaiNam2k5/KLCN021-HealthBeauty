@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'invoice_navigation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -197,6 +198,7 @@ class NotificationService {
       } else if (type == 'PROMOTION' || type == 'KHUYENMAI' || type == 'VOUCHER') {
         mainTab.value = 3; // Chuyển sang Tab Ưu đãi / Voucher
       } else if (type == 'INVOICE' || type == 'HOADON') {
+        invoiceNotificationTarget.value = InvoiceNotificationTarget.fromPayload(data);
         mainTab.value = 4; // Chuyển sang Tab Tài khoản / Lịch sử
       }
     } catch (e) {

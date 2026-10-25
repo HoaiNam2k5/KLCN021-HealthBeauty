@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
+import '../core/invoice_navigation.dart';
+import '../core/notification_service.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/profile_provider.dart';
+import '../providers/invoice_provider.dart';
 import 'account_screen.dart';
 import 'appointments_screen.dart';
 import 'booking_screen.dart';
@@ -13,6 +18,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'offers_screen.dart';
 import 'services_screen.dart';
+import 'invoice_notification_screen.dart';
 
 /// Màn nào cũng có thể đổi tab bằng cách gán: mainTab.value = 2;
 final ValueNotifier<int> mainTab = ValueNotifier<int>(0);
@@ -24,18 +30,105 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
+  Timer? _refreshTimer;
+  StreamSubscription? _messageSubscription;
+  int? _accountId;
+  int _accountEpoch = 0;
+  bool _foreground = true, _refreshing = false, _openingInvoice = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     mainTab.value = 0;
+    invoiceNotificationTarget.addListener(_requestInvoiceOpen);
+    _messageSubscription = NotificationService().onMessageReceived.listen((message) {
+      final type = message.data['type']?.toString().toUpperCase();
+      if (type == 'INVOICE' || type == 'HOADON' || type == 'APPOINTMENT' || type == 'LICHHEN') {
+        _refreshAccountData();
+        final id = int.tryParse(message.data['invoiceId']?.toString() ?? '');
+        if (mounted && _foreground && context.read<AuthProvider>().isLoggedIn && id != null && id > 0) {
+          context.read<InvoiceProvider>().loadDetail(id);
+        }
+      }
+    });
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshAccountData());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<CatalogProvider>().load();
-      context.read<AppointmentProvider>().load();
-      context.read<ProfileProvider>().load();
-      context.read<NotificationProvider>().fetchUnreadCount();
+      _requestInvoiceOpen();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final accountId = context.watch<AuthProvider>().account?.id;
+    if (accountId == _accountId) return;
+    if (accountId == null && _accountId != null) invoiceNotificationTarget.value = null;
+    _accountId = accountId;
+    _accountEpoch++;
+    _refreshing = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refreshAccountData();
+      _requestInvoiceOpen();
+    });
+  }
+
+  Future<void> _refreshAccountData() async {
+    if (!mounted || !_foreground || _refreshing || !context.read<AuthProvider>().isLoggedIn) return;
+    final epoch = _accountEpoch;
+    _refreshing = true;
+    try {
+      await Future.wait([
+        context.read<AppointmentProvider>().load(),
+        context.read<ProfileProvider>().load(),
+        context.read<NotificationProvider>().fetchUnreadCount(),
+        context.read<InvoiceProvider>().refreshPending(),
+      ]);
+    } finally {
+      if (epoch == _accountEpoch) _refreshing = false;
+    }
+  }
+
+  void _requestInvoiceOpen() {
+    if (!mounted || invoiceNotificationTarget.value == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _openingInvoice || !context.read<AuthProvider>().isLoggedIn) return;
+      final target = invoiceNotificationTarget.value;
+      if (target == null) return;
+      invoiceNotificationTarget.value = null;
+      _openingInvoice = true;
+      try {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => InvoiceNotificationScreen(target: target)));
+      } finally {
+        if (mounted) {
+          _openingInvoice = false;
+          _requestInvoiceOpen();
+        }
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) {
+      _refreshAccountData();
+      _requestInvoiceOpen();
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _messageSubscription?.cancel();
+    invoiceNotificationTarget.removeListener(_requestInvoiceOpen);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override

@@ -1,52 +1,28 @@
 # HealthBeauty
 
-Một repository gồm ASP.NET Core API dùng chung, web quản trị React và ứng dụng khách hàng Flutter. Nhánh `main` tích hợp API/SQL mới nhất, web `feature/huynh-web` và mobile `feature/mobile-app`, cùng các sửa lỗi đặt lịch, hồ sơ, phân quyền và giao diện. Phạm vi nhóm không gồm kho/bán sản phẩm.
+Flutter đã có danh mục gói dịch vụ, gói của tôi/số lượt/lịch sử và đặt lịch dùng gói: [hướng dẫn](docs/GOI_DICH_VU_FLUTTER.md). Dùng API/SQL13 hiện có; khách đăng ký mua, quản trị xác nhận thu tiền.
+
+Ảnh đại diện/đổi mật khẩu khách hàng: Flutter đã sửa, **API gốc còn chờ áp dụng bằng PowerShell quản trị** do 4 file không cho ghi; xem [hướng dẫn API/SQL15 và cách test](docs/HO_SO_KHACH_HANG.md).
+
+Đặt lịch theo nhân viên: xem [ngày còn lịch trống và cách test](docs/LICH_TRONG_NHAN_VIEN.md). API và Flutter đã bổ sung đánh dấu ngày còn giờ và nút tìm ngày gần nhất; không cần SQL mới.
+
+Dự án chung gồm **một API**, một web quản trị và một ứng dụng Flutter. Bản hợp nhất local ngày 24/10/2026 giữ API mới nhất đã áp dụng, web từ `feature/huynh-web` (2ca4f83), Flutter từ `feature/mobile-app` (b1bbb99) và toàn bộ sửa đổi local liên quan. Chưa commit/push bản hợp nhất.
 
 ```text
-HealthBeauty.Api/         API .NET 8 — cổng 5230
-HealthBeauty.Api.Tests/   Kiểm thử API
-DB_KLCN021/               Schema, seed và các cập nhật SQL03–15
-HealthBeauty.Web/         React/TypeScript/Vite — cổng 5173
-HealthBeauty.Mobile/      Flutter cho khách hàng
-docs/                    Hướng dẫn tích hợp và kiểm tra
+KLCN021_HealthBeauty/
+├── HealthBeauty.Api/         # ASP.NET Core .NET 8, cổng 5230
+├── HealthBeauty.Api.Tests/   # Kiểm thử API
+├── DB_KLCN021/               # Schema, seed, migration 03–14
+├── HealthBeauty.Web/         # React/TypeScript/Vite, cổng 5173
+├── HealthBeauty.Mobile/      # Flutter, dùng chung API
+├── CHAY_API.ps1
+├── CHAY_WEB.ps1
+└── CHAY_FLUTTER.ps1
 ```
 
-## Clone và yêu cầu
+## Chạy trên máy anh
 
-```powershell
-git clone --branch main https://github.com/HoaiNam2k5/KLCN021-HealthBeauty.git
-cd KLCN021-HealthBeauty
-```
-
-- .NET 8 SDK, SQL Server và SSMS.
-- Node.js 20.19+ (nhánh20), 22.13+ (nhánh22) hoặc24+; đã kiểm tra Node24.
-- Flutter tương thích **Dart ^3.13.4**; bản dùng kiểm tra mã là Flutter3.47.7/Dart3.13.5. Android cần SDK/JDK theo cấu hình Gradle của dự án.
-
-## Database và cấu hình API
-
-Database mới: chạy `DB_KLCN021/KLCN021_HealthBeauty.sql`, rồi `02_SeedData.sql` trong SSMS. Database đang có dữ liệu: chỉ chạy các script cập nhật còn thiếu theo thứ tự03–15, không chạy lại schema tạo mới. SQL13 là gói dịch vụ; SQL14 là OTP đăng nhập tùy chọn; **SQL15 thêm cột ảnh đại diện AvatarUrl và phải có trước khi chạy API này**. SQL15 chạy lại an toàn và không xóa dữ liệu.
-
-Mỗi máy tự cấu hình kết nối SQL và JWT bằng User Secrets:
-
-```powershell
-cd HealthBeauty.Api
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" 'Server=.\SQLEXPRESS;Database=KLCN021_HealthBeauty;Trusted_Connection=True;TrustServerCertificate=True;'
-$jwtBytes = New-Object byte[] 48
-$jwtRng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$jwtRng.GetBytes($jwtBytes)
-dotnet user-secrets set "Jwt:Key" ([Convert]::ToBase64String($jwtBytes))
-$jwtRng.Dispose()
-Remove-Variable jwtBytes, jwtRng
-cd ..
-```
-
-Có thể dùng `HealthBeauty.Api/appsettings.Development.local.json` trên máy cá nhân; file này bị gitignore. Không commit mật khẩu SQL/SMTP, JWT key, Cloudinary ApiSecret hoặc Firebase service account. Cấu hình Cloudinary/SMTP/push là riêng từng máy; xem [hướng dẫn API](HealthBeauty.Api/MOBILE_AUTH_INTEGRATION.md) và [hồ sơ khách hàng](docs/HO_SO_KHACH_HANG.md).
-
-OTP đăng nhập mật khẩu mặc định tắt; chỉ bật `Authentication:TwoFactor:Enabled` sau SQL14 và SMTP hợp lệ. Google login vẫn cần OAuth/SHA được đăng ký đúng dự án Firebase.
-
-## Chạy API, web, Flutter
-
-Mở các terminal riêng tại thư mục repository:
+Mở ba terminal PowerShell tại thư mục dự án này, chạy lần lượt:
 
 ```powershell
 .\CHAY_API.ps1
@@ -59,28 +35,40 @@ cd ..
 .\CHAY_WEB.ps1
 ```
 
-Flutter: lấy `google-services.json` của dự án Firebase từ nhóm/Console, đặt tại `HealthBeauty.Mobile/android/app/google-services.json` (file local không đưa lên Git). Android package là `com.example.app_doancunhan`; máy tự build debug cần đăng ký SHA của chữ ký debug. `lib/firebase_options.dart` chứa cấu hình client công khai; khi dùng dự án Firebase khác phải cập nhật đồng bộ file này và OAuth client IDs phía API.
-
-Mở Android emulator, chạy:
+Mở Android emulator trước, sau đó:
 
 ```powershell
 .\CHAY_FLUTTER.ps1
-# Thiết bị khác: .\CHAY_FLUTTER.ps1 -Device <device-id>
+# Thiết bị khác: .\CHAY_FLUTTER.ps1 -Device <id>
 # Chrome: .\CHAY_FLUTTER.ps1 -Device chrome
 ```
 
-Scripts dùng Flutter3.47.7 tại `../../.tools/flutter-3.47.7` nếu có, nếu không dùng Flutter trên PATH. Script chạy `flutter pub get` trước để cập nhật plugin native. Google Sign-In đang được tích hợp cho Android; chưa xác nhận luồng Google trên Chrome.
+Swagger: http://localhost:5230/swagger. Web: http://localhost:5173.
+Android emulator gọi API qua `http://10.0.2.2:5230/api/v1`; Chrome dùng `http://localhost:5230/api/v1`. Điện thoại thật dùng `-ApiBaseUrl http://<IP-may-chay-API>:5230/api/v1` và phải cấu hình API nghe địa chỉ LAN.
 
-Swagger: http://localhost:5230/swagger — Web: http://localhost:5173.
-Android emulator gọi `http://10.0.2.2:5230/api/v1`; Chrome dùng localhost. Điện thoại thật dùng `-ApiBaseUrl http://<IP-may-API>:5230/api/v1` và cấu hình API nghe LAN.
+## SDK và cấu hình
 
-## Tài liệu và kiểm thử
+- .NET 8 SDK, SQL Server; cấu hình ConnectionStrings/Jwt bằng User Secrets hoặc appsettings.Development.local.json (không commit).
+- Node.js 20.19+, 22.13+ hoặc 24+; máy hiện tại dùng Node 24.
+- Flutter hiện tại yêu cầu **Dart ^3.13.4**; máy anh đã có Flutter **3.47.7 / Dart 3.13.5** trong `D:/KhoaLuan/.tools/flutter-3.47.7`. Script tự chọn SDK này nếu tồn tại; máy khác cần cài SDK tương thích.
+- Cấu hình Firebase đã đặt tại `HealthBeauty.Mobile/lib/firebase_options.dart` và `HealthBeauty.Mobile/android/app/google-services.json`. Cần thay file JSON mới sau khi đăng ký SHA trên Firebase; không sửa certificate_hash local để thay đăng ký Console.
+- [Hướng dẫn Google Android](HealthBeauty.Mobile/GOOGLE_LOGIN_ANDROID.md).
 
-- [Thay đổi tích hợp](REVIEWS.md)
-- [Google/OTP/logout/review API](HealthBeauty.Api/MOBILE_AUTH_INTEGRATION.md)
-- [Ngày còn lịch theo nhân viên](docs/LICH_TRONG_NHAN_VIEN.md)
-- [Ảnh đại diện và đổi mật khẩu](docs/HO_SO_KHACH_HANG.md)
-- [Lịch sử backend](HealthBeauty.Api/REVIEWS.md)
+## Database
+
+Database đang chạy được giữ nguyên, không tự chạy SQL khi hợp nhất. Database mới dùng schema gốc và seed; database đã có dữ liệu chỉ chạy các migration còn thiếu theo thứ tự trong `DB_KLCN021`. Không chạy lại schema tạo mới trên database đang dùng.
+
+SQL13 là gói dịch vụ. SQL14 bổ sung OTP đăng nhập; chưa xác nhận SQL14 được áp dụng trên máy anh, nên `Authentication:TwoFactor:Enabled` vẫn để false. Chỉ bật sau khi đã chạy SQL14 và cấu hình SMTP.
+
+## Bàn giao và kiểm thử
+
+- [Tổng hợp thay đổi](REVIEWS.md)
+- [API: Google/OTP/logout/review](HealthBeauty.Api/MOBILE_AUTH_INTEGRATION.md)
+- [API: lịch sử thay đổi](HealthBeauty.Api/REVIEWS.md)
+- [Flutter: ảnh dịch vụ và Google](HealthBeauty.Mobile/REVIEWS.md)
+- [Gói dịch vụ](HUONG_DAN_GOI_DICH_VU.md)
+- [Báo cáo cho thành viên web](BAO_CAO_TONG_HOP_CHO_WEB.md)
+- [Kết quả hợp nhất](docs/HOP_NHAT_2026-10-24.md)
 
 ```powershell
 dotnet test .\KLCN021_HealthBeauty.sln
@@ -93,4 +81,4 @@ flutter analyze
 flutter test
 ```
 
-API kiểm thử bằng database cô lập, không tự chạy migration trên SQL thật. Kiểm tra mã/contract Flutter không thay thế kiểm thử Android thực; Google OAuth, SMTP, Cloudinary và push cần cấu hình và test dịch vụ thật trên máy thành viên.
+Google OAuth/SMTP/push thật cần cấu hình dịch vụ tương ứng; việc gom source không tự hoàn tất các bước cấu hình ngoài dự án. Không có module kho/bán sản phẩm trong phạm vi nhóm.

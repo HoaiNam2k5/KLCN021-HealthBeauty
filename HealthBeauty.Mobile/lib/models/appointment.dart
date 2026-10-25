@@ -34,6 +34,7 @@ class Appointment {
   final String? note;
   final List<AppointmentItem> items;
   final int? invoiceId;
+  final int? customerPackageId;
   final String? invoiceStatus;
   final bool hasReviewed;
   final int? reviewStars;
@@ -51,6 +52,7 @@ class Appointment {
     this.note,
     required this.items,
     this.invoiceId,
+    this.customerPackageId,
     this.invoiceStatus,
     this.hasReviewed = false,
     this.reviewStars,
@@ -72,6 +74,7 @@ class Appointment {
         .map((e) => AppointmentItem.fromJson(e as Map<String, dynamic>))
         .toList(),
     invoiceId: (j['invoiceId'] as num?)?.toInt(),
+    customerPackageId: (j['customerPackageId'] as num?)?.toInt(),
     invoiceStatus: j['invoiceStatus'] as String?,
     hasReviewed: j['hasReviewed'] as bool? ?? false,
     reviewStars: (j['reviewStars'] as num?)?.toInt(),
@@ -146,6 +149,7 @@ class Appointment {
     String? note,
     List<AppointmentItem>? items,
     int? invoiceId,
+    int? customerPackageId,
     String? invoiceStatus,
     bool? hasReviewed,
     int? reviewStars,
@@ -162,6 +166,7 @@ class Appointment {
     note: note ?? this.note,
     items: items ?? this.items,
     invoiceId: invoiceId ?? this.invoiceId,
+    customerPackageId: customerPackageId ?? this.customerPackageId,
     invoiceStatus: invoiceStatus ?? this.invoiceStatus,
     hasReviewed: hasReviewed ?? this.hasReviewed,
     reviewStars: reviewStars ?? this.reviewStars,

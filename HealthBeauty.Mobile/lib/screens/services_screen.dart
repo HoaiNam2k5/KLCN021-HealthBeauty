@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/catalog.dart';
 import '../providers/catalog_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/service_tile.dart';
 import 'service_detail_screen.dart';
+import 'service_packages_screen.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key});
@@ -42,10 +44,28 @@ class _ServicesScreenState extends State<ServicesScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Text('Dịch vụ',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Dịch vụ',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ServicePackagesScreen(),
+                  ),
+                ),
+                icon: const Icon(Icons.card_membership_outlined),
+                label: const Text('Gói dịch vụ'),
+              ),
+            ],
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -85,9 +105,17 @@ class _ServicesScreenState extends State<ServicesScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
-                _chip('Tất cả', _categoryId == null, () => setState(() => _categoryId = null)),
+                _chip(
+                  'Tất cả',
+                  _categoryId == null,
+                  () => setState(() => _categoryId = null),
+                ),
                 for (final c in catalog.categories)
-                  _chip(c.name, _categoryId == c.id, () => setState(() => _categoryId = c.id)),
+                  _chip(
+                    c.name,
+                    _categoryId == c.id,
+                    () => setState(() => _categoryId = c.id),
+                  ),
               ],
             ),
           ),
@@ -109,7 +137,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
     );
   }
 
-  Widget _body(CatalogProvider catalog, List<Service> services, List<Combo> combos) {
+  Widget _body(
+    CatalogProvider catalog,
+    List<Service> services,
+    List<Combo> combos,
+  ) {
     if (catalog.loading && !catalog.loaded) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -159,7 +191,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     categoryName: catalog.categoryName(s.categoryId),
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: s)),
+                      MaterialPageRoute(
+                        builder: (_) => ServiceDetailScreen(service: s),
+                      ),
                     ),
                   );
                 }
@@ -168,7 +202,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   combo: c,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => ComboDetailScreen(combo: c)),
+                    MaterialPageRoute(
+                      builder: (_) => ComboDetailScreen(combo: c),
+                    ),
                   ),
                 );
               },

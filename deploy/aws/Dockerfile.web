@@ -1,0 +1,12 @@
+ARG RUNTIME_IMAGE
+FROM node:24-alpine AS build
+WORKDIR /src
+COPY HealthBeauty.Web/package*.json ./
+RUN npm ci
+COPY HealthBeauty.Web/ ./
+ENV VITE_API_BASE_URL=/api/v1
+RUN npm run build
+
+# Keep the running nginx configuration and old hashed assets for cached clients.
+FROM ${RUNTIME_IMAGE} AS final
+COPY --from=build /src/dist/ /usr/share/nginx/html/

@@ -121,7 +121,14 @@ function AppointmentCreateDrawer({ open, staff, form, onClose, onSubmit, busy }:
 function useAppointmentMutations() {
   const client = useQueryClient()
 
-  const invalidate = () => Promise.all([client.invalidateQueries({ queryKey: appointmentKeys.appointments }), client.invalidateQueries({ queryKey: appointmentKeys.availableSlots })])
+  const invalidate = () => Promise.all([
+    client.invalidateQueries({ queryKey: appointmentKeys.appointments }),
+    client.invalidateQueries({ queryKey: appointmentKeys.availableSlots }),
+    client.invalidateQueries({ queryKey: ['invoices'] }),
+    client.invalidateQueries({ queryKey: ['customers'] }),
+    client.invalidateQueries({ queryKey: ['appointment-customers'] }),
+    client.invalidateQueries({ queryKey: ['reports'] }),
+  ])
   return {
     update: useMutation({ mutationFn: ({ id, body }: { id: number; body: AppointmentUpdateRequest }) => appointmentsApi.updateAppointment(id, body), onSuccess: invalidate }),
     reschedule: useMutation({ mutationFn: ({ id, body }: { id: number; body: AppointmentUpdateRequest }) => appointmentsApi.rescheduleAppointment(id, body), onSuccess: invalidate }),

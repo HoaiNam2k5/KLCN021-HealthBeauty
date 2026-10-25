@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography, Row, Col } from 'antd'
 import { DeleteOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -13,12 +13,14 @@ import { APPOINTMENT_STATUS, getAppointmentStatusPresentation } from '../appoint
 import { useCombos, useServices } from '../services/serviceQueries'
 import { useCustomers } from '../customers-staff/customerStaffQueries'
 import { INVOICE_STATUS, INVOICE_STATUS_LABELS, PAYMENT_METHOD, PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_OPTIONS } from './billingConstants'
-import { useCreateInvoice, useInvoices, useRecordInvoicePayment } from './billingQueries'
+import { useApplyInvoiceDiscount, useCreateInvoice, useInvoiceDetail, useInvoices, useRecordInvoicePayment } from './billingQueries'
 import { buildInvoiceDraft, eligibleInvoiceAppointments } from './invoiceDraft'
+import { canApplyInvoiceDiscount, currentInvoice } from './invoiceSync'
 
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
 type CreateFields = { appointmentId: number; voucherCode?: string; pointsToRedeem?: number }
 type PaymentFields = { method: string; status: string }
+type DiscountFields = { voucherCode?: string; pointsToRedeem?: number }
 type EditableInvoiceLine = { key: string; name: string; serviceId: number | null; comboId: number | null; quantity: number; unitPrice: number }
 
 export default function BillingPage() {
@@ -35,13 +37,14 @@ export default function BillingPage() {
   const combos = useCombos()
   const createInvoice = useCreateInvoice()
   const recordPayment = useRecordInvoicePayment()
+  const applyDiscount = useApplyInvoiceDiscount()
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<string>()
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
-  const [selected, setSelected] = useState<Invoice | null>(null)
-  const [receiptInvoice, setReceiptInvoice] = useState<Invoice | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [receiptInvoiceId, setReceiptInvoiceId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
-  const [invoiceLines, setInvoiceLines] = useState<EditableInvoiceLine[]>([])
+  const [invoiceLineEdits, setInvoiceLineEdits] = useState<{ appointmentId: number | undefined; lines: EditableInvoiceLine[] } | null>(null)
   const [newItemKey, setNewItemKey] = useState<string>()
   const [newItemQuantity, setNewItemQuantity] = useState(1)
   const [createForm] = Form.useForm<CreateFields>()
@@ -51,6 +54,11 @@ export default function BillingPage() {
   const draftCustomer = customers.data?.find((item) => item.id === selectedAppointment?.customerId)
   const customerNames = useMemo(() => new Map((customers.data ?? []).map((customer) => [customer.id, customer.fullName])), [customers.data])
   const list = useMemo(() => invoices.data ?? [], [invoices.data])
+  const activeInvoiceId = receiptInvoiceId ?? selectedId
+  const activeIsInList = list.some((invoice) => invoice.id === activeInvoiceId)
+  const invoiceDetail = useInvoiceDetail(activeInvoiceId, !activeIsInList)
+  const selected = currentInvoice(selectedId, list, invoiceDetail.data)
+  const receiptInvoice = currentInvoice(receiptInvoiceId, list, invoiceDetail.data)
   const eligibleAppointments = useMemo(() => {
     return eligibleInvoiceAppointments(appointments.data ?? [], list)
   }, [appointments.data, list])
@@ -60,12 +68,15 @@ export default function BillingPage() {
     try { return { value: buildInvoiceDraft(appointment, services.data ?? [], combos.data ?? []), error: null } }
     catch (error) { return { value: null, error: error instanceof Error ? error.message : 'Không thể tính hóa đơn cho lịch hẹn này.' } }
   }, [eligibleAppointments, selectedAppointmentId, services.data, combos.data])
-  useEffect(() => {
-    setInvoiceLines(draft.value?.lines.map((line) => ({ ...line, serviceId: line.serviceId, comboId: line.comboId })) ?? [])
-  }, [selectedAppointmentId, draft.value])
+  const defaultInvoiceLines = draft.value?.lines ?? []
+  const invoiceLines = invoiceLineEdits && invoiceLineEdits.appointmentId === selectedAppointmentId ? invoiceLineEdits.lines : defaultInvoiceLines
+  function setInvoiceLines(update: (lines: EditableInvoiceLine[]) => EditableInvoiceLine[]) {
+    setInvoiceLineEdits((current) => ({ appointmentId: selectedAppointmentId, lines: update(current && current.appointmentId === selectedAppointmentId ? current.lines : defaultInvoiceLines) }))
+  }
   const paidRevenue = list.filter((invoice) => invoice.status === INVOICE_STATUS.PAID).reduce((sum, invoice) => sum + invoice.total, 0)
   const unpaidCount = list.filter((invoice) => invoice.status === INVOICE_STATUS.UNPAID).length
-  const printReceipt = (invoice: Invoice) => { setSelected(invoice); setReceiptInvoice(invoice) }
+  const openInvoice = (invoice: Invoice) => setSelectedId(invoice.id)
+  const printReceipt = (invoice: Invoice) => { openInvoice(invoice); setReceiptInvoiceId(invoice.id) }
   const filtered = useMemo(() => list.filter((invoice) => {
     const matchesCustomer = !keyword || (customerNames.get(invoice.customerId) ?? '').toLocaleLowerCase().includes(keyword.trim().toLocaleLowerCase())
     const matchesStatus = !status || invoice.status === status
@@ -87,7 +98,7 @@ export default function BillingPage() {
     const body: CreateInvoiceRequest = { appointmentId: appointment.id, items, voucherCode: values.voucherCode?.trim() || null, pointsToRedeem: values.pointsToRedeem ?? 0 }
     try {
       await createInvoice.mutateAsync(body)
-      message.success('Tạo hóa đơn thành công'); setCreateOpen(false); createForm.resetFields()
+      message.success('Tạo hóa đơn thành công'); setCreateOpen(false); createForm.resetFields(); setInvoiceLineEdits(null)
     } catch (error) { message.error(getApiErrorMessage(error, 'Không thể tạo hóa đơn')) }
   }
 
@@ -113,11 +124,23 @@ export default function BillingPage() {
   }
 
   async function submitPayment(values: PaymentFields) {
-    if (!canPay || !selected || selected.status !== INVOICE_STATUS.UNPAID) return
+    if (!canPay || !selected || selected.status !== INVOICE_STATUS.UNPAID || invoices.isError || (!activeIsInList && invoiceDetail.isError) || applyDiscount.isPending || recordPayment.isPending) return
     try {
-      await recordPayment.mutateAsync({ id: selected.id, body: values as PaymentRequest })
-      message.success('Ghi nhận thanh toán thành công'); setSelected(null)
+      const recorded = await recordPayment.mutateAsync({ id: selected.id, body: values as PaymentRequest, expectedTotal: selected.total })
+      if (recorded) message.success('Ghi nhận thanh toán thành công')
+      else message.info('Hóa đơn đã được cập nhật. Vui lòng kiểm tra trạng thái thanh toán mới nhất.')
+      setSelectedId(null)
     } catch (error) { message.error(getApiErrorMessage(error, 'Không thể ghi nhận thanh toán')) }
+  }
+
+  async function submitDiscount(values: DiscountFields) {
+    if (!has('INVOICE.WRITE') || !selected || !canApplyInvoiceDiscount(selected) || invoices.isError || (!activeIsInList && invoiceDetail.isError) || applyDiscount.isPending || recordPayment.isPending) return
+    const body = { voucherCode: values.voucherCode?.trim() || null, pointsToRedeem: values.pointsToRedeem ?? 0 }
+    if (!body.voucherCode && body.pointsToRedeem === 0) { message.warning('Nhập mã voucher hoặc số điểm muốn đổi.'); return }
+    try {
+      await applyDiscount.mutateAsync({ id: selected.id, body })
+      message.success('Đã áp dụng ưu đãi và cập nhật số tiền hóa đơn.')
+    } catch (error) { message.error(getApiErrorMessage(error, 'Không thể áp dụng ưu đãi. Vui lòng kiểm tra lại hóa đơn.')) }
   }
 
   const appointmentOptions = eligibleAppointments.map((appointment: Appointment) => ({
@@ -148,7 +171,7 @@ export default function BillingPage() {
   const receiptPaid = receiptInvoice?.payments.filter((payment) => payment.status === PAYMENT_STATUS.SUCCESS).reduce((sum, payment) => sum + payment.amount, 0) ?? 0
   const receiptDiscount = receiptInvoice ? Math.max(0, receiptInvoice.subtotal - receiptInvoice.total) : 0
   const receiptMethod = receiptInvoice?.payments.find((payment) => payment.status === PAYMENT_STATUS.SUCCESS)?.method
-  const receiptMethodLabel = receiptMethod ? PAYMENT_METHOD_LABELS[receiptMethod] || 'Phương thức khác' : 'Tiền mặt'
+  const receiptMethodLabel = receiptMethod ? PAYMENT_METHOD_LABELS[receiptMethod] || 'Phương thức khác' : receiptInvoice?.status === INVOICE_STATUS.PAID ? receiptInvoice.total === 0 ? 'Không phát sinh khoản thu' : 'Chưa có thông tin' : 'Chờ thanh toán'
   const printNow = () => window.print()
 
   return <section>
@@ -169,14 +192,16 @@ export default function BillingPage() {
     </Row>
     {invoices.isError && <Alert type="error" showIcon message="Không tải được danh sách hóa đơn" description={getApiErrorMessage(invoices.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     {customers.isError && <Alert type="warning" message="Không tải được tên khách hàng." style={{ marginBottom: 16 }} />}
-    <div className="table-scroll-container"><Table<Invoice> className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" columns={columns} dataSource={filtered} loading={invoices.isLoading || customers.isLoading} onRow={(invoice) => ({ onClick: () => setSelected(invoice), style: { cursor: 'pointer' } })} locale={{ emptyText: <Empty description={invoices.isError ? 'Không có dữ liệu để hiển thị' : 'Chưa có hóa đơn'} /> }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (count) => `Tổng ${count} hóa đơn` }} /></div>
-    <Drawer className="responsive-drawer" title={`Chi tiết hóa đơn #${selected?.id ?? ''}`} open={Boolean(selected)} onClose={() => setSelected(null)} width={640}>
+    <div className="table-scroll-container"><Table<Invoice> className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" columns={columns} dataSource={filtered} loading={invoices.isLoading || customers.isLoading} onRow={(invoice) => ({ onClick: () => openInvoice(invoice), style: { cursor: 'pointer' } })} locale={{ emptyText: <Empty description={invoices.isError ? 'Không có dữ liệu để hiển thị' : 'Chưa có hóa đơn'} /> }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (count) => `Tổng ${count} hóa đơn` }} /></div>
+    <Drawer className="responsive-drawer" title={`Chi tiết hóa đơn #${selectedId ?? ''}`} open={selectedId !== null} onClose={() => setSelectedId(null)} width={640}>
+      {!selected && <Alert type={invoiceDetail.isError ? 'error' : 'info'} showIcon message={invoiceDetail.isError ? 'Không tải được hóa đơn. Vui lòng thử lại.' : 'Đang tải hóa đơn…'} />}
       {selected && <>
         <Space className="receipt-no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}><Button icon={<PrinterOutlined />} onClick={() => printReceipt(selected)}>In hóa đơn</Button></Space>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Lịch hẹn">#{selected.appointmentId}</Descriptions.Item>
           <Descriptions.Item label="Khách hàng">{customerNames.get(selected.customerId) ?? `#${selected.customerId}`}</Descriptions.Item>
           <Descriptions.Item label="Ngày tạo">{dayjs(selected.createdAt).format('DD/MM/YYYY HH:mm')}</Descriptions.Item>
+          <Descriptions.Item label="Thanh toán"><Tag color={selected.status === INVOICE_STATUS.PAID ? 'success' : 'warning'}>{INVOICE_STATUS_LABELS[selected.status] ?? 'Trạng thái chưa xác định'}</Tag></Descriptions.Item>
         </Descriptions>
         <Typography.Title level={5}>Các dòng hóa đơn</Typography.Title>
         <Table className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" size="small" pagination={false} dataSource={selected.items} columns={[{ title: 'Dịch vụ / combo', render: (_, item) => item.serviceName ?? item.comboName ?? (item.serviceId !== null ? services.data?.find((s) => s.id === item.serviceId)?.name : null) ?? (item.comboId !== null ? combos.data?.find((c) => c.id === item.comboId)?.name : null) ?? 'Không rõ tên' }, { title: 'SL', dataIndex: 'quantity' }, { title: 'Đơn giá', dataIndex: 'unitPrice', render: (value: number) => money(value) }]} />
@@ -187,22 +212,29 @@ export default function BillingPage() {
         </Descriptions>
         <Typography.Title level={5}>Các lần thanh toán</Typography.Title>
         {selected.payments.length ? <Table className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" size="small" pagination={false} dataSource={selected.payments} columns={[{ title: 'Phương thức', dataIndex: 'method', render: (value: string) => <Tag>{PAYMENT_METHOD_LABELS[value] ?? 'Phương thức khác'}</Tag> }, { title: 'Trạng thái', dataIndex: 'status', render: (value: string) => <Tag color={value === PAYMENT_STATUS.SUCCESS ? 'success' : undefined}>{PAYMENT_STATUS_LABELS[value] ?? 'Trạng thái chưa xác định'}</Tag> }, { title: 'Số tiền', dataIndex: 'amount', render: (value: number) => money(value) }, { title: 'Ngày', dataIndex: 'paidAt', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') }]} /> : <Empty description="Chưa có lần thanh toán" />}
+        {has('INVOICE.WRITE') && canApplyInvoiceDiscount(selected) && <Form key={selected.id} className="responsive-form" layout="vertical" initialValues={{ pointsToRedeem: 0 }} onFinish={(values: DiscountFields) => void submitDiscount(values)} style={{ marginTop: 20 }}>
+          <Typography.Title level={5}>Ưu đãi hóa đơn</Typography.Title>
+          <Alert type="info" showIcon message="Áp dụng trước khi khách chuyển khoản. Voucher và điểm thưởng chỉ được áp dụng một lần cho hóa đơn chưa giảm giá." style={{ marginBottom: 16 }} />
+          <Form.Item name="voucherCode" label="Mã voucher"><Input /></Form.Item>
+          <Form.Item name="pointsToRedeem" label="Điểm muốn đổi"><InputNumber min={0} max={Math.min(1000000, customers.data?.find((customer) => customer.id === selected.customerId)?.rewardPoints ?? 1000000)} precision={0} style={{ width: '100%' }} /></Form.Item>
+          <Button type="primary" htmlType="submit" disabled={invoices.isError || (!activeIsInList && invoiceDetail.isError) || recordPayment.isPending} loading={applyDiscount.isPending}>Áp dụng ưu đãi</Button>
+        </Form>}
         {canPay && selected.status === INVOICE_STATUS.UNPAID && <Form className="responsive-form" form={paymentForm} layout="vertical" initialValues={{ method: PAYMENT_METHOD.CASH, status: PAYMENT_STATUS.SUCCESS }} onFinish={(values: PaymentFields) => void submitPayment(values)} style={{ marginTop: 20 }}>
           <Typography.Title level={5}>Ghi nhận thanh toán</Typography.Title>
           <Form.Item name="method" label="Phương thức" rules={[{ required: true }]}><Select options={PAYMENT_METHOD_OPTIONS} /></Form.Item>
           <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}><Select options={PAYMENT_STATUS_OPTIONS} /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={recordPayment.isPending}>Ghi nhận thanh toán</Button>
+          <Button type="primary" htmlType="submit" disabled={invoices.isError || (!activeIsInList && invoiceDetail.isError) || applyDiscount.isPending} loading={recordPayment.isPending}>Ghi nhận thanh toán</Button>
         </Form>}
       </>}
     </Drawer>
-    <Modal className="responsive-modal receipt-preview-modal" title="Xem trước phiếu thanh toán" open={receiptInvoice !== null} onCancel={() => setReceiptInvoice(null)} width={760} footer={<Space className="receipt-no-print"><Button onClick={() => setReceiptInvoice(null)}>Đóng</Button><Button type="primary" icon={<PrinterOutlined />} onClick={printNow}>In ngay (Print / PDF)</Button></Space>}>
+    <Modal className="responsive-modal receipt-preview-modal" title="Xem trước phiếu thanh toán" open={receiptInvoiceId !== null} onCancel={() => setReceiptInvoiceId(null)} width={760} footer={<Space className="receipt-no-print"><Button onClick={() => setReceiptInvoiceId(null)}>Đóng</Button><Button type="primary" icon={<PrinterOutlined />} disabled={!receiptInvoice || invoices.isError || (!activeIsInList && invoiceDetail.isError)} onClick={printNow}>In ngay (Print / PDF)</Button></Space>}>
       {receiptInvoice && <article id="healthbeauty-receipt" style={{ maxWidth: 680, margin: '0 auto', padding: 28, color: '#333', background: '#fff', border: '1px solid #eadfd5', borderRadius: 8, fontFamily: 'Arial, sans-serif' }}>
         <header style={{ textAlign: 'center', borderBottom: '2px solid #b88b62', paddingBottom: 18, marginBottom: 20 }}>
           <div style={{ color: '#8b6448', fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>HEALTHBEAUTY SPA &amp; CLINIC</div>
           <div style={{ marginTop: 6 }}>140 Lê Trọng Tấn, Tây Thạnh, Tân Phú, TP. Hồ Chí Minh</div>
           <div>Hotline: 1900 6868 | Email: cskh@healthbeauty.vn</div>
           <h1 style={{ fontSize: 21, margin: '24px 0 8px', letterSpacing: 1 }}>PHIẾU THANH TOÁN DỊCH VỤ</h1>
-          <div>Số hóa đơn: <strong>#HD-{receiptInvoice.id}</strong>　|　Ngày lập: {dayjs(receiptInvoice.createdAt).format('DD/MM/YYYY HH:mm')}</div>
+          <div>Số hóa đơn: <strong>#HD-{receiptInvoice.id}</strong> | Ngày lập: {dayjs(receiptInvoice.createdAt).format('DD/MM/YYYY HH:mm')}</div>
         </header>
         <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginBottom: 18 }}>
           <div><strong>Khách hàng:</strong> {receiptCustomer?.fullName ?? customerNames.get(receiptInvoice.customerId) ?? `#${receiptInvoice.customerId}`}</div><div><strong>Số điện thoại:</strong> {receiptCustomer?.phone || '—'}</div>

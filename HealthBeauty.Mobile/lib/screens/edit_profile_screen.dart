@@ -148,16 +148,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SnackBar(content: Text('Đã cập nhật ảnh đại diện')),
         );
       }
+    } on MissingPluginException {
+      _showAvatarError('Bộ chọn ảnh chưa được cập nhật trong ứng dụng. Vui lòng tắt app và chạy lại bản mới.');
+    } on PlatformException catch (exception) {
+      _showAvatarError(switch (exception.code) {
+        'channel-error' => 'Bộ chọn ảnh chưa sẵn sàng. Vui lòng tắt app và chạy lại bản mới.',
+        'photo_access_denied' || 'photo_access_restricted' || 'read_external_storage_denied' =>
+          'Ứng dụng chưa được phép truy cập ảnh. Vui lòng kiểm tra quyền ảnh trong Cài đặt.',
+        'already_active' => 'Một cửa sổ chọn ảnh đang mở. Vui lòng hoàn tất hoặc đóng cửa sổ đó.',
+        _ => 'Không mở được thư viện ảnh. Vui lòng thử lại.',
+      });
     } catch (_) {
-      if (mounted) {
-        setState(
-          () =>
-              _errorMessage = 'Không mở hoặc đọc được ảnh. Vui lòng chọn lại.',
-        );
-      }
+      _showAvatarError('Không mở hoặc đọc được ảnh. Vui lòng chọn lại.');
     } finally {
       if (mounted) setState(() => _choosingAvatar = false);
     }
+  }
+
+  void _showAvatarError(String message) {
+    if (!mounted) return;
+    setState(() => _errorMessage = message);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _removeAvatar() async {

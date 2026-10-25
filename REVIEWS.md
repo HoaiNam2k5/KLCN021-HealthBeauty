@@ -1,15 +1,20 @@
 # Tổng hợp bàn giao bản hợp nhất 24/10/2026
 
-## Bản tích hợp main ngày 24/10/2026
+## Flutter gói dịch vụ
 
-- Đã ghép đầy đủ API/SQL15 ảnh đại diện và đổi mật khẩu cùng Flutter trong repository; không cần script apply cục bộ sau clone. Database có sẵn phải cập nhật SQL còn thiếu, đặc biệt SQL15.
-- Web gồm quản lý gói dịch vụ, sửa đánh giá/voucher/báo cáo, Việt hóa và STT tài khoản. Flutter gồm thông báo/hồ sơ/xác thực, ảnh dịch vụ theo API, ngày còn chỗ và cập nhật nhân viên khi đặt lịch.
-- Khách đổi/xóa ảnh đại diện qua endpoint riêng đúng chủ, đổi mật khẩu với mật khẩu hiện tại, thu hồi phiên cũ. Client chặn gửi lại request cũ dưới tài khoản mới khi refresh token.
-- Cấu hình máy cá nhân, khóa bí mật và cache/build không đưa lên Git. Firebase client config là cấu hình công khai; file Android và service account lấy riêng từ nhóm/Console.
-- Kết quả kiểm chứng bản xuất bản được ghi cuối tài liệu; chưa coi kiểm tra tĩnh Flutter là kiểm thử thiết bị thực.
-- Chi tiết: [Hồ sơ khách hàng](docs/HO_SO_KHACH_HANG.md), [lịch trống nhân viên](docs/LICH_TRONG_NHAN_VIEN.md).
+- Thêm danh mục/tìm kiếm gói đang bán, đăng ký mua Pending, gói của tôi, chi tiết số lượt và lịch sử, hủy đăng ký chưa thanh toán. Khách không tự xác nhận thu tiền.
+- Nối đặt lịch bằng gói đã thanh toán: chọn dịch vụ/số lượt thuộc gói, `customerPackageId`, kiểm tra hạn/lượt và tải lại trước submit; không trộn combo/voucher/thu tiền riêng.
+- Hiển thị lượt được cấp/đã dùng/đang giữ/còn lại/có thể đặt; cập nhật sau đặt/hủy và phân biệt nguồn gói trong lịch hẹn.
+- Provider gắn với tài khoản/phiên, loại kết quả cũ và ngăn bấm lặp. Không API/Web/SQL mới, chưa push.
+- Kiểm chứng:66file Dart không diagnostic,25/25 kiểm tra độc lập;10Fluttertests mới chưa chạy vì CreateFile5, chưa test emulator/giao dịch thật. Chi tiết và luồng test: [Gói dịch vụ Flutter](docs/GOI_DICH_VU_FLUTTER.md).
 
-Các mục lịch sử phía dưới mô tả những đợt làm việc trước; bản main hiện đã tích hợp đầy đủ source API thay cho các bản worktree cục bộ được nhắc trong lịch sử.
+## Ảnh đại diện và đổi mật khẩu khách hàng — chờ áp dụng API gốc
+
+Flutter đã có đổi/xóa ảnh trong sửa hồ sơ, hiển thị ảnh tài khoản, và màn hình đổi mật khẩu hiện tại/mới/xác nhận. Upload Cloudinary qua endpoint riêng đúng chủ; đổi mật khẩu204 rồi đăng xuất. Bổ sung bảo vệ phiên để không replay request cũ sang tài khoản mới khi refresh token.
+
+Backend đã hoàn chỉnh và kiểm thử **523/523** tại worktree tạm, đóng gói15file có manifest. Chưa đưa vào API gốc vì **4file gốc bị Windows từ chối ghi**; SQL15 mới được chép, **chưa chạy**. Không áp dụng dở API. Anh cần mở PowerShell quản trị chạy `D:\KhoaLuan\AP_DUNG_HO_SO_KHACH_HANG.ps1 -ApplySql`, hoặc chạy SQL15 bằng SSMS rồi dùng `-SqlAlreadyApplied`. Script có backup/hash/preflight/test.
+
+Chi tiết, giới hạn và cách test: [Hồ sơ khách hàng](docs/HO_SO_KHACH_HANG.md). Flutter56file static sạch, purecontract12/12; chưa Fluttertest/emulator/Cloudinary thực. Không push.
 
 ## Bổ sung: ngày còn lịch theo nhân viên
 
@@ -19,7 +24,7 @@ Các mục lịch sử phía dưới mô tả những đợt làm việc trướ
 - API **500/500 test đạt**, gồm HTTP xác minh endpoint/JSON thật trong database test cô lập. Logic lịch Flutter **6/6 kiểm tra độc lập đạt**; kết quả phân tích mã và giới hạn test Flutter được cập nhật trong lịch sử bên dưới.
 - Hướng dẫn và luồng test: [Lịch trống nhân viên](docs/LICH_TRONG_NHAN_VIEN.md).
 
-Toàn bộ code đang dùng nằm trong thư mục dự án này: một `HealthBeauty.Api`, một `HealthBeauty.Web`, một `HealthBeauty.Mobile` và bộ SQL `DB_KLCN021`. Bản phát hành main chứa source tích hợp dùng chung.
+Toàn bộ code đang dùng nằm trong thư mục dự án này: một `HealthBeauty.Api`, một `HealthBeauty.Web`, một `HealthBeauty.Mobile` và bộ SQL `DB_KLCN021`. Đây là hợp nhất source local, chưa commit/push lên GitHub.
 
 ## API và CSDL
 
@@ -59,10 +64,8 @@ Các clone/worktree cũ và dữ liệu kiểm tra tạm được dọn sau khi 
 
 Đã sửa Flutter tải lại `/staff` mỗi lần vào bước chọn nhân viên; bổ sung nút cập nhật, loading và thông báo lỗi/retry. API hiện trả toàn bộ nhân viên, không lọc ca làm, nên không đổi backend/database. Quy tắc bảo vệ dữ liệu khi đổi tài khoản và xử lý refresh lỗi của provider giữ nguyên. Nhân viên cần ca làm để có giờ đặt. Phân tích50Dartfile không diagnostic; chưa kiểm tra trực quan trên emulator do giới hạn Flutter tool đã ghi ở trên.
 
-## Kiểm chứng bản xuất bản main
+## Chẩn đoán không mở thư viện ảnh Android
+Flutter đã có dependency image_picker nhưng native metadata/registrant tại máy chưa có plugin. Cần q/dừng hẳn phiên app cũ rồi chạy CHAY_FLUTTER.ps1 đểpubget/rebuild. Đã sửa lỗi MissingPlugin/channel-error/quyền ảnh/already_active thành thông báo rõ vàSnackBar. Static56file0diagnostics; chưa build/emulatorverify vì toolCreateFile5. APIavatar5230 đã có route, không phải cấu hình CloudinarytrongFlutter. Chưa push đợt thông báo lỗi này.
 
-- API: 523/523 test đạt tại bản xuất bản, gồm HTTP và avatar/đổi mật khẩu/ngày trống.
-- Web: 40/40 test đạt, build production thành công; npm audit production không báo lỗ hổng. Build có cảnh báo chunk lớn.
-- Flutter: 56 file phân tích trực tiếp không diagnostic; 24/24 kiểm tra độc lập (ảnh dịch vụ6, lịch trống6, hồ sơ/mật khẩu12). Chưa chạy trọn Flutter test/build Android do CreateFile5; static/pure checks không thay thế kiểm thử thiết bị.
-- File publish đã được rà soát và đối chiếu bí mật local: không credential, service account, cache/build hoặc tài liệu tạm trong commit. Không chạy SQL thật/Cloudinary/SMTP/Google OAuth/push trong đợt xuất bản.
-- Database có sẵn phải cập nhật SQL15 trước API này; các migration còn thiếu khác theo README.
+## Đồng bộ Firebase Android mới có SHA
+Áp dụng google-services.json mới ở D:/KhoaLuan vào Flutter/android/app và bảnnhóm. SHA1máyanh đã có trong2Androidcertificates; package/project/appId/OAuthclient đều khớp. AndroidAPIkey đổi nên đã cập nhật riêng FirebaseOptions.android; web giữ nguyên. Backup ở D:/KhoaLuan/_Backups/firebase-config-20261024-203940. Cần q/chạy lạiFlutter đểnativeconfigcó hiệu lực; chưa kiểm thửOAuththật, chưa pushcậpnhậtlocalnày.

@@ -6,6 +6,7 @@ import '../core/api_error.dart';
 import '../models/appointment.dart';
 import '../models/booking_contract.dart';
 import '../models/availability_day.dart';
+import '../core/token_storage.dart';
 
 class AppointmentProvider extends ChangeNotifier {
   AppointmentProvider({Dio? dio}) : _dio = dio ?? ApiClient().dio;
@@ -233,9 +234,11 @@ class AppointmentProvider extends ChangeNotifier {
     required List<Map<String, dynamic>> lines,
     String? note,
     int? staffId,
+    int? customerPackageId,
   }) async {
     final generation = _generation;
     if (!_current(generation) || submitting) return null;
+    final session = TokenStorage.sessionGeneration;
     submitting = true;
     error = null;
     notifyListeners();
@@ -247,7 +250,9 @@ class AppointmentProvider extends ChangeNotifier {
           'items': lines,
           'note': note == null || note.trim().isEmpty ? null : note.trim(),
           'staffId': staffId,
+          'customerPackageId': ?customerPackageId,
         },
+        options: Options(extra: {'sessionGeneration': session}),
       );
       if (!_current(generation)) return null;
       final created = Appointment.fromJson(

@@ -25,7 +25,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBUK4krPi7NTfTQcjoGVgH3aXwVnXp0A-g',
+    apiKey: 'AIzaSyAmw3dFMdYXZVBpiqwCHBYZl9uPW1nor2c',
     appId: '1:748230119172:android:5a51936b156901e19d0a51',
     messagingSenderId: '748230119172',
     projectId: 'healthbeautyapp-2d30f',

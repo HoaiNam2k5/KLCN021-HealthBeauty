@@ -32,6 +32,14 @@ Hướng dẫn fingerprint và bước Firebase/Google Console trong GOOGLE_LOGI
 Kiểm chứng Googlefix: 5/5 kiểm tra thông báo lỗi thuần Dart đạt; analyzer trực tiếp trên4file thay đổi có0diagnostics; diffcheck sạch. Chưa chạy5test Flutter mới hoặc xác minh GoogleOAuth thật.
 # 24/10/2026 — Chọn ngày còn giờ theo nhân viên
 
+## Gói dịch vụ trên app
+
+Đã thêm `service_package.dart`, `service_package_provider.dart`, danh mục/gói của tôi/chi tiết lịch sử. Vào từ Dịch vụ hoặc Tài khoản. Đăng ký Pending, chỉ quản trị được xác nhận thu tiền; app chỉ hủy Pending.
+
+BookingScreen hỗ trợ gói đã mua, chọn số lượt dịch vụ, lọc hạn dùng khi lấy ngày/giờ, gửi `customerPackageId`, số tiền0 và không trộn combo/voucher. Lấy lại số dư trước đặt, cập nhật cache sau đặt/hủy, giữ dữ liệu đúng phiên/tài khoản. Appointment lưu customerPackageId qua copyWith và hiển thị nguồn gói.
+
+Phân tích66file sạch; pure25/25;10Fluttertests mới có trongrepo nhưng chưa chạy vì toolCreateFile5. Không claim test UI/emulator hoặc giao dịch thật; API5230 offline khi probe. Không dependency/SQL mới, chưa push. [Hướng dẫn và test](../docs/GOI_DICH_VU_FLUTTER.md).
+
 ## Khách hàng đổi ảnh đại diện và mật khẩu
 
 - Thêm `image_picker`1.2.4, chọn PNG/JPEG/WebP tối đa5MB; upload/xóa avatar qua `/customers/me/avatar`, response Customer có `avatarUrl`. Ảnh cập nhật ngay trên tài khoản/chỉnh sửa; cập nhật hồ sơ vẫn giữ ảnh.
@@ -54,6 +62,14 @@ Kiểm chứng Googlefix: 5/5 kiểm tra thông báo lỗi thuần Dart đạt; 
 - Kiểm chứng: 50 file lib/test phân tích trực tiếp không diagnostic, logic lịch độc lập6/6; Flutter test5trường hợp đã thêm nhưng chưa chạy do Windows CreateFile5 khi gọi vswhere. Chưa kiểm tra giao diện trên emulator; cần khởi động lại API/Flutter để test thủ công.
 
 
-## Phát hành main 24/10/2026
+## Bộ chọn ảnh Android chưa mở
+- Kiểm tra local: image_picker đã resolve nhưng native .flutter-plugins-dependencies và GeneratedPluginRegistrant chưa có ImagePicker; emulator5554 online. APIavatar5230 đã có endpoint.
+- Nguyên nhân cần xử lý trước: app chưa rebuild native sau thêm plugin; hot reload/hot restart không đăng ký plugin mới. CHAY_FLUTTER.ps1 đã chạy Flutter pub get trước run; phải q/dừng phiên cũ rồi chạy lại.
+- Sửa EditProfileScreen phân biệt MissingPlugin/channel-error/quyền ảnh/already_active, hiện SnackBar cùng lỗi trong form thay vì generic im lặng.
+- Không đưa Cloudinarysecret vào Flutter, không thêm quyền bộ nhớ rộng và không sửa generatedregistrant bằng tay. Pubget trong agent bị CreateFile5 khi spawn Dart nên chưa rebuild/emulatorverify được; người dùng chạy script ởPowerShell thường.
 
-API ảnh đại diện/đổi mật khẩu đã tích hợp cùng Flutter trên main. Các trạng thái chờ apply ở lịch sử trên không còn áp dụng cho bản clone main; cần chạy SQL15 trên database có sẵn và cấu hình Cloudinary/Firebase riêng.
+## Cập nhật Google JSON có SHA máy anh
+- Áp dụng file D:/KhoaLuan/google-services.json mới vào android/app và hai bảnJSON trong Firebase_Config_Cho_Nhom sau sao lưu.
+- Xác nhận đúng package com.example.app_doancunhan, đúngproject/appId, có2Androidcertificate gồmSHA1máyanh; OAuthWebclient khớpAuthProvider/API hiện tại.
+- AndroidAPIkey trongJSON đã thay đổi; đã đồng bộ riêng apiKey của FirebaseOptions.android trong lib/firebase_options.dart. Không thay weboptions/OAuthallowlist vì vẫnkhớp.
+- Cần dừng hẳn app rồi CHAY_FLUTTER đểbuildnativeconfigmới. Chưa xác nhậnGoogleOAuththật trên thiết bị. Không push JSONlocal.

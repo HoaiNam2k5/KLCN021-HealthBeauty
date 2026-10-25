@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'core/app_theme.dart';
 import 'core/notification_service.dart';
 import 'providers/appointment_provider.dart';
@@ -7,6 +8,8 @@ import 'providers/auth_provider.dart';
 import 'providers/catalog_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/profile_provider.dart';
+import 'providers/invoice_provider.dart';
+import 'providers/service_package_provider.dart';
 import 'screens/main_shell.dart';
 
 void main() async {
@@ -31,6 +34,16 @@ void main() async {
           create: (_) => ProfileProvider(),
           update: (_, auth, prev) =>
               (prev ?? ProfileProvider())..bind(auth.account?.id),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, InvoiceProvider>(
+          create: (_) => InvoiceProvider(),
+          update: (_, auth, previous) =>
+              (previous ?? InvoiceProvider())..bind(auth.account?.id),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, ServicePackageProvider>(
+          create: (_) => ServicePackageProvider(),
+          update: (_, auth, previous) =>
+              (previous ?? ServicePackageProvider())..bind(auth.account?.id),
         ),
         ChangeNotifierProxyProvider<AuthProvider, NotificationProvider>(
           create: (_) => NotificationProvider(),

@@ -1,12 +1,30 @@
 # Khách hàng đổi ảnh đại diện và mật khẩu
 
-## Bản tích hợp trên main
+## Trạng thái áp dụng trên máy anh
 
-API và Flutter trong repository đã có đầy đủ phần ảnh đại diện/đổi mật khẩu. Không cần script chép API riêng hoặc quyền quản trị để thay source sau khi clone/pull bản này.
+Flutter đã sửa trực tiếp tại `HealthBeauty.Mobile`. Backend hoàn chỉnh đã kiểm thử **523/523 test**, nhưng **chưa áp dụng vào API gốc**: Windows từ chối ghi 4 file hiện có. Không chép dở các file còn lại để tránh API lỗi biên dịch. SQL15 có trong thư mục DB nhưng **chưa chạy**; thử kiểm tra SQL bị lỗi kết nối/encryption của môi trường agent trước khi thực thi.
 
-Database đang có dữ liệu: chạy **DB_KLCN021/15_CustomerAvatar.sql** bằng SSMS trước khi chạy API mới. Script chỉ thêm cột nullable nếu chưa có, không chạy schema gốc tạo database mới. Cấu hình Cloudinary bằng User Secrets/local config trên máy chạy API.
+Backend đóng gói tại `D:/KhoaLuan/_Updates/customer-self-service-20261024`, gồm đúng 15 file source/SQL/test và manifest SHA256, không chứa cấu hình bí mật. Bản làm việc kiểm thử: `D:/KhoaLuan/_Work/customer-self-service-api`, nhánh `agent/customer-self-service-20261024`. Chưa commit/push.
 
-Dừng/chạy lại Flutter để cập nhật plugin `image_picker`; `CHAY_FLUTTER.ps1` chạy `flutter pub get` trước. Hot reload không cập nhật plugin native. Xem [README](../README.md) để cấu hình SQL/JWT/Firebase và chạy cả dự án.
+## Anh áp dụng bằng một lệnh
+
+Dừng API/Flutter đang chạy. Mở **PowerShell bằng Run as administrator** rồi chạy:
+
+```powershell
+& "D:\KhoaLuan\AP_DUNG_HO_SO_KHACH_HANG.ps1" -ApplySql
+```
+
+Script kiểm tra toàn bộ hash/phiên bản file trước, kiểm tra quyền ghi, chạy **riêng SQL15** vào database cấu hình local, sao lưu và chép 15 file, xác minh hash và chạy lại test tại dự án gốc. Giữ nguyên Web/Flutter/local credentials. Nếu phát hiện code có sửa thêm hoặc file còn bị khóa thì dừng trước khi thay API. Không chạy schema gốc tạo database mới.
+
+Nếu SQLCMD không kết nối được, chạy `DB_KLCN021/15_CustomerAvatar.sql` bằng SSMS trên đúng database, sau đó:
+
+```powershell
+& "D:\KhoaLuan\AP_DUNG_HO_SO_KHACH_HANG.ps1" -SqlAlreadyApplied
+```
+
+`-SqlAlreadyApplied` là xác nhận của người chạy rằng đã thực thi SQL15 thành công. Có thể xem preflight chỉ đọc bằng `-CheckOnly`.
+
+Chạy lại API và Flutter từ dự án chung. `CHAY_FLUTTER.ps1` giờ chạy `flutter pub get` trước để đăng ký plugin chọn ảnh mới; cần dừng/chạy lại app, hot reload không cập nhật plugin native.
 
 ## Ảnh đại diện
 

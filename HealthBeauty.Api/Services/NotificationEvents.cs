@@ -23,6 +23,16 @@ public static class NotificationEvents
             new() { ["type"] = "APPOINTMENT", ["appointmentId"] = item.LichHenId.ToString(CultureInfo.InvariantCulture) }, ct);
     }
 
+    // Appointment ID is stable before SQL generates the new invoice ID.
+    public static Task InvoiceReadyAsync(INotificationService notifications, Hoadon invoice, CancellationToken ct) =>
+        notifications.StageToCustomerAsync(invoice.KhachHangId,
+            invoice.TrangThai == "DaThanhToan" ? "Hóa đơn không phát sinh khoản thu" : "Hóa đơn đang chờ thanh toán",
+            invoice.TongTienSauGiam > 0
+                ? $"Lịch hẹn #LH{invoice.LichHenId} đã có hóa đơn {invoice.TongTienSauGiam.ToString("N0", CultureInfo.GetCultureInfo("vi-VN"))} đ. Mở hóa đơn để thanh toán."
+                : "Dịch vụ đã hoàn thành. Hóa đơn không yêu cầu chuyển khoản.",
+            "HoaDon", new() { ["type"] = "INVOICE", ["appointmentId"] = invoice.LichHenId.ToString(CultureInfo.InvariantCulture),
+                ["status"] = invoice.TrangThai }, ct);
+
     public static Task PaidAsync(INotificationService notifications, Hoadon invoice, int earnedPoints, CancellationToken ct) =>
         notifications.StageToCustomerAsync(invoice.KhachHangId, $"Thanh toán thành công #{invoice.HoaDonId}",
             $"Hóa đơn {invoice.TongTienSauGiam.ToString("N0", CultureInfo.GetCultureInfo("vi-VN"))} đ đã được thanh toán. Điểm tích lũy: {earnedPoints}.",

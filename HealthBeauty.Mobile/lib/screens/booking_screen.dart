@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -11,6 +10,10 @@ import '../core/notification_service.dart';
 import '../models/catalog.dart';
 import '../models/booking_contract.dart';
 import '../models/availability_day.dart';
+import '../models/service_package.dart';
+import '../core/package_booking.dart';
+import '../providers/service_package_provider.dart';
+import '../widgets/package_booking_selection.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
@@ -26,11 +29,13 @@ class BookingScreen extends StatefulWidget {
   final Service? initialService;
   final Combo? initialCombo;
   final String? initialVoucherCode;
+  final CustomerServicePackage? initialCustomerPackage;
   const BookingScreen({
     super.key,
     this.initialService,
     this.initialCombo,
     this.initialVoucherCode,
+    this.initialCustomerPackage,
   });
 
   @override
@@ -42,6 +47,13 @@ class _BookingScreenState extends State<BookingScreen> {
   int _step = 0;
   final Set<int> _serviceIds = {};
   final Set<int> _comboIds = {};
+  CustomerServicePackage? _customerPackage;
+  int? _packageAccountId;
+  final Map<int, int> _packageQuantities = {};
+  bool _packageLoading = false;
+  bool _preparingBooking = false;
+  bool _choosingPackage = false;
+  String? _packageError;
   int? _selectedStaffId; // null = bất kỳ nhân viên nào
   late DateTime _focused;
   DateTime? _day;
@@ -83,6 +95,16 @@ class _BookingScreenState extends State<BookingScreen> {
     if (widget.initialVoucherCode != null) {
       _selectedVoucherCode = widget.initialVoucherCode;
     }
+    if (widget.initialCustomerPackage != null) {
+      _customerPackage = widget.initialCustomerPackage;
+      _packageAccountId = context.read<AuthProvider>().account?.id;
+      _serviceIds.clear();
+      _comboIds.clear();
+      _selectedVoucherCode = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshSelectedPackage();
+      });
+    }
   }
 
   @override
@@ -99,9 +121,10 @@ class _BookingScreenState extends State<BookingScreen> {
   List<Service> _selectedServices(CatalogProvider c) =>
       c.services.where((x) => _serviceIds.contains(x.id)).toList();
 
-  double _total(CatalogProvider c) =>
-      _selectedServices(c).fold(0.0, (s, e) => s + e.price) +
-      _selectedCombos(c).fold(0.0, (s, e) => s + e.price);
+  double _total(CatalogProvider c) => _customerPackage != null
+      ? 0
+      : _selectedServices(c).fold(0.0, (s, e) => s + e.price) +
+            _selectedCombos(c).fold(0.0, (s, e) => s + e.price);
 
   double _voucherDiscount(double rawTotal) {
     if (_selectedVoucherDiscount == null || _selectedVoucherDiscount! <= 0) {
@@ -122,6 +145,14 @@ class _BookingScreenState extends State<BookingScreen> {
     CatalogProvider catalog, {
     bool discovery = false,
   }) {
+    if (_customerPackage != null) {
+      return buildPackageBookingLines(
+        package: _customerPackage!,
+        quantities: _packageQuantities,
+        services: catalog.services,
+        appointmentAt: discovery ? null : (_slot ?? _day),
+      );
+    }
     final services = _selectedServices(catalog);
     final combos = _selectedCombos(catalog);
     if (services.length != _serviceIds.length ||
@@ -165,8 +196,158 @@ class _BookingScreenState extends State<BookingScreen> {
             (combo.validTo == null || !date.isAfter(combo.validTo!)),
       ),
       hasConflict: (start) =>
+          !_packageAccepts(start) ||
           appointments.hasConflictAt(start, durationMinutes: minutes),
     );
+  }
+
+  bool _packageAccepts(DateTime start) =>
+      _customerPackage?.canUseAt(start) ?? true;
+
+  void _resetSlotSelection() {
+    _day = null;
+    _slot = null;
+    _availableSlots = [];
+    _availableDays = [];
+    _availabilityRequest++;
+    _daysRequest++;
+    _slotsLoading = false;
+    _daysLoading = false;
+    _daysError = null;
+    _slotsError = null;
+    _error = null;
+  }
+
+  Future<bool> _refreshSelectedPackage() async {
+    final selected = _customerPackage;
+    if (selected == null) return true;
+    if (_packageLoading) return false;
+    final packages = context.read<ServicePackageProvider>();
+    final accountId = context.read<AuthProvider>().account?.id;
+    if (accountId == null || accountId != _packageAccountId) return false;
+    setState(() {
+      _packageLoading = true;
+      _packageError = null;
+    });
+    final detail = await packages.loadDetail(selected.id);
+    if (!mounted ||
+        _customerPackage?.id != selected.id ||
+        context.read<AuthProvider>().account?.id != accountId) {
+      return false;
+    }
+    setState(() {
+      _packageLoading = false;
+      if (detail == null) {
+        _packageError =
+            packages.detailError ??
+            'Không tải được số lượt mới nhất. Vui lòng thử lại.';
+      } else {
+        _customerPackage = detail.package;
+      }
+    });
+    return detail != null;
+  }
+
+  Future<void> _chooseCustomerPackage() async {
+    if (_choosingPackage || context.read<ServicePackageProvider>().mineLoading) {
+      return;
+    }
+    setState(() => _choosingPackage = true);
+    try {
+      await _chooseCustomerPackageFlow();
+    } finally {
+      if (mounted) setState(() => _choosingPackage = false);
+    }
+  }
+
+  Future<void> _chooseCustomerPackageFlow() async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      if (!mounted || !context.read<AuthProvider>().isLoggedIn) return;
+    }
+    final packages = context.read<ServicePackageProvider>();
+    final accountId = context.read<AuthProvider>().account!.id;
+    final epoch = packages.accountVersion;
+    await packages.loadMine();
+    if (!mounted ||
+        packages.accountVersion != epoch ||
+        context.read<AuthProvider>().account?.id != accountId) {
+      return;
+    }
+    if (packages.mineError != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(packages.mineError!)));
+      return;
+    }
+    final selected = await showModalBottomSheet<CustomerServicePackage>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheet).height * 0.6,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text(
+                'Chọn gói đã mua',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+              ),
+              if (packages.mine.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Bạn chưa có gói đã mua. Xem các gói đang bán trong mục Dịch vụ.',
+                  ),
+                ),
+              for (final item in packages.mine)
+                ListTile(
+                  title: Text(item.name),
+                  subtitle: Text(item.statusLabel),
+                  enabled: item.canUseAt(DateTime.now()),
+                  onTap: () => Navigator.pop(sheet, item),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted ||
+        selected == null ||
+        packages.accountVersion != epoch ||
+        context.read<AuthProvider>().account?.id != accountId) {
+      return;
+    }
+    final detail = await packages.loadDetail(selected.id);
+    if (!mounted ||
+        packages.accountVersion != epoch ||
+        context.read<AuthProvider>().account?.id != accountId) {
+      return;
+    }
+    if (detail == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(packages.detailError ?? 'Không tải được gói đã chọn.'),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _customerPackage = detail.package;
+      _packageAccountId = accountId;
+      _packageQuantities.clear();
+      _serviceIds.clear();
+      _comboIds.clear();
+      _selectedVoucherCode = null;
+      _selectedVoucherTitle = null;
+      _selectedVoucherDiscount = null;
+      _packageError = null;
+      _packageLoading = false;
+      _resetSlotSelection();
+    });
   }
 
   Future<void> _reloadDays() async {
@@ -174,7 +355,6 @@ class _BookingScreenState extends State<BookingScreen> {
     ++_availabilityRequest;
     final catalog = context.read<CatalogProvider>();
     final appointments = context.read<AppointmentProvider>();
-    final minutes = _minutes(catalog, discovery: true);
     final staffId = _selectedStaffId;
     setState(() {
       _daysLoading = true;
@@ -187,17 +367,33 @@ class _BookingScreenState extends State<BookingScreen> {
       _slot = null;
     });
     try {
+      if (_customerPackage != null && !await _refreshSelectedPackage()) {
+        throw FormatException(
+          _packageError ?? 'Gói đã thay đổi. Vui lòng tải lại.',
+        );
+      }
+      if (!mounted || request != _daysRequest) return;
+      final latestMinutes = _minutes(catalog, discovery: true);
+      if (latestMinutes < 1) {
+        throw const FormatException(
+          'Lựa chọn dịch vụ hoặc số lượt không còn hợp lệ. Vui lòng quay lại kiểm tra.',
+        );
+      }
       final days = await appointments.availableDays(
         from: _today,
         to: DateTime(_today.year, _today.month, _today.day + 60),
         staffId: staffId,
-        durationMinutes: minutes,
+        durationMinutes: latestMinutes,
       );
       if (!mounted || request != _daysRequest) return;
       setState(() => _availableDays = days);
     } on DioException catch (exception) {
       if (mounted && request == _daysRequest) {
         setState(() => _daysError = ApiError.message(exception));
+      }
+    } on FormatException catch (exception) {
+      if (mounted && request == _daysRequest) {
+        setState(() => _daysError = exception.message);
       }
     } catch (_) {
       if (mounted && request == _daysRequest) {
@@ -279,6 +475,9 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   bool _canNext(CatalogProvider c) {
+    if (_customerPackage != null && (_packageLoading || _packageError != null)) {
+      return false;
+    }
     switch (_step) {
       case 0:
         return _minutes(c, discovery: true) > 0 &&
@@ -298,6 +497,18 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _submit() async {
+    if (_preparingBooking || context.read<AppointmentProvider>().submitting) {
+      return;
+    }
+    setState(() => _preparingBooking = true);
+    try {
+      await _submitBooking();
+    } finally {
+      if (mounted) setState(() => _preparingBooking = false);
+    }
+  }
+
+  Future<void> _submitBooking() async {
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) {
       final loggedIn = await Navigator.push<bool>(
@@ -316,6 +527,20 @@ class _BookingScreenState extends State<BookingScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     setState(() => _error = null);
+    if (_customerPackage != null) {
+      if (context.read<AuthProvider>().account?.id != _packageAccountId ||
+          !await _refreshSelectedPackage()) {
+        if (mounted) {
+          setState(
+            () => _error =
+                _packageError ??
+                'Không xác minh được gói cho tài khoản hiện tại.',
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+    }
     List<Map<String, dynamic>> lines;
     try {
       lines = _buildLines(catalog);
@@ -339,14 +564,20 @@ class _BookingScreenState extends State<BookingScreen> {
     if (_reminderBefore != null) {
       noteParts.add('[Nhắc hẹn: ${_reminderText(_reminderBefore)}]');
     }
-    if (_selectedVoucherCode != null && _selectedVoucherCode!.isNotEmpty) {
+    if (_customerPackage == null &&
+        _selectedVoucherCode != null &&
+        _selectedVoucherCode!.isNotEmpty) {
       final discount = _voucherDiscount(_total(catalog));
       noteParts.add('[Voucher: $_selectedVoucherCode (-${vnd(discount)})]');
     }
     final paymentLabel = _paymentMethod == 'ChuyenKhoan'
         ? 'Chuyển khoản'
         : 'Tiền mặt';
-    noteParts.add('[Thanh toán: $paymentLabel]');
+    if (_customerPackage == null) {
+      noteParts.add('[Thanh toán: $paymentLabel]');
+    } else {
+      noteParts.add('[Sử dụng gói: ${_customerPackage!.name}]');
+    }
     if (_note.text.trim().isNotEmpty) {
       noteParts.add(_note.text.trim());
     }
@@ -356,12 +587,16 @@ class _BookingScreenState extends State<BookingScreen> {
       lines: lines,
       note: noteParts.isEmpty ? null : noteParts.join(' '),
       staffId: _selectedStaffId,
+      customerPackageId: _customerPackage?.id,
     );
     if (!mounted) return;
 
     if (created == null) {
       setState(() => _error = ap.error ?? 'Đặt lịch thất bại');
       return;
+    }
+    if (created.customerPackageId != null) {
+      context.read<ServicePackageProvider>().invalidateOwned();
     }
 
     // Lên lịch thông báo nhắc nhở nếu người dùng chọn
@@ -396,7 +631,17 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogProvider>();
-    final submitting = context.watch<AppointmentProvider>().submitting;
+    final submitting =
+        context.watch<AppointmentProvider>().submitting || _preparingBooking;
+    if (_customerPackage != null &&
+        context.watch<AuthProvider>().account?.id != _packageAccountId) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Đặt lịch hẹn')),
+        body: const Center(
+          child: Text('Tài khoản đã thay đổi. Vui lòng mở lại gói dịch vụ.'),
+        ),
+      );
+    }
     const titles = [
       'Chọn dịch vụ',
       'Nhân viên & Thời gian',
@@ -508,6 +753,45 @@ class _BookingScreenState extends State<BookingScreen> {
         ),
       ];
     }
+    if (catalog.error != null && !catalog.loaded) {
+      return [
+        ErrorState(
+          message: catalog.error!,
+          onRetry: () => catalog.load(force: true),
+        ),
+      ];
+    }
+    if (_customerPackage != null) {
+      return [
+        PackageBookingSelection(
+          package: _customerPackage!,
+          services: catalog.services,
+          quantities: _packageQuantities,
+          loading: _packageLoading,
+          error: _packageError,
+          onRefresh: _refreshSelectedPackage,
+          onExit: () => setState(() {
+            _customerPackage = null;
+            _packageAccountId = null;
+            _packageQuantities.clear();
+            _packageError = null;
+            _resetSlotSelection();
+          }),
+          onQuantity: (id, quantity) => setState(() {
+            if (quantity == 0) {
+              _packageQuantities.remove(id);
+            } else {
+              _packageQuantities[id] = quantity;
+            }
+            _resetSlotSelection();
+          }),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Thời lượng lần hẹn: ${durationStr(_minutes(catalog, discovery: true))}',
+        ),
+      ];
+    }
     if (catalog.services.isEmpty && catalog.combos.isEmpty) {
       return [
         SizedBox(
@@ -523,7 +807,18 @@ class _BookingScreenState extends State<BookingScreen> {
       ];
     }
 
-    final widgets = <Widget>[];
+    final widgets = <Widget>[
+      OutlinedButton.icon(
+        onPressed:
+            _choosingPackage ||
+                context.watch<ServicePackageProvider>().mineLoading
+            ? null
+            : _chooseCustomerPackage,
+        icon: const Icon(Icons.card_membership_outlined),
+        label: const Text('Dùng gói dịch vụ đã mua'),
+      ),
+      const SizedBox(height: 12),
+    ];
     if (catalog.services.isNotEmpty) {
       widgets.add(const SectionTitle('Dịch vụ lẻ'));
       widgets.add(const SizedBox(height: 8));
@@ -658,7 +953,9 @@ class _BookingScreenState extends State<BookingScreen> {
           message: catalog.staffError!,
           onRetry: () => catalog.loadStaff(),
         ),
-      if (!catalog.staffLoading && catalog.staffError == null && catalog.staffList.isEmpty)
+      if (!catalog.staffLoading &&
+          catalog.staffError == null &&
+          catalog.staffList.isEmpty)
         const Text('Chưa có nhân viên trong danh sách. Vui lòng liên hệ Spa.'),
       const SizedBox(height: 4),
       Text(
@@ -787,6 +1084,7 @@ class _BookingScreenState extends State<BookingScreen> {
         .where(
           (time) =>
               time.isAfter(now) &&
+              _packageAccepts(time) &&
               !ap.hasConflictAt(time, durationMinutes: minutes),
         )
         .length;
@@ -825,6 +1123,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 selected: _slot == t,
                 onSelected:
                     (t.isAfter(now) &&
+                        _packageAccepts(t) &&
                         !ap.hasConflictAt(t, durationMinutes: minutes))
                     ? (_) => setState(() => _slot = t)
                     : null,
@@ -1031,6 +1330,18 @@ class _BookingScreenState extends State<BookingScreen> {
               ],
             ),
             const Divider(height: 20),
+            if (_customerPackage != null) ...[
+              Text(
+                'Sử dụng gói: ${_customerPackage!.name}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              for (final selection in _packageQuantities.entries)
+                _line(
+                  '${_customerPackage!.service(selection.key)?.serviceName ?? 'Dịch vụ'} × ${selection.value} lượt',
+                  'Đã thanh toán theo gói',
+                  cs,
+                ),
+            ],
             for (final s in services)
               _line(
                 '${s.name} (${durationStr(s.durationMinutes)})',
@@ -1045,12 +1356,16 @@ class _BookingScreenState extends State<BookingScreen> {
       const SizedBox(height: 16),
 
       // Card 2: Chọn Voucher
-      _voucherSection(catalog, rawTotal),
-      const SizedBox(height: 16),
+      if (_customerPackage == null) ...[
+        _voucherSection(catalog, rawTotal),
+        const SizedBox(height: 16),
+      ],
 
       // Card 3: Chọn hình thức thanh toán
-      _paymentMethodSection(),
-      const SizedBox(height: 16),
+      if (_customerPackage == null) ...[
+        _paymentMethodSection(),
+        const SizedBox(height: 16),
+      ],
 
       // Card 4: Cài đặt thời gian nhắc trước giờ hẹn
       const SectionTitle('Nhắc nhở trước giờ hẹn'),
@@ -1160,7 +1475,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    _paymentMethod == 'ChuyenKhoan'
+                    _customerPackage != null
+                        ? 'Sử dụng lượt của gói đã thanh toán, không thu thêm tiền cho các dịch vụ đã chọn.'
+                        : _paymentMethod == 'ChuyenKhoan'
                         ? 'Thanh toán chuyển khoản ngân hàng (quét VietQR).'
                         : 'Thanh toán tiền mặt tại quầy khi đến làm dịch vụ tại Spa.',
                     style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
@@ -1420,136 +1737,24 @@ class _BookingScreenState extends State<BookingScreen> {
 
         // Thông tin chuyển khoản hiển thị khi chọn Chuyển khoản
         if (_paymentMethod == 'ChuyenKhoan') ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.roseContainer.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.rose.withValues(alpha: 0.35)),
-            ),
-            child: Column(
+          const SizedBox(height: 12),
+          const AppCard(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.account_balance,
-                      size: 18,
-                      color: AppColors.rose,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Thông tin chuyển khoản Spa',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: AppColors.rose,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _bankInfoRow('Ngân hàng:', 'MB Bank (Quân Đội)'),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const SizedBox(
-                      width: 100,
-                      child: Text(
-                        'Số tài khoản:',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        '0386 868 686',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        Clipboard.setData(
-                          const ClipboardData(text: '0386868686'),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã sao chép số tài khoản'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.outline),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.copy, size: 13, color: AppColors.rose),
-                            SizedBox(width: 4),
-                            Text(
-                              'Sao chép',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.rose,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                _bankInfoRow('Chủ tài khoản:', 'SPA HEALTH & BEAUTY'),
-                const SizedBox(height: 6),
-                _bankInfoRow('Nội dung CK:', 'Họ tên + SĐT đặt lịch'),
-                const SizedBox(height: 8),
-                Text(
-                  '* Quý khách có thể chuyển khoản trước hoặc quét mã VietQR tại quầy lễ tân khi hoàn thành dịch vụ.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontStyle: FontStyle.italic,
-                    color: cs.onSurfaceVariant,
+                Icon(Icons.info_outline, color: AppColors.rose),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Sau khi hoàn thành dịch vụ, lễ tân sẽ chốt hóa đơn. '
+                    'Bạn mở Lịch sử hóa đơn hoặc chi tiết lịch hẹn để lấy mã QR '
+                    'và thanh toán đúng số tiền. Không cần chuyển khoản trước khi đặt lịch.',
                   ),
                 ),
               ],
             ),
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _bankInfoRow(String label, String value) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-        ),
       ],
     );
   }

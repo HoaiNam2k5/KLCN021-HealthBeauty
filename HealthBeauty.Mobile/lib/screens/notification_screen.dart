@@ -6,6 +6,8 @@ import '../models/notification_item.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import 'login_screen.dart';
+import 'invoice_notification_screen.dart';
+import '../core/invoice_navigation.dart';
 import 'main_shell.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -85,8 +87,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       Navigator.pop(context);
       mainTab.value = 3; // Sang tab Ưu đãi
     } else if (type == 'INVOICE' || type == 'HOADON') {
-      Navigator.pop(context);
-      mainTab.value = 4; // Sang tab Tài khoản / Lịch sử
+      final target = InvoiceNotificationTarget.fromPayload({...?data, 'type': type})!;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => InvoiceNotificationScreen(target: target)));
     } else {
       // Hiển thị dialog xem nội dung chi tiết nếu là thông báo hệ thống
       showDialog(

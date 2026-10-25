@@ -11,10 +11,12 @@ import '../providers/profile_provider.dart';
 import '../widgets/common.dart';
 import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
+import 'service_packages_screen.dart';
 import '../widgets/customer_avatar.dart';
 import 'login_screen.dart';
 import 'main_shell.dart';
 import 'notification_screen.dart';
+import 'invoices_screen.dart';
 import 'register_screen.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -286,6 +288,27 @@ class _AccountScreenState extends State<AccountScreen> {
                 title: 'Đặc quyền hạng thành viên',
                 subtitle: 'Xem quyền lợi các hạng thẻ VIP',
                 onTap: () => _showTierBenefits(context, tier),
+              ),
+              _MenuItem(
+                icon: Icons.card_membership_outlined,
+                title: 'Gói dịch vụ của tôi',
+                subtitle: 'Gói đã mua, lượt còn lại và lịch sử sử dụng',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const ServicePackagesScreen(initialOwnedTab: true),
+                  ),
+                ),
+              ),
+              _MenuItem(
+                icon: Icons.receipt_long_outlined,
+                title: 'Lịch sử hóa đơn',
+                subtitle: 'Chi tiết dịch vụ và thanh toán chuyển khoản',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const InvoicesScreen()),
+                ),
               ),
               _MenuItem(
                 icon: Icons.local_offer_outlined,

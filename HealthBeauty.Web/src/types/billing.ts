@@ -51,6 +51,11 @@ export interface PaymentRequest {
   status: string
 }
 
+export interface ApplyInvoiceDiscountRequest {
+  voucherCode: string | null
+  pointsToRedeem: number
+}
+
 export function asInvoices(value: unknown): Invoice[] {
   if (Array.isArray(value)) return value as Invoice[]
   if (typeof value === 'object' && value !== null && 'value' in value) {

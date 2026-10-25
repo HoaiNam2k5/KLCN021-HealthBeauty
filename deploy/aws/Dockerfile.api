@@ -1,0 +1,15 @@
+ARG RUNTIME_IMAGE
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY HealthBeauty.Api/HealthBeauty.Api.csproj HealthBeauty.Api/
+RUN dotnet restore HealthBeauty.Api/HealthBeauty.Api.csproj
+COPY HealthBeauty.Api/ HealthBeauty.Api/
+RUN dotnet publish HealthBeauty.Api/HealthBeauty.Api.csproj -c Release --no-restore --no-self-contained -p:UseAppHost=false -o /out \
+    && mkdir /payload \
+    && cp /out/*.dll /payload/ \
+    && cp /out/HealthBeauty.Api.deps.json /out/HealthBeauty.Api.runtimeconfig.json /payload/ \
+    && cp -a /out/runtimes /payload/
+
+# Preserve the exact existing runtime, appsettings, startup and environment.
+FROM ${RUNTIME_IMAGE} AS final
+COPY --from=build /payload/ /app/

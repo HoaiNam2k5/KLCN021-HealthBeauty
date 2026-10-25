@@ -23,6 +23,7 @@ PasswordRecoveryService.ValidateConfiguration(builder.Configuration);
 
 // Add services to the container.
 
+builder.Services.Configure<BankTransferOptions>(builder.Configuration.GetSection(BankTransferOptions.Section));
 builder.Services.AddScoped<DatabasePermissionFilter>();
 builder.Services.AddControllers(options => options.Filters.AddService<DatabasePermissionFilter>());
 builder.Services.AddDbContext<Klcn021HealthBeautyContext>(options =>

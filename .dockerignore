@@ -24,10 +24,6 @@
 LICENSE
 README.md
 !**/.gitignore
-!.git/HEAD
-!.git/config
-!.git/packed-refs
-!.git/refs/heads/**
 # Machine-local configuration and generated frontend/integration artifacts
 **/appsettings.*.local.json
 **/.env.*
@@ -41,3 +37,14 @@ README.md
 **/key.properties
 **/*.keystore
 **/*.jks
+# Private credentials must never enter an image build context.
+**/*.pem
+**/*.ppk
+**/*.pfx
+**/*.p12
+**/*.key
+**/firebase-service-account*.json
+**/*firebase-adminsdk*.json
+Firebase_Config_Cho_Nhom/
+CONSOLIDATION_*.json
+PLANS.md

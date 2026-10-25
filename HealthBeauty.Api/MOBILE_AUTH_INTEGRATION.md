@@ -1,6 +1,6 @@
 # API tích hợp Flutter: Google, OTP đăng nhập, đánh giá và push
 
-Bản tích hợp trên nhánh main gồm Google/OTP đăng nhập, chi tiết đánh giá và logout push. API/Web/Flutter dùng chung trong repository; chạy theo README gốc. Cấu hình local và credential riêng không có trong Git.
+Cập nhật 23/10/2026. Bản tích hợp hiện nằm tại worktree `.local-integration/mobile-api-integration`, nhánh `feature/mobile-api-integration`, dựa trên API `d207c4c`. Chưa commit/push. Thư mục API gốc bị từ chối ghi vào các file sẵn có; bản gốc, ReportingWorkbook.cs đang sửa và web/Flutter được giữ nguyên.
 
 ## 1. Đăng nhập Google
 

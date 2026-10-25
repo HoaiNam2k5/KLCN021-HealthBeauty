@@ -10,8 +10,8 @@ Set-Location -LiteralPath (Join-Path $PSScriptRoot 'HealthBeauty.Mobile')
 flutter pub get
 if ($LASTEXITCODE -ne 0) { throw 'flutter pub get failed. See the output above.' }
 if (-not $ApiBaseUrl) {
-    if ($Device -in @('chrome','edge','windows')) { $ApiBaseUrl = 'http://localhost:5230/api/v1' }
-    else { $ApiBaseUrl = 'http://10.0.2.2:5230/api/v1' }
+    if ($Device -in @('chrome','edge')) { $ApiBaseUrl = '/api/v1' }
+    else { $ApiBaseUrl = 'https://healthbeauty.duckdns.org/api/v1' }
 }
 if ($Device -eq 'chrome') { flutter run -d $Device --web-port=5174 "--dart-define=API_BASE_URL=$ApiBaseUrl" }
 else { flutter run -d $Device "--dart-define=API_BASE_URL=$ApiBaseUrl" }
