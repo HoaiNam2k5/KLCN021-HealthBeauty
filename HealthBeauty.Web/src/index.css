@@ -55,8 +55,30 @@ button, input, select, textarea { font: inherit; }
   background: #8c4559;
 }
 
-.login-page { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #f7f6f3; }
-.login-card { width: min(100%, 440px); border: 1px solid #e6e2dd; border-radius: 18px; box-shadow: 0 12px 40px #25232108; }
+.login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 24px;
+  background-color: #fbe7ee;
+  background-image: linear-gradient(rgba(105, 40, 65, 0.06), rgba(105, 40, 65, 0.1)), url('/branding/login-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.login-card {
+  width: min(100%, 440px);
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 60px rgba(100, 33, 61, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 .login-card .ant-card-body { padding: 40px; }
 .login-card h2.ant-typography { margin: 28px 0 6px; font-size: 26px; font-weight: 600; }
 .login-brand, .sider-brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; }
