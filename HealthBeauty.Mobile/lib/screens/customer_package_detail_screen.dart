@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/service_package_provider.dart';
 import '../widgets/common.dart';
 import 'booking_screen.dart';
+import 'package_payment_screen.dart';
 
 class CustomerPackageDetailScreen extends StatefulWidget {
   final int customerPackageId;
@@ -165,8 +166,29 @@ class _CustomerPackageDetailScreenState
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                          'Vui lòng liên hệ Spa để thanh toán. Bạn chỉ dùng được lượt sau khi Spa xác nhận đã thu tiền.',
+                          'Thanh toán chuyển khoản để kích hoạt gói. Hệ thống tự xác nhận khi nhận tiền; bạn chỉ dùng được lượt sau khi gói đã thanh toán.',
                         ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _acting || provider.cancelling
+                            ? null
+                            : () async {
+                                final version = provider.accountVersion;
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PackagePaymentScreen(
+                                      purchaseId: owned.id,
+                                    ),
+                                  ),
+                                );
+                                if (mounted &&
+                                    version == provider.accountVersion) {
+                                  await _reload();
+                                }
+                              },
+                        icon: const Icon(Icons.qr_code_2),
+                        label: const Text('Thanh toán chuyển khoản'),
                       ),
                       OutlinedButton(
                         onPressed: _acting || provider.cancelling

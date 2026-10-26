@@ -20,7 +20,7 @@ const statusPresentation: Record<string, { label: string; color: string; backgro
 
 const statusTransitions: Record<string, string[]> = {
   [APPOINTMENT_STATUS.WAITING]: [APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CANCELLED],
-  [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.ARRIVED, APPOINTMENT_STATUS.CANCELLED],
+  [APPOINTMENT_STATUS.CONFIRMED]: [APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.ARRIVED, APPOINTMENT_STATUS.CANCELLED],
   [APPOINTMENT_STATUS.ARRIVED]: [APPOINTMENT_STATUS.IN_PROGRESS, APPOINTMENT_STATUS.CANCELLED],
   [APPOINTMENT_STATUS.IN_PROGRESS]: [APPOINTMENT_STATUS.COMPLETED],
   [APPOINTMENT_STATUS.COMPLETED]: [],
@@ -33,4 +33,15 @@ export function getAppointmentStatusPresentation(status: string) {
 
 export function getAllowedNextAppointmentStatuses(status: string): string[] {
   return statusTransitions[status] ?? []
+}
+
+
+export function getAppointmentPrimaryAction(status: string): { status: string; label: string } | null {
+  switch (status) {
+    case 'ChoXacNhan': return { status: 'DaXacNhan', label: 'Xác nhận lịch' }
+    case 'DaXacNhan':
+    case 'DaDen': return { status: 'DangThucHien', label: 'Bắt đầu dịch vụ' }
+    case 'DangThucHien': return { status: 'HoanThanh', label: 'Hoàn thành dịch vụ' }
+    default: return null
+  }
 }

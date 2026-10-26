@@ -7,6 +7,7 @@ import '../core/api_client.dart';
 import '../core/api_error.dart';
 import '../core/token_storage.dart';
 import '../models/service_package.dart';
+import '../models/package_bank_transfer.dart';
 
 class ServicePackageProvider extends ChangeNotifier {
   ServicePackageProvider({Dio? dio}) : _dio = dio ?? ApiClient().dio;
@@ -19,6 +20,9 @@ class ServicePackageProvider extends ChangeNotifier {
   List<ServicePackageOffer> catalog = [];
   List<CustomerServicePackage> mine = [];
   final Map<int, CustomerPackageDetail> details = {};
+  final Map<int, PackageBankTransfer> transfers = {};
+  final Map<int, String> transferErrors = {};
+  final Set<int> loadingTransfers = {};
   bool catalogLoading = false,
       mineLoading = false,
       detailLoading = false,
@@ -40,6 +44,9 @@ class ServicePackageProvider extends ChangeNotifier {
     _detailRequest++;
     mine = [];
     details.clear();
+    transfers.clear();
+    transferErrors.clear();
+    loadingTransfers.clear();
     mineLoading = false;
     detailLoading = false;
     purchasing = false;
@@ -153,6 +160,10 @@ class ServicePackageProvider extends ChangeNotifier {
         throw const FormatException('Wrong purchase.');
       }
       details[id] = detail;
+      if (detail.package.status != 'Pending' ||
+          transfers[id]?.amount != detail.package.price) {
+        transfers.remove(id);
+      }
       _replace(detail.package);
       return detail;
     } on DioException catch (e) {
@@ -179,6 +190,68 @@ class ServicePackageProvider extends ChangeNotifier {
   void _replace(CustomerServicePackage p) {
     mine = [p, ...mine.where((x) => x.id != p.id)]
       ..sort((a, b) => b.id.compareTo(a.id));
+  }
+
+  Future<bool> requestTransfer(int id) async {
+    if (_disposed ||
+        _accountId == null ||
+        loadingTransfers.contains(id) ||
+        cancelling ||
+        details[id]?.package.status != 'Pending' ||
+        detailError != null) {
+      return false;
+    }
+    final epoch = _epoch, session = TokenStorage.sessionGeneration;
+    bool current() =>
+        _current(epoch) && session == TokenStorage.sessionGeneration;
+    loadingTransfers.add(id);
+    transfers.remove(id);
+    transferErrors.remove(id);
+    _notify();
+    try {
+      final response = await _dio.post(
+        '/service-packages/purchases/$id/bank-transfer',
+        options: Options(extra: {'sessionGeneration': session}),
+      );
+      if (!current()) return false;
+      final transfer = PackageBankTransfer.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      final qrUri = Uri.tryParse(transfer.qrImageUrl);
+      if (transfer.purchaseId != id ||
+          transfer.status != 'Pending' ||
+          !transfer.amount.isFinite ||
+          transfer.amount <= 0 ||
+          transfer.amount != details[id]?.package.price ||
+          transfer.amount.truncateToDouble() != transfer.amount ||
+          qrUri?.scheme != 'https' ||
+          qrUri?.host != 'vietqr.app' ||
+          transfer.accountNumber.isEmpty ||
+          transfer.transferContent != 'HP$id') {
+        throw const FormatException('Invalid package transfer instructions');
+      }
+      // A concurrent refresh/cancellation can already have settled this purchase.
+      if (cancelling || details[id]?.package.status != 'Pending') return false;
+      transfers[id] = transfer;
+      return true;
+    } on DioException catch (e) {
+      if (current()) {
+        transferErrors[id] = e.response?.statusCode == 503
+            ? 'Thanh toán chuyển khoản chưa khả dụng. Vui lòng liên hệ lễ tân.'
+            : ApiError.message(e);
+      }
+    } catch (_) {
+      if (current()) {
+        transferErrors[id] =
+            'Không lấy được thông tin chuyển khoản. Vui lòng cập nhật lại gói.';
+      }
+    } finally {
+      if (current()) {
+        loadingTransfers.remove(id);
+        _notify();
+      }
+    }
+    return false;
   }
 
   String _actionMessage(DioException e) => switch (e.response?.statusCode) {
@@ -247,6 +320,8 @@ class ServicePackageProvider extends ChangeNotifier {
       mineLoading = false;
       detailLoading = false;
       details.remove(id);
+      transfers.remove(id);
+      transferErrors.remove(id);
       mine = mine.where((x) => x.id != id).toList();
       return true;
     } on DioException catch (e) {
@@ -272,6 +347,8 @@ class ServicePackageProvider extends ChangeNotifier {
     mineLoading = false;
     detailLoading = false;
     details.clear();
+    transfers.clear();
+    transferErrors.clear();
     mine = [];
     _notify();
     if (_accountId != null) unawaited(loadMine());

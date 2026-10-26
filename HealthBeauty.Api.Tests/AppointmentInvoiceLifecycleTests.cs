@@ -154,7 +154,7 @@ public sealed class AppointmentInvoiceLifecycleTests
         await using var db = await Database("ChoXacNhan");
         Assert.IsType<ForbidResult>(await User(new AppointmentManagementController(db), "Customer", 1).Status(7, new("HoanThanh"), default));
         Assert.IsType<ForbidResult>(await User(new AppointmentManagementController(db), "Staff", 3).Status(7, new("HoanThanh"), default));
-        Assert.IsType<NoContentResult>(await User(new AppointmentManagementController(db)).Status(7, new("DaHuy"), default));
+        Assert.IsType<NoContentResult>(await User(new AppointmentManagementController(db)).Status(7, new("DaHuy", "Customer requested cancellation"), default));
         Assert.Empty(await db.Hoadons.ToListAsync());
     }
 

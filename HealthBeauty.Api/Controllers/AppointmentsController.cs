@@ -18,7 +18,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(cancellationToken);
         var isStaff = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
-        var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).Include(x => x.Hoadons).ThenInclude(x => x.Danhgia).AsSplitQuery().AsQueryable();
+        var query = db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu).Include(x => x.KhachHang).Include(x => x.NhanVien).Include(x => x.Hoadons).ThenInclude(x => x.Danhgia).AsSplitQuery().AsQueryable();
         if (!isStaff && User.IsInRole("Staff"))
         {
             var ownStaffId = await db.Nhanviens.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.NhanVienId).FirstOrDefaultAsync(cancellationToken);
@@ -123,6 +123,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
             InvoiceId: invoice?.HoaDonId, InvoiceStatus: invoice?.TrangThai,
             HasReviewed: review is not null, ReviewStars: reviewDetails?.SoSao, CustomerPackageId: item.CustomerPackageId, FundingSource: item.CustomerPackageId.HasValue ? "ServicePackage" : "Cash",
             ReviewComment: reviewDetails?.BinhLuan, ReviewedAt: reviewDetails?.NgayDanhGia,
-            ReviewReply: reviewDetails?.Reply, ReviewRepliedAt: reviewDetails?.RepliedAt is DateTime repliedAt ? DateTime.SpecifyKind(repliedAt, DateTimeKind.Utc) : null);
+            ReviewReply: reviewDetails?.Reply, ReviewRepliedAt: reviewDetails?.RepliedAt is DateTime repliedAt ? DateTime.SpecifyKind(repliedAt, DateTimeKind.Utc) : null,
+            CustomerName: item.KhachHang?.HoTen, StaffName: item.NhanVien?.HoTen);
     }
 }

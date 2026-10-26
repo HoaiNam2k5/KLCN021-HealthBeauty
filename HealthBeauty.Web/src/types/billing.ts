@@ -51,6 +51,18 @@ export interface PaymentRequest {
   status: string
 }
 
+export interface InvoiceBankTransfer {
+  invoiceId: number
+  amount: number
+  status: string
+  bankName: string
+  bankCode: string
+  accountNumber: string
+  accountName: string
+  transferContent: string
+  qrImageUrl: string
+}
+
 export interface ApplyInvoiceDiscountRequest {
   voucherCode: string | null
   pointsToRedeem: number

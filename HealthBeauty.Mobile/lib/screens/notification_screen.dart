@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import 'login_screen.dart';
 import 'invoice_notification_screen.dart';
+import 'customer_package_detail_screen.dart';
 import '../core/invoice_navigation.dart';
 import 'main_shell.dart';
 
@@ -80,7 +81,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final data = item.parsedData;
     final type = (data?['type'] ?? item.type).toString().toUpperCase();
 
-    if (type == 'APPOINTMENT' || type == 'LICHHEN') {
+    if (type == 'PACKAGE') {
+      final id = int.tryParse(data?['purchaseId']?.toString() ?? '');
+      if (id != null && id > 0) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerPackageDetailScreen(customerPackageId: id)));
+      }
+    } else if (type == 'APPOINTMENT' || type == 'LICHHEN') {
       Navigator.pop(context);
       mainTab.value = 2; // Sang tab Lịch hẹn
     } else if (type == 'PROMOTION' || type == 'KHUYENMAI' || type == 'VOUCHER') {

@@ -11,6 +11,7 @@ import '../providers/catalog_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/invoice_provider.dart';
+import '../providers/service_package_provider.dart';
 import 'account_screen.dart';
 import 'appointments_screen.dart';
 import 'booking_screen.dart';
@@ -45,6 +46,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     invoiceNotificationTarget.addListener(_requestInvoiceOpen);
     _messageSubscription = NotificationService().onMessageReceived.listen((message) {
       final type = message.data['type']?.toString().toUpperCase();
+      if (type == 'PACKAGE' && mounted && _foreground && context.read<AuthProvider>().isLoggedIn) {
+        _refreshAccountData();
+        final provider = context.read<ServicePackageProvider>();
+        provider.loadMine();
+        final id = int.tryParse(message.data['purchaseId']?.toString() ?? '');
+        if (id != null && id > 0) provider.loadDetail(id);
+      }
       if (type == 'INVOICE' || type == 'HOADON' || type == 'APPOINTMENT' || type == 'LICHHEN') {
         _refreshAccountData();
         final id = int.tryParse(message.data['invoiceId']?.toString() ?? '');

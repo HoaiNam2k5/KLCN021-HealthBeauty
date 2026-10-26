@@ -27,6 +27,8 @@ export interface AppointmentItem {
 export interface Appointment {
   id: number
   customerId: number
+  customerName?: string | null
+  staffName?: string | null
   staffId: number | null
   appointmentAt: string
   status: string
@@ -78,6 +80,7 @@ export interface AppointmentUpdateRequest {
 
 export interface AppointmentStatusRequest {
   status: string
+  reason?: string
 }
 
 export interface AvailableSlot {

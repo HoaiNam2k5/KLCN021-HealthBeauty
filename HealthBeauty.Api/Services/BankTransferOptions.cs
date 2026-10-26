@@ -35,10 +35,13 @@ public sealed class BankTransferOptions
     }
 
     public static string Reference(int invoiceId) => "HB" + invoiceId.ToString(CultureInfo.InvariantCulture);
+    public static string PackageReference(int purchaseId) => "HP" + purchaseId.ToString(CultureInfo.InvariantCulture);
 
-    public string QrImage(int invoiceId, decimal amount) =>
+    public string QrImage(int invoiceId, decimal amount) => QrImage(Reference(invoiceId), amount);
+    public string PackageQrImage(int purchaseId, decimal amount) => QrImage(PackageReference(purchaseId), amount);
+    private string QrImage(string reference, decimal amount) =>
         "https://vietqr.app/img?acc=" + Uri.EscapeDataString(AccountNumber)
         + "&bank=" + Uri.EscapeDataString(BankCode)
         + "&amount=" + amount.ToString("0", CultureInfo.InvariantCulture)
-        + "&des=" + Reference(invoiceId) + "&template=compact";
+        + "&des=" + Uri.EscapeDataString(reference) + "&template=compact";
 }

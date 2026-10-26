@@ -11,7 +11,7 @@ export const appointmentKeys = {
 }
 
 export function useAppointments(filters: AppointmentFilters = {}) {
-  return useQuery({ queryKey: appointmentKeys.appointmentList(filters), queryFn: () => appointmentsApi.getAppointments(filters) })
+  return useQuery({ queryKey: appointmentKeys.appointmentList(filters), queryFn: () => appointmentsApi.getAppointments(filters), refetchInterval: 15000, refetchIntervalInBackground: false })
 }
 
 export function useAllAppointments(enabled = true) {

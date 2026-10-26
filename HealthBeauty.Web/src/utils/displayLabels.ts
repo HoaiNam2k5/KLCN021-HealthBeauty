@@ -10,6 +10,7 @@ const permissionGroupLabels: Record<string, string> = {
 }
 
 const auditActionLabels: Record<string, string> = {
+  AppointmentStatusChanged: 'Cập nhật trạng thái lịch hẹn',
   AccountCreated: 'Tạo tài khoản', AccountRoleChanged: 'Đổi vai trò tài khoản',
   AccountActivated: 'Mở khóa tài khoản', AccountDeactivated: 'Khóa tài khoản',
   PermissionGranted: 'Cấp quyền', PermissionRevoked: 'Thu hồi quyền',
@@ -17,6 +18,7 @@ const auditActionLabels: Record<string, string> = {
 }
 
 const auditEntityLabels: Record<string, string> = {
+  LICHHEN: 'Lịch hẹn',
   TAIKHOAN: 'Tài khoản', VAITRO_QUYEN: 'Quyền của vai trò', NHANVIEN: 'Nhân viên',
 }
 

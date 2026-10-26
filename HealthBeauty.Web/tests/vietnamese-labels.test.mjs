@@ -20,7 +20,7 @@ const apiError = (data, status = 400) => ({ isAxiosError: true, response: { stat
 
 test('audit activities, including password and staff account events, have Vietnamese labels', () => {
   for (const action of ['AccountCreated', 'AccountRoleChanged', 'AccountActivated', 'AccountDeactivated',
-    'PermissionGranted', 'PermissionRevoked', 'StaffAccountCreated', 'PasswordReset']) {
+    'PermissionGranted', 'PermissionRevoked', 'StaffAccountCreated', 'PasswordReset', 'AppointmentStatusChanged']) {
     assert.match(labels.getAuditActionLabel(action), /[À-ỹĐđ]/u)
   }
   assert.equal(labels.getAuditActionLabel('PermissionGranted'), 'Cấp quyền')

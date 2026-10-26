@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography, Row, Col } from 'antd'
 import { DeleteOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -16,6 +17,7 @@ import { INVOICE_STATUS, INVOICE_STATUS_LABELS, PAYMENT_METHOD, PAYMENT_METHOD_O
 import { useApplyInvoiceDiscount, useCreateInvoice, useInvoiceDetail, useInvoices, useRecordInvoicePayment } from './billingQueries'
 import { buildInvoiceDraft, eligibleInvoiceAppointments } from './invoiceDraft'
 import { canApplyInvoiceDiscount, currentInvoice } from './invoiceSync'
+import InvoiceCollection from './InvoiceCollection'
 
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
 type CreateFields = { appointmentId: number; voucherCode?: string; pointsToRedeem?: number }
@@ -24,6 +26,7 @@ type DiscountFields = { voucherCode?: string; pointsToRedeem?: number }
 type EditableInvoiceLine = { key: string; name: string; serviceId: number | null; comboId: number | null; quantity: number; unitPrice: number }
 
 export default function BillingPage() {
+  const [searchParams] = useSearchParams()
   const { message } = App.useApp()
   const { has } = usePermissions()
   const cashierName = useAuth()?.account?.name ?? 'HealthBeauty Spa & Clinic'
@@ -41,8 +44,15 @@ export default function BillingPage() {
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<string>()
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const id = Number(searchParams.get('invoiceId'))
+    return searchParams.get('collect') !== '1' && Number.isSafeInteger(id) && id > 0 ? id : null
+  })
   const [receiptInvoiceId, setReceiptInvoiceId] = useState<number | null>(null)
+  const [collectionId, setCollectionId] = useState<number | null>(() => {
+    const id = Number(searchParams.get('invoiceId'))
+    return searchParams.get('collect') === '1' && Number.isSafeInteger(id) && id > 0 ? id : null
+  })
   const [createOpen, setCreateOpen] = useState(false)
   const [invoiceLineEdits, setInvoiceLineEdits] = useState<{ appointmentId: number | undefined; lines: EditableInvoiceLine[] } | null>(null)
   const [newItemKey, setNewItemKey] = useState<string>()
@@ -164,7 +174,10 @@ export default function BillingPage() {
         ? <Space size={[4, 4]} wrap>{successfulPayments.map((payment) => <Tag key={payment.id}>{PAYMENT_METHOD_LABELS[payment.method] ?? 'Phương thức khác'}</Tag>)}</Space>
         : '—'
     } },
-    { title: 'Thao tác', key: 'actions', render: (_, invoice) => <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button> },
+    { title: 'Thao tác', key: 'actions', render: (_, invoice) => <Space>
+      {invoice.status === INVOICE_STATUS.UNPAID && invoice.total > 0 && <Button type="primary" onClick={(event) => { event.stopPropagation(); setCollectionId(invoice.id) }}>Thu tiền</Button>}
+      <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button>
+    </Space> },
   ]
 
   const receiptCustomer = receiptInvoice ? customers.data?.find((customer) => customer.id === receiptInvoice.customerId) : undefined
@@ -175,6 +188,7 @@ export default function BillingPage() {
   const printNow = () => window.print()
 
   return <section>
+    {collectionId !== null && <InvoiceCollection key={collectionId} invoiceId={collectionId} customerName={customerNames.get(list.find(invoice => invoice.id === collectionId)?.customerId ?? 0) ?? `Hóa đơn #${collectionId}`} canPayCash={canPay} onClose={() => setCollectionId(null)} onCash={() => { setSelectedId(collectionId); setCollectionId(null); paymentForm.setFieldsValue({ method: PAYMENT_METHOD.CASH, status: PAYMENT_STATUS.SUCCESS }) }} onPrint={invoice => { setCollectionId(null); printReceipt(invoice) }} />}
     <style>{`@media print { body * { visibility: hidden !important; } #healthbeauty-receipt, #healthbeauty-receipt * { visibility: visible !important; } #healthbeauty-receipt { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 20mm !important; box-shadow: none !important; color: #222 !important; background: #fff !important; } .receipt-no-print { display: none !important; } @page { size: A4; margin: 0; } }`}</style>
     <div className="page-heading">
       <Typography.Title level={4} style={{ margin: 0 }}>Hóa đơn và thanh toán</Typography.Title>
@@ -197,6 +211,7 @@ export default function BillingPage() {
       {!selected && <Alert type={invoiceDetail.isError ? 'error' : 'info'} showIcon message={invoiceDetail.isError ? 'Không tải được hóa đơn. Vui lòng thử lại.' : 'Đang tải hóa đơn…'} />}
       {selected && <>
         <Space className="receipt-no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}><Button icon={<PrinterOutlined />} onClick={() => printReceipt(selected)}>In hóa đơn</Button></Space>
+        {selected.status === INVOICE_STATUS.UNPAID && selected.total > 0 && <Button type="primary" block onClick={() => { setCollectionId(selected.id); setSelectedId(null) }}>Thu tiền / Hiện QR cho khách</Button>}
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Lịch hẹn">#{selected.appointmentId}</Descriptions.Item>
           <Descriptions.Item label="Khách hàng">{customerNames.get(selected.customerId) ?? `#${selected.customerId}`}</Descriptions.Item>
@@ -220,8 +235,8 @@ export default function BillingPage() {
           <Button type="primary" htmlType="submit" disabled={invoices.isError || (!activeIsInList && invoiceDetail.isError) || recordPayment.isPending} loading={applyDiscount.isPending}>Áp dụng ưu đãi</Button>
         </Form>}
         {canPay && selected.status === INVOICE_STATUS.UNPAID && <Form className="responsive-form" form={paymentForm} layout="vertical" initialValues={{ method: PAYMENT_METHOD.CASH, status: PAYMENT_STATUS.SUCCESS }} onFinish={(values: PaymentFields) => void submitPayment(values)} style={{ marginTop: 20 }}>
-          <Typography.Title level={5}>Ghi nhận thanh toán</Typography.Title>
-          <Form.Item name="method" label="Phương thức" rules={[{ required: true }]}><Select options={PAYMENT_METHOD_OPTIONS} /></Form.Item>
+          <Typography.Title level={5}>Ghi nhận tiền mặt / thẻ</Typography.Title>
+          <Form.Item name="method" label="Phương thức" rules={[{ required: true }]}><Select options={PAYMENT_METHOD_OPTIONS.filter(option => option.value !== PAYMENT_METHOD.BANK_TRANSFER)} /></Form.Item>
           <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}><Select options={PAYMENT_STATUS_OPTIONS} /></Form.Item>
           <Button type="primary" htmlType="submit" disabled={invoices.isError || (!activeIsInList && invoiceDetail.isError) || applyDiscount.isPending} loading={recordPayment.isPending}>Ghi nhận thanh toán</Button>
         </Form>}

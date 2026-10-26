@@ -37,6 +37,26 @@ public sealed class BankTransfersController(Klcn021HealthBeautyContext db,
             BankTransferOptions.Reference(id), config.QrImage(id, invoice.TongTienSauGiam)));
     }
 
+    [Authorize, HttpPost("/api/v1/service-packages/purchases/{id:int}/bank-transfer")]
+    public async Task<IActionResult> PackageInstructions(int id, CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId)) return Unauthorized();
+        var management = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
+        var query = db.CustomerPackages.AsNoTracking().Where(x => x.Id == id);
+        if (!management) query = query.Where(x => db.Khachhangs.Any(c => c.KhachHangId == x.CustomerId && c.TaiKhoanId == accountId));
+        var purchase = await query.SingleOrDefaultAsync(ct);
+        if (purchase is null) return NotFound();
+        if (purchase.Status != "Pending" || purchase.Price <= 0 || decimal.Truncate(purchase.Price) != purchase.Price)
+            return Conflict("Gói dịch vụ này không cần hoặc không thể thanh toán chuyển khoản.");
+        if (!await db.Khachhangs.AnyAsync(x => x.KhachHangId == purchase.CustomerId && x.TaiKhoanId.HasValue, ct))
+            return Conflict("Khách hàng chưa có tài khoản. Vui lòng thanh toán gói tại quầy lễ tân.");
+        var config = options.Value;
+        if (!config.IsReady) return StatusCode(503, Unavailable);
+        return Ok(new PackageBankTransferResponse(purchase.Id, purchase.Price, purchase.Status,
+            config.BankName, config.BankCode, config.AccountNumber, config.AccountName,
+            BankTransferOptions.PackageReference(id), config.PackageQrImage(id, purchase.Price)));
+    }
+
     [AllowAnonymous, HttpPost("sepay/webhook"), RequestSizeLimit(16384)]
     public async Task<IActionResult> Webhook(SePayWebhookRequest request, CancellationToken ct)
     {
@@ -60,8 +80,9 @@ public sealed class BankTransfersController(Klcn021HealthBeautyContext db,
         else if (!string.Equals(request.Gateway, config.BankName, StringComparison.OrdinalIgnoreCase)
             || !string.Equals(request.AccountNumber, config.AccountNumber, StringComparison.Ordinal))
             transaction.Outcome = "WrongDestination";
-        else if (InvoiceId(request) is int invoiceId)
+        else if (PaymentReference(request) is { Package: false } invoiceReference)
         {
+            var invoiceId = invoiceReference.Id;
             var invoice = await db.Hoadons.Include(x => x.Thanhtoans).FirstOrDefaultAsync(x => x.HoaDonId == invoiceId, ct);
             if (invoice is null) transaction.Outcome = "UnknownInvoice";
             else
@@ -78,6 +99,33 @@ public sealed class BankTransfersController(Klcn021HealthBeautyContext db,
                     await InvoiceSettlement.StageAsync(db, notifications, invoice, "ChuyenKhoan", paidAt, ct);
                     transaction.Outcome = "Paid";
                 }
+            }
+        }
+        else if (PaymentReference(request) is { Package: true } packageReference)
+        {
+            var purchase = await db.CustomerPackages.SingleOrDefaultAsync(x => x.Id == packageReference.Id, ct);
+            // Existing Content carries the purchase reference; package transactions never use
+            // InvoiceId or Outcome=Paid (that filtered unique index belongs to invoices).
+            var canonicalReference = BankTransferOptions.PackageReference(packageReference.Id);
+            if (ContentReferences(transaction.Content).Count == 0)
+            {
+                // Preserve the resolved purchase ID even if SePay provides it only in Code.
+                var recorded = canonicalReference + (string.IsNullOrWhiteSpace(transaction.Content) ? "" : " " + transaction.Content);
+                transaction.Content = recorded[..Math.Min(2000, recorded.Length)];
+            }
+            if (purchase is null) transaction.Outcome = "UnknownPackage";
+            else if (purchase.Status == "Paid") transaction.Outcome = "PackageAlreadyPaid";
+            else if (purchase.Status != "Pending") transaction.Outcome = "PackageNotPayable";
+            else if (PredatesInvoice(paidAt, purchase.CreatedAt)) transaction.Outcome = "TransactionBeforePackage";
+            else if (purchase.Price <= 0 || request.TransferAmount != purchase.Price || decimal.Truncate(request.TransferAmount) != request.TransferAmount)
+                transaction.Outcome = "AmountMismatch";
+            else
+            {
+                // Package dates follow the server's local clock, as existing manual payment does.
+                var localPaidAt = new DateTimeOffset(DateTime.SpecifyKind(paidAt, DateTimeKind.Unspecified), TimeSpan.FromHours(7)).LocalDateTime;
+                var error = await PackageSettlement.StageAsync(db, notifications, purchase, "ChuyenKhoan", localPaidAt, null, ct);
+                if (error is not null) { db.ChangeTracker.Clear(); return Conflict(new { success = false }); }
+                transaction.Outcome = "PackagePaid";
             }
         }
         try
@@ -118,21 +166,23 @@ public sealed class BankTransfersController(Klcn021HealthBeautyContext db,
         && (request.Content?.Length ?? 0) <= 2000 && (request.Code?.Length ?? 0) <= 100
         && (request.ReferenceCode?.Length ?? 0) <= 100;
 
-    private static int? InvoiceId(SePayWebhookRequest request)
+    private static (bool Package, int Id)? PaymentReference(SePayWebhookRequest request)
     {
-        const string codePattern = @"^HB([1-9][0-9]{0,9})$";
+        const string codePattern = @"^(HB|HP)([1-9][0-9]{0,9})$";
         if (!string.IsNullOrWhiteSpace(request.Code))
         {
             var code = Regex.Match(request.Code, codePattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (!code.Success || !int.TryParse(code.Groups[1].Value, out var id)) return null;
-            // When content also contains HB references, reject conflicting/ambiguous references.
+            if (!code.Success || !int.TryParse(code.Groups[2].Value, out var id)) return null;
+            // Mixed invoice/package or multiple references are never settled.
             var refs = ContentReferences(request.Content);
-            return refs.Count == 0 || refs.Count == 1 && refs[0].Groups[1].Value == code.Groups[1].Value ? id : null;
+            return refs.Count == 0 || refs.Count == 1 && string.Equals(refs[0].Value, code.Value, StringComparison.OrdinalIgnoreCase)
+                ? (code.Groups[1].Value.Equals("HP", StringComparison.OrdinalIgnoreCase), id) : null;
         }
         var matches = ContentReferences(request.Content);
-        return matches.Count == 1 && int.TryParse(matches[0].Groups[1].Value, out var parsed) ? parsed : null;
+        return matches.Count == 1 && int.TryParse(matches[0].Groups[2].Value, out var parsed)
+            ? (matches[0].Groups[1].Value.Equals("HP", StringComparison.OrdinalIgnoreCase), parsed) : null;
     }
 
     private static MatchCollection ContentReferences(string? content) => Regex.Matches(content ?? "",
-        @"(?<![A-Za-z0-9])HB([1-9][0-9]{0,9})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        @"(?<![A-Za-z0-9])(HB|HP)([1-9][0-9]{0,9})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 }

@@ -4,6 +4,7 @@ import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Draw
 import { DownloadOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import * as appointmentsApi from '../../api/appointments'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -11,7 +12,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import type { Appointment, AppointmentUpdateRequest, CreateAppointmentRequest, Staff } from '../../types/appointments'
 import { useServices, useCombos } from '../services/serviceQueries'
 import { useCustomerPackages } from '../service-packages/packageQueries'
-import { APPOINTMENT_STATUSES, getAllowedNextAppointmentStatuses, getAppointmentStatusPresentation } from './appointmentStatus'
+import { APPOINTMENT_STATUSES, getAppointmentPrimaryAction, getAppointmentStatusPresentation } from './appointmentStatus'
 import { bookingItems, bookingDuration, canReschedule, canCancel, localAppointmentDateTime } from './appointmentContract'
 import { appointmentKeys, useAppointmentDetail, useAppointmentCustomers, useAppointments, useAppointmentStaff, useAvailableSlots } from './appointmentQueries'
 
@@ -132,13 +133,15 @@ function useAppointmentMutations() {
   return {
     update: useMutation({ mutationFn: ({ id, body }: { id: number; body: AppointmentUpdateRequest }) => appointmentsApi.updateAppointment(id, body), onSuccess: invalidate }),
     reschedule: useMutation({ mutationFn: ({ id, body }: { id: number; body: AppointmentUpdateRequest }) => appointmentsApi.rescheduleAppointment(id, body), onSuccess: invalidate }),
-    status: useMutation({ mutationFn: ({ id, status }: { id: number; status: string }) => appointmentsApi.updateAppointmentStatus(id, { status }), onSuccess: invalidate }),
-    remove: useMutation({ mutationFn: appointmentsApi.deleteAppointment, onSuccess: invalidate }),
+    status: useMutation({ mutationFn: ({ id, status, reason }: { id: number; status: string; reason?: string }) => appointmentsApi.updateAppointmentStatus(id, { status, reason }), onSuccess: invalidate }),
     create: useMutation({ mutationFn: appointmentsApi.createAppointment, onSuccess: invalidate }),
   }
 }
 
 export default function AppointmentsPage() {
+  const navigate = useNavigate()
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
+  const [cancelForm] = Form.useForm<{ reason: string }>()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [date, setDate] = useState<Dayjs | null>(null)
@@ -217,6 +220,32 @@ export default function AppointmentsPage() {
   const staffNames = useMemo(() => new Map((staff.data ?? []).map((item) => [item.nhanVienId, item.hoTen])), [staff.data])
   const customerNames = useMemo(() => new Map((customers.data ?? []).map((item) => [item.id, item.fullName])), [customers.data])
   const appointmentItems = appointments.data?.items ?? []
+  const changeStatus = (appointment: Appointment, nextStatus: string) => {
+    const complete = nextStatus === 'HoanThanh'
+    modal.confirm({
+      title: complete ? `Hoàn thành lịch hẹn #${appointment.id}?` : `${statusLabels[nextStatus]} — lịch hẹn #${appointment.id}?`,
+      content: complete ? <Space orientation="vertical">
+        <Typography.Text>{appointment.customerName ?? customerNames.get(appointment.customerId) ?? `Khách #${appointment.customerId}`}</Typography.Text>
+        {appointment.items.map(item => <Typography.Text key={item.id}>{item.serviceName}: {money(item.expectedPrice)}</Typography.Text>)}
+        <Typography.Text strong>Tổng tiền: {money(appointment.items.reduce((sum, item) => sum + item.expectedPrice, 0))}</Typography.Text>
+        <Typography.Text>{appointment.fundingSource === 'ServicePackage' ? 'Dịch vụ dùng gói đã mua, không thu thêm tiền.' : 'Hệ thống sẽ tạo hóa đơn theo giá đã đặt và gửi thông báo cho khách nếu cần thanh toán.'}</Typography.Text>
+      </Space> : undefined,
+      okText: complete ? 'Hoàn thành và lập hóa đơn' : 'Xác nhận',
+      cancelText: 'Quay lại',
+      onOk: () => mutations.status.mutateAsync({ id: appointment.id, status: nextStatus })
+        .then(() => { message.success('Cập nhật lịch hẹn thành công') })
+        .catch((error: unknown) => { handleError(error); throw error }),
+    })
+  }
+  const appointmentActions = (appointment: Appointment) => {
+    const action = getAppointmentPrimaryAction(appointment.status)
+    return <Space wrap>
+      {canWrite && action && <Button type="primary" size="small" loading={mutations.status.isPending} onClick={() => changeStatus(appointment, action.status)}>{action.label}</Button>}
+      {canWrite && appointment.status === 'DaXacNhan' && <Button size="small" disabled={mutations.status.isPending} onClick={() => changeStatus(appointment, 'DaDen')}>Khách đã đến</Button>}
+      {canWrite && canCancel(appointment.status) && <Button size="small" danger disabled={mutations.status.isPending} onClick={() => { cancelForm.resetFields(); setCancelTarget(appointment) }}>Hủy lịch</Button>}
+      {appointment.status === 'HoanThanh' && has('INVOICE.READ') && <Button size="small" onClick={() => navigate(appointment.invoiceId ? `/billing?invoiceId=${appointment.invoiceId}${appointment.invoiceStatus === 'ChuaThanhToan' ? '&collect=1' : ''}` : '/billing')}>{appointment.invoiceStatus === 'ChuaThanhToan' ? 'Thu tiền' : 'Xem hóa đơn'}</Button>}
+    </Space>
+  }
   const statusCounts = appointmentItems.reduce<Record<string, number>>((counts, appointment) => {
     counts[appointment.status] = (counts[appointment.status] ?? 0) + 1
     return counts
@@ -232,14 +261,14 @@ export default function AppointmentsPage() {
       ...appointmentItems.map((appointment) => [
         appointment.id,
         dayjs(appointment.appointmentAt).format('DD/MM/YYYY HH:mm'),
-        customerNames.get(appointment.customerId) ?? `Khách #${appointment.customerId}`,
-        appointment.staffId === null ? 'Chưa phân công' : staffNames.get(appointment.staffId) ?? `Nhân viên #${appointment.staffId}`,
+        appointment.customerName ?? customerNames.get(appointment.customerId) ?? `Khách #${appointment.customerId}`,
+        appointment.staffId === null ? 'Chưa phân công' : appointment.staffName ?? staffNames.get(appointment.staffId) ?? `Nhân viên #${appointment.staffId}`,
         appointment.items.map((item) => `${item.serviceName}${item.comboId !== null ? ' (combo)' : ''}`).join(', '),
         statusLabels[appointment.status] ?? appointment.status,
         appointment.note ?? '',
       ]),
     ]
-    const csv = `\\uFEFF${rows.map((row) => row.map(escapeCsv).join(',')).join('\\r\\n')}`
+    const csv = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(',')).join('\r\n')}`
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
     const link = document.createElement('a')
     link.href = url
@@ -276,12 +305,12 @@ export default function AppointmentsPage() {
       title="Lịch hẹn"
       columns={[
         { title: 'Ngày giờ', dataIndex: 'appointmentAt', key: 'appointmentAt', render: (value: string, appointment: Appointment) => <Space>{dayjs(value).format('DD/MM/YYYY HH:mm')}{appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}</Space> },
-        { title: 'Khách hàng', dataIndex: 'customerId', key: 'customer', render: (id: number) => customerNames.get(id) ?? `Khách #${id}` },
+        { title: 'Khách hàng', dataIndex: 'customerId', key: 'customer', render: (id: number, appointment: Appointment) => appointment.customerName ?? customerNames.get(id) ?? `Khách #${id}` },
         { title: 'Nhân viên', dataIndex: 'staffId', key: 'staff', render: (id: number | null) => id === null ? 'Chưa phân công' : staffNames.get(id) ?? `Nhân viên #${id}` },
         { title: 'Dịch vụ', dataIndex: 'items', key: 'items', render: (items: Appointment['items']) => items.map((item) => item.serviceName).join(', ') || '—' },
-        { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string, record) => { const presentation = getAppointmentStatusPresentation(value); const allowed = getAllowedNextAppointmentStatuses(value); return <Select disabled={!canWrite || allowed.length === 0} loading={mutations.status.isPending} value={value} style={{ minWidth: 160 }} options={[{ value, label: <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent', fontWeight: 500 }}>{presentation.label}</Tag> }, ...allowed.map((nextStatus) => ({ value: nextStatus, label: statusLabels[nextStatus] ?? nextStatus }))]} onChange={(nextStatus: string) => modal.confirm({ title: `Đổi trạng thái lịch hẹn #${record.id} thành "${statusLabels[nextStatus]}"?`, onOk: () => mutations.status.mutate({ id: record.id, status: nextStatus }, { onError: handleError }) })} /> } },
+        { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent' }}>{presentation.label}</Tag> } },
         { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
-        { title: 'Thao tác', key: 'details', render: (_, record) => <Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button> },
+        { title: 'Thao tác', key: 'details', render: (_, record) => <Space orientation="vertical" align="start">{appointmentActions(record)}<Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button></Space> },
       ]}
       data={appointmentItems}
       total={appointments.data?.totalCount ?? 0}
@@ -310,24 +339,34 @@ export default function AppointmentsPage() {
       {activeAppointment && <>
         {detail.isError && <Alert type="warning" message={getApiErrorMessage(detail.error, 'Không tải được thông tin chi tiết lịch hẹn.')} style={{ marginBottom: 12 }} />}
         <Descriptions column={1} bordered size="small">
-          <Descriptions.Item label="Khách hàng">{detail.data?.khachHang?.hoTen ?? customerNames.get(activeAppointment.customerId) ?? `Khách #${activeAppointment.customerId}`}</Descriptions.Item>
-          <Descriptions.Item label="Nhân viên">{activeAppointment.staffId === null ? 'Chưa phân công' : detail.data?.nhanVien?.hoTen ?? staffNames.get(activeAppointment.staffId) ?? `Nhân viên #${activeAppointment.staffId}`}</Descriptions.Item>
+          <Descriptions.Item label="Khách hàng">{detail.data?.khachHang?.hoTen ?? activeAppointment.customerName ?? customerNames.get(activeAppointment.customerId) ?? `Khách #${activeAppointment.customerId}`}</Descriptions.Item>
+          <Descriptions.Item label="Nhân viên">{activeAppointment.staffId === null ? 'Chưa phân công' : detail.data?.nhanVien?.hoTen ?? activeAppointment.staffName ?? staffNames.get(activeAppointment.staffId) ?? `Nhân viên #${activeAppointment.staffId}`}</Descriptions.Item>
           <Descriptions.Item label="Giờ hẹn">{dayjs(activeAppointment.appointmentAt).format('DD/MM/YYYY HH:mm')}</Descriptions.Item>
           <Descriptions.Item label="Ghi chú">{activeAppointment.note || '—'}</Descriptions.Item>
           <Descriptions.Item label="Trạng thái">{(() => { const p = getAppointmentStatusPresentation(activeAppointment.status); return <Tag style={{ color: p.color, background: p.background, borderColor: 'transparent' }}>{p.label}</Tag> })()}</Descriptions.Item>
         </Descriptions>
         <Typography.Title level={5} style={{ marginTop: 20 }}>Dịch vụ / combo</Typography.Title>
         {activeAppointment.items.length ? <>{activeAppointment.items.map((item) => <div className="booking-line" key={item.id} style={{ padding: '8px 0' }}><span>{item.serviceName}{item.comboId !== null ? ' (combo)' : ''}</span><span>{money(item.expectedPrice)}</span></div>)}<div style={{ borderTop: '1px solid #dedbd6', paddingTop: 12, textAlign: 'right', fontWeight: 500 }}>Tổng tiền: {money(activeAppointment.items.reduce((sum, item) => sum + item.expectedPrice, 0))}</div></> : <Typography.Text type="secondary">Chưa có dịch vụ</Typography.Text>}
+        <div style={{ marginTop: 20 }}>{appointmentActions(activeAppointment)}</div>
         {canWrite && <Space wrap style={{ marginTop: 24 }}>
           {canReschedule(activeAppointment.status) && <>
             <Button onClick={() => setEditor('reschedule')}>Đổi lịch</Button><Button onClick={() => setEditor('edit')}>Sửa ghi chú / nhân viên</Button>
           </>}
-          {canCancel(activeAppointment.status) && <>
-            <Button danger loading={mutations.remove.isPending} onClick={() => modal.confirm({ title: 'Xác nhận xóa lịch hẹn?', content: 'Thao tác này không thể hoàn tác. Bạn có chắc chắn muốn xóa lịch hẹn này?', okText: 'Xóa', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => mutations.remove.mutateAsync(activeAppointment.id).then(() => { message.success('Xóa lịch hẹn thành công'); setSelected(null) }).catch((error: unknown) => { handleError(error); throw error }) })}>Xóa lịch</Button>
-          </>}
         </Space>}
       </>}
     </Drawer>
+    <Modal title={`Hủy lịch hẹn #${cancelTarget?.id ?? ''}`} open={cancelTarget !== null && canWrite} onCancel={() => setCancelTarget(null)} confirmLoading={mutations.status.isPending} okText="Hủy lịch hẹn" okButtonProps={{ danger: true }} cancelText="Quay lại" onOk={() => cancelForm.submit()} destroyOnClose>
+      <Form form={cancelForm} layout="vertical" onFinish={async ({ reason }) => {
+        if (!cancelTarget) return
+        try {
+          await mutations.status.mutateAsync({ id: cancelTarget.id, status: 'DaHuy', reason: reason.trim() })
+          message.success('Đã hủy lịch hẹn')
+          setCancelTarget(null)
+        } catch (error) { handleError(error) }
+      }}>
+        <Form.Item name="reason" label="Lý do hủy" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập lý do hủy' }, { max: 1000, message: 'Tối đa 1000 ký tự' }]}><Input.TextArea rows={3} maxLength={1000} showCount /></Form.Item>
+      </Form>
+    </Modal>
     <Modal className="responsive-modal" title={editor === 'reschedule' ? 'Đổi lịch hẹn' : 'Sửa ghi chú / nhân viên'} open={editor !== null && canWrite} footer={null} onCancel={() => setEditor(null)} destroyOnClose>
       {activeAppointment && editor && <AppointmentEditor key={`${activeAppointment.id}-${editor}`} appointment={activeAppointment} staff={staff.data ?? []} mode={editor} onCancel={() => setEditor(null)} onSubmit={submitEditor} busy={mutations.update.isPending || mutations.reschedule.isPending} />}
     </Modal>

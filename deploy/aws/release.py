@@ -12,7 +12,10 @@ import time
 os.umask(0o077)
 ROOT = Path(__file__).resolve().parents[2]
 STACK = Path('/home/ubuntu/demo-api')
-RELEASE = STACK / 'releases' / '20261025-invoice'
+RELEASE_ID = os.environ.get('HEALTHBEAUTY_RELEASE_ID', '20261025-invoice')
+if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,79}', RELEASE_ID):
+    raise RuntimeError('Invalid release identifier')
+RELEASE = STACK / 'releases' / RELEASE_ID
 PRIVATE = RELEASE / 'private'
 PUBLIC = 'https://healthbeauty.duckdns.org'
 
@@ -118,7 +121,7 @@ def prepare():
         if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != digest:
             raise RuntimeError('Protected Docker/nginx file changed: ' + name)
     version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
-    manifest = {'release': '20261025-invoice'}
+    manifest = {'release': RELEASE_ID}
     state = {'files': files, 'targets': {}, 'untouched': {n: inspect(n)['Id'] for n in ['sqlserver', 'healthbeauty-caddy']},
              'compose_hashes': {f: hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in files}}
     images = {}
@@ -140,8 +143,9 @@ def prepare():
     image_nginx = hashes(state['targets']['healthbeauty-web']['old'], '/etc/nginx', '*', image=True)
     if state['nginx'] != image_nginx:
         raise RuntimeError('nginx config changed in writable layer; preserve first')
-    override = STACK / 'compose.release.yaml'
-    rollback = STACK / 'compose.rollback.yaml'
+    suffix = '' if RELEASE_ID == '20261025-invoice' else '.' + RELEASE_ID
+    override = STACK / ('compose.release' + suffix + '.yaml')
+    rollback = STACK / ('compose.rollback' + suffix + '.yaml')
     if override.exists() or rollback.exists():
         raise RuntimeError('Existing release overrides require review; nothing overwritten')
     override.write_text(json.dumps({'services': {t['service']: {'image': t['new']} for t in state['targets'].values()}}, indent=2))

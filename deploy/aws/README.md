@@ -49,3 +49,22 @@ sudo docker compose -p demo-api -f compose.yaml -f compose.sepay.yaml \
 Run guard regressions locally with `python deploy/aws/test_release.py`. Before another
 release, use a new release directory/ID and deliberately review existing overrides.
 The original Windows Dockerfile and server-local Docker/nginx files are not replaced.
+
+For the next approved release, preserve the current active Compose files and choose
+a separate release ID. Keep existing release overrides as the base; the new override
+only replaces API/web image tags, and rollback points to the immediately previous pair.
+
+```bash
+export HEALTHBEAUTY_RELEASE_ID=20261026-payments
+# Back up the three local Docker/nginx files and write protected-before.json under
+# releases/20261026-payments before preparation, as for the first release.
+python3 /home/ubuntu/demo-api/source/deploy/aws/release.py prepare
+python3 /home/ubuntu/demo-api/source/deploy/aws/release.py activate
+# Only if rollback is needed, with the same release ID:
+python3 /home/ubuntu/demo-api/source/deploy/aws/release.py rollback
+```
+
+The new override filenames are `compose.release.20261026-payments.yaml` and
+`compose.rollback.20261026-payments.yaml`. Continue using all previously active
+Compose files plus the appropriate new override. Omitting `HEALTHBEAUTY_RELEASE_ID`
+retains access to the original release's state for backward-compatible rollback.

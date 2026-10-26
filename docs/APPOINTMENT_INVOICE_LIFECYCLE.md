@@ -2,7 +2,7 @@
 
 ## Resulting business behavior
 
-1. A customer books services. Reception/Admin/Manager confirms the appointment. The existing transitions remain ChoXacNhan -> DaXacNhan -> DaDen -> DangThucHien -> HoanThanh. No invoice is created on confirmation, check-in, service start or cancellation.
+1. A customer books services. Reception/Admin/Manager uses action buttons: confirm -> start service -> complete service. ChoXacNhan -> DaXacNhan -> DangThucHien -> HoanThanh is supported. DaDen (customer arrival) remains an optional check-in between confirmation and start. No invoice is created on confirmation, check-in, service start or cancellation.
 2. On ordinary appointment completion, the backend stages exactly one invoice with status ChuaThanhToan and a private INVOICE notification, in the same SaveChanges as the appointment transition and completion notice. Existing invoice uniqueness and rowversions protect concurrent requests. Repeated terminal transitions return409 and do not create a second invoice or notice.
 3. Invoice lines use booked GiaDuKien snapshots. Later catalog price changes do not change the bill. Ordinary services are grouped by service and booked unit price. Combo quantity is inferred from complete booked component counts; a historical changed/inconsistent combo definition falls back to one aggregate combo line while preserving the exact booked total.
 4. Pending notices carry type=INVOICE, appointmentId and status. They intentionally omit invoiceId because SQL generates the new ID during SaveChanges. The app resolves the invoice through the owner-scoped appointmentId filter; no invoiceId0 or postcommit non-atomic outbox write is used.
@@ -31,6 +31,12 @@ GET /api/v1/invoices preserves the existing array response, offset and limit. Op
 The existing management roles continue to confirm/finish appointments. Technician Staff is not newly granted completion privileges by this task; customer cancellation rules remain unchanged. No schema migration, JWT configuration, database connection or SePay key change is needed. Deploy the updated API, Web and Mobile; a successful local build does not update EC2 by itself. Do not rerun SQL16 or alter paid historical invoices for this feature.
 
 ## Manual acceptance after deployment
+
+- The appointment table shows a status tag and an appropriate primary action instead of a status dropdown. Both table and detail show the actions. Completed appointments can open their exact invoice through `/billing?invoiceId=...`.
+- Completion confirmation shows the booked service lines and total; package appointments explain that no second charge is required.
+- Reception/Admin/Manager cancellation through the status endpoint requires a nonblank reason of at most1000characters. Cancellation while in progress remains prohibited. Existing customer cancellation behavior remains compatible.
+- Successful status transitions stage the actor, time, previous/new status and cancellation reason in existing AUDITLOG in the same save as the status, invoice and notifications. This needs no database schema change. Existing Staff/customer permissions are unchanged.
+- Appointment responses include customer/staff names scoped to the authorized appointment list. The UI does not require access to the full customer directory to display those names.
 
 - Book as CustomerA; confirm/check-in/start as Reception. Verify no invoice yet and confirmation notice private to CustomerA.
 - Finish once: exactly one pending invoice with the booked total appears; CustomerA sees a reminder and can open it. CustomerB cannot read it.

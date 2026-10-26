@@ -113,30 +113,9 @@ public sealed class ServicePackagesController(Klcn021HealthBeautyContext db) : C
         var p = await db.CustomerPackages.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (p == null) return NotFound();
         if (p.Status != "Pending") return Conflict("Purchase is already paid or cancelled.");
-        var now = DateTime.Now;
-        p.Version = Guid.NewGuid();
-        p.Status = "Paid";
-        p.PaidAt = now;
-        p.ExpiresAt = now.AddDays(p.ValidityDays);
-        p.PaymentMethod = r.Method;
-        p.PaidByAccountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var c = await db.Khachhangs.SingleAsync(x => x.KhachHangId == p.CustomerId, ct);
-        var points = (int)decimal.Floor(p.Price / 10000m);
-        if (points > 0)
-        {
-            if (c.DiemThuong > int.MaxValue - points) return Conflict("Reward balance limit exceeded.");
-            c.DiemThuong += points;
-            db.Giaodichdiems.Add(new Giaodichdiem
-            {
-                KhachHangId = c.KhachHangId,
-                CustomerPackageId = p.Id,
-                SoDiem = points,
-                LoaiGiaoDich = "TichLuy",
-                NgayGiaoDich = now,
-                GhiChu = "Package purchase"
-            }
-            );
-        }
+        var error = await PackageSettlement.StageAsync(db, new NotificationService(db), p, r.Method, DateTime.Now,
+            int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!), ct);
+        if (error is not null) return Conflict(error);
         if (!await NotificationPersistence.TrySaveAsync(db, ct)) return Conflict("Purchase or customer reward balance changed. Reload.");
         return Ok(View(p));
     }

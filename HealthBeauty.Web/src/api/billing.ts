@@ -1,5 +1,5 @@
 import api from './client'
-import { asInvoices, type ApplyInvoiceDiscountRequest, type CreateInvoiceRequest, type Invoice, type PaymentRequest } from '../types/billing'
+import { asInvoices, type ApplyInvoiceDiscountRequest, type CreateInvoiceRequest, type Invoice, type InvoiceBankTransfer, type PaymentRequest } from '../types/billing'
 
 export async function getInvoices(): Promise<Invoice[]> {
   const { data } = await api.get<unknown>('/invoices')
@@ -8,6 +8,11 @@ export async function getInvoices(): Promise<Invoice[]> {
 
 export async function getInvoice(id: number): Promise<Invoice> {
   const { data } = await api.get<Invoice>(`/invoices/${id}`)
+  return data
+}
+
+export async function getInvoiceBankTransfer(id: number): Promise<InvoiceBankTransfer> {
+  const { data } = await api.post<InvoiceBankTransfer>(`/invoices/${id}/bank-transfer`)
   return data
 }
 

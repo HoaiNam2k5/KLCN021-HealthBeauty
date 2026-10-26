@@ -70,7 +70,7 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
         builder: (dialog) => AlertDialog(
           title: const Text('Đăng ký mua gói'),
           content: Text(
-            '${offer.name}\n${vnd(offer.price)} · ${offer.validityDays} ngày kể từ khi thanh toán.\n\nĐăng ký sẽ ở trạng thái chờ thanh toán. Spa xác nhận thu tiền trước khi bạn được dùng lượt. Giá chính thức do hệ thống xác nhận khi đăng ký.',
+            '${offer.name}\n${vnd(offer.price)} · ${offer.validityDays} ngày kể từ khi thanh toán.\n\nĐăng ký sẽ ở trạng thái chờ thanh toán. Bạn có thể chuyển khoản ngay trong app; gói chỉ được kích hoạt sau khi hệ thống nhận tiền. Giá chính thức do hệ thống xác nhận khi đăng ký.',
           ),
           actions: [
             TextButton(
@@ -101,7 +101,7 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
         return;
       }
       _message(
-        'Đã đăng ký ${owned.name}. Vui lòng liên hệ Spa để xác nhận thanh toán.',
+        'Đã đăng ký ${owned.name}. Mở thanh toán chuyển khoản để kích hoạt gói.',
       );
       await Navigator.push(
         context,

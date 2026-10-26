@@ -6,6 +6,10 @@ public sealed record BankTransferResponse(int InvoiceId, decimal Amount, string 
     string BankName, string BankCode, string AccountNumber, string AccountName,
     string TransferContent, string QrImageUrl);
 
+public sealed record PackageBankTransferResponse(int PurchaseId, decimal Amount, string Status,
+    string BankName, string BankCode, string AccountNumber, string AccountName,
+    string TransferContent, string QrImageUrl);
+
 // SePay bank-transaction webhook, not the separate payment-gateway/IPN API.
 public sealed record SePayWebhookRequest(
     [param: Range(1, long.MaxValue)] long Id,

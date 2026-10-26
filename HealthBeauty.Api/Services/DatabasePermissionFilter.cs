@@ -40,7 +40,7 @@ public sealed class DatabasePermissionFilter(Klcn021HealthBeautyContext db) : IA
                 "Update" => "APPOINTMENT.WRITE", _ => management ? "APPOINTMENT.WRITE" : null
             },
             "Invoices" => action == "Pay" ? "PAYMENT.WRITE" : management ? (action is "List" or "Detail" ? "INVOICE.READ" : "INVOICE.WRITE") : null,
-            "BankTransfers" => action == "Instructions" && management ? "INVOICE.READ" : null,
+            "BankTransfers" => management ? action switch { "Instructions" => "INVOICE.READ", "PackageInstructions" => "CUSTOMER.READ", _ => null } : null,
             "Reports" => "REPORT.READ",
             _ => null
         };

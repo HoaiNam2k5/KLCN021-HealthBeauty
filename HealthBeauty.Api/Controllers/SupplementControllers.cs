@@ -60,10 +60,15 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             var accountId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!); var customerId = await db.Khachhangs.Where(x => x.TaiKhoanId == accountId).Select(x => (int?)x.KhachHangId).FirstOrDefaultAsync(ct);
             if (customerId != item.KhachHangId || request.Status != "DaHuy") return Forbid();
         }
+        var management = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
+        if (management && request.Status == "DaHuy" && string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest("Vui lòng nhập lý do hủy lịch hẹn.");
+        if (request.Reason?.Trim().Length > 1000) return BadRequest("Lý do hủy không được quá 1000 ký tự.");
+        var previousStatus = item.TrangThai;
         var nextStatuses = item.TrangThai switch
         {
             "ChoXacNhan" => new[] { "DaXacNhan", "DaHuy" },
-            "DaXacNhan" => new[] { "DaDen", "DaHuy" },
+            "DaXacNhan" => new[] { "DaDen", "DangThucHien", "DaHuy" },
             "DaDen" => new[] { "DangThucHien", "DaHuy" },
             "DangThucHien" => new[] { "HoanThanh" },
             _ => Array.Empty<string>()
@@ -76,6 +81,14 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             if (invoiceError is not null) return Conflict(invoiceError);
         }
         item.TrangThai = request.Status;
+        db.Auditlogs.Add(new Auditlog
+        {
+            TaiKhoanId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!),
+            ActionName = "AppointmentStatusChanged", EntityName = "LICHHEN", EntityId = id.ToString(),
+            OldValues = System.Text.Json.JsonSerializer.Serialize(new { status = previousStatus }),
+            NewValues = System.Text.Json.JsonSerializer.Serialize(new { status = request.Status, reason = request.Status == "DaHuy" ? request.Reason?.Trim() : null }),
+            CreatedAt = DateTime.Now
+        });
         await NotificationEvents.AppointmentAsync(Notifications, item, request.Status, ct);
         try
         {

@@ -92,6 +92,8 @@ public sealed class BankTransferHttpTests
             }
             else
                 db.Hoadons.Add(new Hoadon { HoaDonId = 1, LichHenId = 1, KhachHangId = 1, NgayLap = DateTime.Now.AddHours(-1), TrangThai = "ChuaThanhToan", TongTienSauGiam = 100000m });
+            db.CustomerPackages.Add(new CustomerPackage { Id = 1, CustomerId = 1, Name = "Prepaid HTTP", Price = 100000m,
+                ValidityDays = 30, CreatedAt = DateTime.Now.AddHours(-1), Items = [new() { ServiceId = 1, ServiceName = "Care", Granted = 5 }] });
             await db.SaveChangesAsync();
         }
         await app.StartAsync();
@@ -104,6 +106,44 @@ public sealed class BankTransferHttpTests
         transferAmount = 100000, code = "HB1", content = "HB1", referenceCode = "HTTP-TEST",
         transactionDate = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7)).ToString("yyyy-MM-dd HH:mm:ss")
     };
+
+    [Fact]
+    public async Task PackageQrJwtOwnershipAndAuthenticatedWebhookActivateThroughActualHttp()
+    {
+        await using var s = await Start();
+        const string path = "/api/v1/service-packages/purchases/1/bank-transfer";
+        Assert.Equal(HttpStatusCode.Unauthorized, (await s.Client.PostAsync(path, null)).StatusCode);
+        s.User(2); Assert.Equal(HttpStatusCode.NotFound, (await s.Client.PostAsync(path, null)).StatusCode);
+        s.User(1);
+        var qr = await s.Client.PostAsync(path, null); Assert.Equal(HttpStatusCode.OK, qr.StatusCode);
+        var info = await qr.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, info.GetProperty("purchaseId").GetInt32());
+        Assert.Equal("HP1", info.GetProperty("transferContent").GetString());
+        Assert.Equal("Pending", info.GetProperty("status").GetString());
+        Assert.DoesNotContain(WebhookKey, info.ToString());
+        var payload = new { id = 90001, gateway = "Vietcombank", accountNumber = "001122334455", transferType = "in",
+            transferAmount = 100000, code = "HP1", content = "HP1", referenceCode = "PACKAGE-HTTP-TEST",
+            transactionDate = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7)).ToString("yyyy-MM-dd HH:mm:ss") };
+        Assert.Equal(HttpStatusCode.Unauthorized, (await s.Client.PostAsJsonAsync("/api/v1/payments/sepay/webhook", payload)).StatusCode);
+        s.Client.DefaultRequestHeaders.Authorization = new("Apikey", WebhookKey);
+        Assert.Equal(HttpStatusCode.OK, (await s.Client.PostAsJsonAsync("/api/v1/payments/sepay/webhook", payload)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await s.Client.PostAsJsonAsync("/api/v1/payments/sepay/webhook", payload)).StatusCode);
+        s.User(1);
+        var detail = await s.Client.GetFromJsonAsync<JsonElement>("/api/v1/service-packages/purchases/1");
+        Assert.Equal("Paid", detail.GetProperty("package").GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, (await s.Client.PostAsync(path, null)).StatusCode);
+        using var scope = s.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Klcn021HealthBeautyContext>();
+        Assert.Single(await db.SePayTransactions.ToListAsync()); Assert.Single(await db.Giaodichdiems.ToListAsync());
+        Assert.Equal(10, (await db.Khachhangs.FindAsync(1))!.DiemThuong);
+        var purchase = (await db.CustomerPackages.FindAsync(1))!;
+        Assert.Equal(1, purchase.PaidByAccountId);
+        Assert.NotNull(await db.Taikhoans.FindAsync(purchase.PaidByAccountId));
+        Assert.NotNull(purchase.PaidAt); Assert.NotNull(purchase.ExpiresAt);
+        Assert.True(purchase.ExpiresAt > purchase.PaidAt);
+        Assert.Equal("ChuyenKhoan", purchase.PaymentMethod);
+        Assert.Equal("ChuaThanhToan", (await db.Hoadons.FindAsync(1))!.TrangThai);
+    }
 
     [Fact]
     public async Task JwtOwnershipAndApiKeyWebhookUseActualWireContract()
