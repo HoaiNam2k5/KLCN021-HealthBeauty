@@ -55,8 +55,9 @@ class PreservationTests(unittest.TestCase):
 
     def test_service_modes_are_explicit_and_legacy_states_keep_both(self):
         self.assertEqual(['api'], release.release_services('api'))
+        self.assertEqual(['web'], release.release_services('web'))
         self.assertEqual(['api', 'web'], release.selected_services({}))
-        for invalid in ['', 'web', 'api,sqlserver', 'api,web,caddy', 'api,api']:
+        for invalid in ['', 'web,api', 'api,sqlserver', 'api,web,caddy', 'api,api']:
             with self.assertRaises(RuntimeError):
                 release.release_services(invalid)
 
@@ -93,6 +94,65 @@ class PreservationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'Untouched service ID changed'):
                 release.rollback(state)
             compose.assert_not_called()
+
+    def test_web_only_override_and_rollback_cannot_recreate_api(self):
+        state = {'services': ['web'], 'files': ['base.yaml'], 'rollback': 'rollback.yaml',
+                 'targets': {'healthbeauty-api': {'service': 'api', 'old': 'api-old', 'new': 'api-old'},
+                             'healthbeauty-web': {'service': 'web', 'old': 'web-old', 'new': 'web-new'}},
+                 'untouched': {'healthbeauty-api': 'api-id'}, 'settings': 'settings', 'nginx': 'nginx'}
+        self.assertEqual({'services': {'web': {'image': 'web-new'}}}, release.image_override(state, 'new'))
+        self.assertEqual({'services': {'web': {'image': 'web-old'}}}, release.image_override(state, 'old'))
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder)
+            api = {'Id': 'api-id', 'Image': 'api-old-id', 'Config': {'Env': ['Jwt__Key=fixture']}}
+            web = {'Id': 'web-id', 'Image': 'web-old-id', 'Config': {'Env': []}}
+            (private / 'api-container.json').write_text(json.dumps(api))
+            (private / 'web-container.json').write_text(json.dumps(web))
+            with patch.object(release, 'PRIVATE', private), \
+                 patch.object(release, 'inspect', side_effect=lambda name: api if name.endswith('-api') else web), \
+                 patch.object(release, 'compose') as compose, patch.object(release, 'probe'), \
+                 patch.object(release, 'hashes', side_effect=['settings', 'nginx']), patch.object(release, 'save'):
+                release.rollback(state)
+                self.assertEqual(('up', '-d', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', 'web'),
+                                 compose.call_args.args[1:])
+
+    def test_web_only_api_drift_stops_mutation(self):
+        state = {'services': ['web'], 'untouched': {'healthbeauty-api': 'original-id'}}
+        with patch.object(release, 'load', return_value=state), \
+             patch.object(release, 'inspect', return_value={'Id': 'different-id'}), \
+             patch.object(release, 'compose') as compose:
+            for operation in [release.activate, lambda: release.rollback(state)]:
+                with self.assertRaisesRegex(RuntimeError, 'Untouched service ID changed'):
+                    operation()
+            compose.assert_not_called()
+
+    def chains(self, api_files, web_files):
+        return {name: {'Config': {'Labels': {'com.docker.compose.project': 'demo-api',
+                'com.docker.compose.project.config_files': ','.join(str(release.STACK / path) for path in files)}}}
+                for name, files in [('healthbeauty-api', api_files), ('healthbeauty-web', web_files)]}
+
+    def test_active_chain_keeps_latest_single_service_override_in_either_direction(self):
+        before = ['compose.yaml', 'compose.sepay.yaml', 'compose.release.yaml']
+        after = before + ['compose.release.logo.yaml']
+        with patch.object(Path, 'is_file', return_value=True):
+            for api_files, web_files in [(before, after), (after, before), (after, after)]:
+                self.assertEqual([str(release.STACK / path) for path in after],
+                                 release.active_compose_files(self.chains(api_files, web_files)))
+
+    def test_divergent_or_untrusted_compose_chains_are_rejected(self):
+        with patch.object(Path, 'is_file', return_value=True):
+            with self.assertRaisesRegex(RuntimeError, 'Divergent'):
+                release.active_compose_files(self.chains(['compose.yaml', 'api.yaml'], ['compose.yaml', 'web.yaml']))
+            for files in [['compose.yaml', 'compose.yaml'], ['../outside.yaml']]:
+                with self.assertRaises(RuntimeError):
+                    release.active_compose_files(self.chains(files, ['compose.yaml']))
+            value = self.chains(['compose.yaml'], ['compose.yaml'])
+            value['healthbeauty-web']['Config']['Labels']['com.docker.compose.project'] = 'another-project'
+            with self.assertRaises(RuntimeError):
+                release.active_compose_files(value)
+        with patch.object(Path, 'is_file', return_value=False):
+            with self.assertRaises(RuntimeError):
+                release.active_compose_files(self.chains(['missing.yaml'], ['missing.yaml']))
 
 
 if __name__ == '__main__':

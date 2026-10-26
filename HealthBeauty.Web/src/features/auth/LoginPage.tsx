@@ -117,12 +117,7 @@ export default function LoginPage() {
       <Card className="login-card" bordered={false}>
         <div className="sider-brand login-brand">
           <span className="brand-mark">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2.5C12 2.5 10.5 7 10.5 10C10.5 12 11.2 13.5 12 13.5C12.8 13.5 13.5 12 13.5 10C13.5 7 12 2.5 12 2.5Z" />
-              <path d="M9.8 14C8 13.2 5.5 11 4.5 7.5C4 11 5.8 15 9.2 16.5C9.5 15.5 9.7 14.7 9.8 14Z" opacity="0.85" />
-              <path d="M14.2 14C16 13.2 18.5 11 19.5 7.5C20 11 18.2 15 14.8 16.5C14.5 15.5 14.3 14.7 14.2 14Z" opacity="0.85" />
-              <path d="M12 18C7.5 18 4 19 2 21C6.5 21 17.5 21 22 21C20 19 16.5 18 12 18Z" opacity="0.9" />
-            </svg>
+            <img className="brand-logo" src="/branding/logo.png" alt="Logo HealthBeauty Spa" width="40" height="40" />
           </span>
           <div className="brand-label">
             <span className="brand-title">HealthBeauty</span>

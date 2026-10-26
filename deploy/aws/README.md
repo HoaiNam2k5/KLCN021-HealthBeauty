@@ -85,3 +85,24 @@ HEALTHBEAUTY_RELEASE_ID=20261026-mobile-enhancements python3 deploy/aws/release.
 # Only when rollback is needed:
 HEALTHBEAUTY_RELEASE_ID=20261026-mobile-enhancements python3 deploy/aws/release.py rollback
 ```
+
+For a Web-only branding/static asset update, use `HEALTHBEAUTY_RELEASE_SERVICES=web`
+when preparing a new release ID. Only Web is built, recreated and rolled back;
+the API container ID, image, environment and appsettings must remain unchanged,
+along with SQL Server and Caddy. The selection is persisted for later activation
+and rollback, just as for API-only releases.
+
+Preparation reads the Compose file chains from both API and Web labels. When a
+previous single-service release left one chain longer, the helper preserves the
+longest chain only if the other chain is its exact ordered prefix. Divergent
+chains, missing files, duplicate files, wrong projects or paths outside the
+existing stack directory stop preparation for review. This prevents a later
+release from omitting the latest single-service image override.
+
+```bash
+HEALTHBEAUTY_RELEASE_ID=20261027-logo HEALTHBEAUTY_RELEASE_SERVICES=web \
+  python3 /home/ubuntu/demo-api/source/deploy/aws/release.py prepare
+HEALTHBEAUTY_RELEASE_ID=20261027-logo python3 /home/ubuntu/demo-api/source/deploy/aws/release.py activate
+# Only if rollback is needed, with the same release ID:
+HEALTHBEAUTY_RELEASE_ID=20261027-logo python3 /home/ubuntu/demo-api/source/deploy/aws/release.py rollback
+```

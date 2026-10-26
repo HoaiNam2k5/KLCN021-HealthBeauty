@@ -280,6 +280,7 @@ export default function BillingPage() {
     <Modal className="responsive-modal receipt-preview-modal" title="Xem trước phiếu thanh toán" open={receiptInvoiceId !== null} onCancel={() => setReceiptInvoiceId(null)} width={760} footer={<Space className="receipt-no-print"><Button onClick={() => setReceiptInvoiceId(null)}>Đóng</Button><Button type="primary" icon={<PrinterOutlined />} disabled={!receiptInvoice || invoices.isError || (!activeIsInList && invoiceDetail.isError)} onClick={printNow}>In ngay (Print / PDF)</Button></Space>}>
       {receiptInvoice && <article id="healthbeauty-receipt" style={{ maxWidth: 680, margin: '0 auto', padding: 28, color: '#333', background: '#fff', border: '1px solid #eadfd5', borderRadius: 8, fontFamily: 'Arial, sans-serif' }}>
         <header style={{ textAlign: 'center', borderBottom: '2px solid #b88b62', paddingBottom: 18, marginBottom: 20 }}>
+          <img src="/branding/logo.png" alt="Logo HealthBeauty Spa" width="80" height="80" style={{ objectFit: 'contain', marginBottom: 10 }} />
           <div style={{ color: '#8b6448', fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>HEALTHBEAUTY SPA &amp; CLINIC</div>
           <div style={{ marginTop: 6 }}>140 Lê Trọng Tấn, Tây Thạnh, Tân Phú, TP. Hồ Chí Minh</div>
           <div>Hotline: 1900 6868 | Email: cskh@healthbeauty.vn</div>

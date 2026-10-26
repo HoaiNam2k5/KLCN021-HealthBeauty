@@ -1,0 +1,12 @@
+{
+  "name": "HealthBeauty Spa & Clinic",
+  "short_name": "HealthBeauty",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9dfe8",
+  "theme_color": "#8c4559",
+  "icons": [
+    { "src": "/favicon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/web-app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

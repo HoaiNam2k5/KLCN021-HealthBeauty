@@ -21,8 +21,8 @@ PUBLIC = 'https://healthbeauty.duckdns.org'
 
 def release_services(value=None):
     value = value if value is not None else os.environ.get('HEALTHBEAUTY_RELEASE_SERVICES', 'api,web')
-    if value not in ('api', 'api,web'):
-        raise RuntimeError('Release services must be api or api,web')
+    if value not in ('api', 'web', 'api,web'):
+        raise RuntimeError('Release services must be api, web or api,web')
     return value.split(',')
 
 def selected_services(state):
@@ -33,6 +33,25 @@ def image_override(state, key):
     selected = selected_services(state)
     return {'services': {t['service']: {'image': t[key]} for t in state['targets'].values()
                          if t['service'] in selected}}
+
+def active_compose_files(containers):
+    # A single-service rollout updates only that container's labels. Preserve the
+    # longer chain on the next rollout rather than reverting its image override.
+    chains = []
+    for name, container in containers.items():
+        labels = container['Config']['Labels']
+        files = labels.get('com.docker.compose.project.config_files', '').split(',')
+        if labels.get('com.docker.compose.project') != 'demo-api' or not files \
+                or len(files) != len(set(files)) \
+                or any(not Path(f).is_file() or Path(f).parent != STACK for f in files):
+            raise RuntimeError('Unexpected active Compose files/project: ' + name)
+        chains.append(files)
+    if not chains:
+        raise RuntimeError('Missing active Compose chains')
+    longest = max(chains, key=len)
+    if any(files != longest[:len(files)] for files in chains):
+        raise RuntimeError('Divergent active Compose chains require review')
+    return longest
 
 def run(args, capture=True):
     p = subprocess.run(args, cwd=str(STACK), stdout=subprocess.PIPE if capture else None,
@@ -117,10 +136,7 @@ def prepare():
         raise RuntimeError('Release already prepared; use activate or a new release directory')
     containers = {name: inspect(name) for name in ['healthbeauty-api', 'healthbeauty-web']}
     api, web = containers.values()
-    labels = api['Config']['Labels']
-    files = labels.get('com.docker.compose.project.config_files', '').split(',')
-    if labels.get('com.docker.compose.project') != 'demo-api' or not files or any(not Path(f).is_file() or Path(f).parent != STACK for f in files):
-        raise RuntimeError('Unexpected active Compose files/project')
+    files = active_compose_files(containers)
     app = api['Config']['WorkingDir'].rstrip('/')
     if app != '/app' or api['Config']['Entrypoint'] != ['dotnet', 'HealthBeauty.Api.dll']:
         raise RuntimeError('Unrecognized API startup')
@@ -140,8 +156,9 @@ def prepare():
     manifest = {'release': RELEASE_ID}
     state = {'files': files, 'services': services, 'targets': {}, 'untouched': {n: inspect(n)['Id'] for n in ['sqlserver', 'healthbeauty-caddy']},
              'compose_hashes': {f: hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in files}}
-    if 'web' not in services:
-        state['untouched']['healthbeauty-web'] = web['Id']
+    for name, container in containers.items():
+        if container['Config']['Labels']['com.docker.compose.service'] not in services:
+            state['untouched'][name] = container['Id']
     images = {}
     base = json.loads(compose(files, 'config', '--format', 'json'))
     save('compose-before.json', base)

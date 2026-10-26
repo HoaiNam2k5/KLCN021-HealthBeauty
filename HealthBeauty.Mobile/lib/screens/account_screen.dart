@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/app_logo.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 
@@ -464,7 +467,7 @@ class _AccountScreenState extends State<AccountScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.spa, color: Colors.white70, size: 20),
+                    const AppLogo(size: 28),
                     const SizedBox(width: 6),
                     Text(
                       'HEALTHBEAUTY',

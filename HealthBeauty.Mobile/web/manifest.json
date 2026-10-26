@@ -1,11 +1,11 @@
 {
-    "name": "app_doancunhan",
-    "short_name": "app_doancunhan",
+    "name": "HealthBeauty Spa & Clinic",
+    "short_name": "HealthBeauty",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F9DFE8",
+    "theme_color": "#8c4559",
+    "description": "Đặt lịch và chăm sóc sắc đẹp cùng HealthBeauty.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
 import '../core/format.dart';
 import '../providers/appointment_provider.dart';
@@ -8,6 +9,7 @@ import '../providers/catalog_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../widgets/common.dart';
+import '../widgets/app_logo.dart';
 import '../widgets/pending_invoice_reminder.dart';
 import '../widgets/service_tile.dart';
 import 'booking_screen.dart';
@@ -48,6 +50,8 @@ class HomeScreen extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              const AppLogo(),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,7 +64,10 @@ class HomeScreen extends StatelessWidget {
                       auth.isLoggedIn ? name : 'HealthBeauty',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
@@ -96,7 +103,10 @@ class HomeScreen extends StatelessWidget {
                         top: 2,
                         right: 2,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.danger,
                             borderRadius: BorderRadius.circular(10),
@@ -107,7 +117,9 @@ class HomeScreen extends StatelessWidget {
                             minHeight: 18,
                           ),
                           child: Text(
-                            notif.unreadCount > 99 ? '99+' : notif.unreadCount.toString(),
+                            notif.unreadCount > 99
+                                ? '99+'
+                                : notif.unreadCount.toString(),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10,
@@ -132,25 +144,39 @@ class HomeScreen extends StatelessWidget {
               onTap: () => mainTab.value = 2,
               child: Row(
                 children: [
-                  const Icon(Icons.event_available, color: AppColors.onRoseContainer, size: 32),
+                  const Icon(
+                    Icons.event_available,
+                    color: AppColors.onRoseContainer,
+                    size: 32,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Lịch hẹn sắp tới',
-                            style: TextStyle(color: AppColors.onRoseContainer, fontSize: 13)),
+                        const Text(
+                          'Lịch hẹn sắp tới',
+                          style: TextStyle(
+                            color: AppColors.onRoseContainer,
+                            fontSize: 13,
+                          ),
+                        ),
                         Text(
                           '${weekdayStr(next.appointmentAt)}, ${dateStr(next.appointmentAt)} · ${timeStr(next.appointmentAt)}',
                           style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.onRoseContainer,
-                              fontSize: 16),
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.onRoseContainer,
+                            fontSize: 16,
+                          ),
                         ),
-                        Text(next.serviceSummary,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.onRoseContainer)),
+                        Text(
+                          next.serviceSummary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.onRoseContainer,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -180,7 +206,9 @@ class HomeScreen extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    auth.isLoggedIn ? Icons.add_circle_outline : Icons.calendar_month_outlined,
+                    auth.isLoggedIn
+                        ? Icons.add_circle_outline
+                        : Icons.calendar_month_outlined,
                     color: AppColors.rose,
                     size: 32,
                   ),
@@ -223,7 +251,10 @@ class HomeScreen extends StatelessWidget {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (catalog.error != null && !catalog.loaded)
-            ErrorState(message: catalog.error!, onRetry: () => catalog.load(force: true))
+            ErrorState(
+              message: catalog.error!,
+              onRetry: () => catalog.load(force: true),
+            )
           else if (featured.isEmpty)
             const SizedBox(
               height: 160,
@@ -251,7 +282,9 @@ class HomeScreen extends StatelessWidget {
                   categoryName: catalog.categoryName(s.categoryId),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: s)),
+                    MaterialPageRoute(
+                      builder: (_) => ServiceDetailScreen(service: s),
+                    ),
                   ),
                 );
               },
@@ -280,9 +313,16 @@ class HomeScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                            Text(p.discountLabel,
-                                style: const TextStyle(color: AppColors.rose)),
+                            Text(
+                              p.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              p.discountLabel,
+                              style: const TextStyle(color: AppColors.rose),
+                            ),
                           ],
                         ),
                       ),
