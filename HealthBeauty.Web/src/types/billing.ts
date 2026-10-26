@@ -51,7 +51,12 @@ export interface PaymentRequest {
   status: string
 }
 
-export interface InvoiceBankTransfer {
+export interface ApplyInvoiceDiscountRequest {
+  voucherCode: string | null
+  pointsToRedeem: number
+}
+
+export interface BankTransferResponse {
   invoiceId: number
   amount: number
   status: string
@@ -63,10 +68,7 @@ export interface InvoiceBankTransfer {
   qrImageUrl: string
 }
 
-export interface ApplyInvoiceDiscountRequest {
-  voucherCode: string | null
-  pointsToRedeem: number
-}
+export type InvoiceBankTransfer = BankTransferResponse
 
 export function asInvoices(value: unknown): Invoice[] {
   if (Array.isArray(value)) return value as Invoice[]

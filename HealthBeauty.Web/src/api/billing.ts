@@ -1,18 +1,18 @@
 import api from './client'
-import { asInvoices, type ApplyInvoiceDiscountRequest, type CreateInvoiceRequest, type Invoice, type InvoiceBankTransfer, type PaymentRequest } from '../types/billing'
+import { asInvoices, type ApplyInvoiceDiscountRequest, type BankTransferResponse, type CreateInvoiceRequest, type Invoice, type PaymentRequest } from '../types/billing'
 
 export async function getInvoices(): Promise<Invoice[]> {
   const { data } = await api.get<unknown>('/invoices')
   return asInvoices(data)
 }
 
-export async function getInvoice(id: number): Promise<Invoice> {
-  const { data } = await api.get<Invoice>(`/invoices/${id}`)
+export async function getInvoice(id: number, signal?: AbortSignal): Promise<Invoice> {
+  const { data } = await api.get<Invoice>(`/invoices/${id}`, { signal })
   return data
 }
 
-export async function getInvoiceBankTransfer(id: number): Promise<InvoiceBankTransfer> {
-  const { data } = await api.post<InvoiceBankTransfer>(`/invoices/${id}/bank-transfer`)
+export async function getBankTransferInstructions(invoiceId: number, signal?: AbortSignal): Promise<BankTransferResponse> {
+  const { data } = await api.post<BankTransferResponse>(`/invoices/${invoiceId}/bank-transfer`, undefined, { signal })
   return data
 }
 
@@ -28,3 +28,5 @@ export async function applyInvoiceDiscount(id: number, body: ApplyInvoiceDiscoun
   const { data } = await api.post<Invoice>(`/invoices/${id}/discounts`, body)
   return data
 }
+
+export const getInvoiceBankTransfer = getBankTransferInstructions

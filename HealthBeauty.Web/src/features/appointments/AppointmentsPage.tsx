@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { useEffect, useMemo, useState } from 'react'
-import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Form, Input, Modal, Row, Select, Space, Tag, TimePicker, Typography } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Form, Input, Modal, Row, Segmented, Select, Space, Tag, TimePicker, Typography } from 'antd'
+import { AppstoreOutlined, DownloadOutlined, TableOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -14,7 +14,10 @@ import { useServices, useCombos } from '../services/serviceQueries'
 import { useCustomerPackages } from '../service-packages/packageQueries'
 import { APPOINTMENT_STATUSES, getAppointmentPrimaryAction, getAppointmentStatusPresentation } from './appointmentStatus'
 import { bookingItems, bookingDuration, canReschedule, canCancel, localAppointmentDateTime } from './appointmentContract'
-import { appointmentKeys, useAppointmentDetail, useAppointmentCustomers, useAppointments, useAppointmentStaff, useAvailableSlots } from './appointmentQueries'
+import { appointmentKeys, useAppointmentDetail, useAppointmentCustomers, useAppointments, useAppointmentStaff, useAvailableSlots, useTimelineAppointments } from './appointmentQueries'
+import StaffTimelineMatrix from './StaffTimelineMatrix'
+import { useCreateIntent } from '../../hooks/useCreateIntent'
+import { buildTimelineModel, canQuickBookTimeline } from './timelineModel'
 
 const statusLabels: Record<string, string> = { ChoXacNhan: 'Chờ xác nhận', DaXacNhan: 'Đã xác nhận', DaDen: 'Khách đã đến', DangThucHien: 'Đang thực hiện', HoanThanh: 'Hoàn thành', DaHuy: 'Đã hủy' }
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
@@ -96,7 +99,7 @@ function AppointmentCreateDrawer({ open, staff, form, onClose, onSubmit, busy }:
       form.setFields([{ name: 'itemKeys', errors: [error instanceof Error ? error.message : 'Dịch vụ / combo không hợp lệ.'] }])
     }
   }
-  return <Drawer className="responsive-drawer" title="Tạo lịch hẹn" open={open} onClose={onClose} width={560} destroyOnClose>
+  return <Drawer className="responsive-drawer" title="Tạo lịch hẹn" open={open} onClose={onClose} width={560} forceRender>
     <Form className="responsive-form" form={form} layout="vertical" onFinish={finish}>
       <Form.Item label="Khách hàng" name="customerId" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}><Select showSearch filterOption={false} onSearch={setCustomerKeyword} loading={customers.isFetching} placeholder="Tìm theo tên hoặc số điện thoại" notFoundContent={customers.isError ? 'Không tải được khách hàng' : 'Không tìm thấy khách hàng'} options={(customers.data ?? []).map((customer) => ({ value: customer.id, label: `${customer.fullName} — ${customer.phone ?? 'Chưa có SĐT'}` }))} /></Form.Item>
       <Form.Item label="Nhân viên" name="staffId"><Select allowClear placeholder="Chọn nhân viên" options={staff.map((item) => ({ value: item.nhanVienId, label: `${item.hoTen}${item.soDienThoai ? ` — ${item.soDienThoai}` : ''}` }))} /></Form.Item>
@@ -144,6 +147,7 @@ export default function AppointmentsPage() {
   const [cancelForm] = Form.useForm<{ reason: string }>()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table')
   const [date, setDate] = useState<Dayjs | null>(null)
   const [status, setStatus] = useState<string>()
   const [staffId, setStaffId] = useState<number>()
@@ -154,7 +158,6 @@ export default function AppointmentsPage() {
     return () => window.clearTimeout(timeout)
   }, [keyword])
   const [selected, setSelected] = useState<Appointment | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
   const [createForm] = Form.useForm<CreateFields>()
   const [editor, setEditor] = useState<'edit' | 'reschedule' | null>(null)
   const { message, modal } = AntApp.useApp()
@@ -162,17 +165,26 @@ export default function AppointmentsPage() {
   const canReadStaff = role !== 'Staff' && has('STAFF.READ')
   const canWrite = has('APPOINTMENT.WRITE')
   const canCreate = canWrite && has('CUSTOMER.READ')
+  const [createOpen, setCreateOpen] = useCreateIntent(canCreate)
   const mutations = useAppointmentMutations()
-  const filters = useMemo(() => ({
-    ...(date ? { from: date.startOf('day').format('YYYY-MM-DDTHH:mm:ss'), to: date.add(1, 'day').startOf('day').format('YYYY-MM-DDTHH:mm:ss') } : {}),
-    ...(status ? { status } : {}),
-    ...(staffId !== undefined ? { staffId } : {}),
-    ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
-    page,
-    pageSize,
-  }), [date, status, staffId, debouncedKeyword, page, pageSize])
-  const appointments = useAppointments(filters)
+  const filters = useMemo(() => {
+    const targetDate = date
+    return {
+      ...(targetDate ? { from: targetDate.startOf('day').format('YYYY-MM-DDTHH:mm:ss'), to: targetDate.add(1, 'day').startOf('day').format('YYYY-MM-DDTHH:mm:ss') } : {}),
+      ...(status ? { status } : {}),
+      ...(staffId !== undefined ? { staffId } : {}),
+      ...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
+      page,
+      pageSize,
+    }
+  }, [date, status, staffId, debouncedKeyword, page, pageSize])
+  const appointments = useAppointments(filters, viewMode === 'table')
+  const timelineDay = (date ?? dayjs()).format('YYYY-MM-DD')
+  // Include the previous day so an appointment continuing past midnight still occupies today's cells.
+  const timeline = useTimelineAppointments(dayjs(timelineDay).subtract(1, 'day').format('YYYY-MM-DDT00:00:00'), dayjs(timelineDay).add(1, 'day').format('YYYY-MM-DDT00:00:00'), viewMode === 'timeline')
   const staff = useAppointmentStaff(canReadStaff)
+  const visibleStaff = useMemo(() => canReadStaff ? staff.data ?? [] : [], [canReadStaff, staff.data])
+  const timelineModel = useMemo(() => buildTimelineModel(timelineDay, timeline.data ?? [], visibleStaff), [timelineDay, timeline.data, visibleStaff])
   const customers = useAppointmentCustomers('', has('CUSTOMER.READ'))
   const detail = useAppointmentDetail(selected?.id)
   const handleError = (error: unknown) => {
@@ -183,7 +195,7 @@ export default function AppointmentsPage() {
       : 'Không thể thực hiện thao tác. Vui lòng thử lại.'
     message.error(getApiErrorMessage(error, fallback))
   }
-  const activeAppointment = selected ? appointments.data?.items.find((item) => item.id === selected.id) ?? selected : null
+  const activeAppointment = selected ? (viewMode === 'timeline' ? timeline.data?.find(item => item.id === selected.id) : appointments.data?.items.find(item => item.id === selected.id)) ?? selected : null
   const applyCreateErrors = (errors: { name: string; errors: string[] }[]) => {
     const names: Record<string, keyof CreateFields> = { appointmentAt: 'appointmentDate', items: 'itemKeys', customerId: 'customerId', staffId: 'staffId', note: 'note' }
     const mapped = errors.map((entry) => ({ name: names[entry.name] ?? 'appointmentDate', errors: entry.errors }))
@@ -208,18 +220,38 @@ export default function AppointmentsPage() {
       message.error(getApiErrorMessage(error, 'Không thể tạo lịch hẹn. Vui lòng thử lại.'))
     },
   })
+  const handleQuickBook = (targetStaffId: number | undefined, hour: number) => {
+    if (!canCreate || !canQuickBookTimeline(timelineDay, hour, targetStaffId ?? null, timelineModel, !timeline.isPending && !timeline.isFetching && !timeline.isError && !(canReadStaff && staff.isError), Date.now())) return
+    const targetDate = dayjs(timelineDay)
+    createForm.resetFields()
+    createForm.setFieldsValue({
+      appointmentDate: targetDate,
+      appointmentTime: targetDate.hour(hour).minute(0).second(0),
+      staffId: targetStaffId,
+    })
+    setCreateOpen(true)
+  }
   const submitEditor = (body: AppointmentUpdateRequest) => {
     if (!canWrite || !activeAppointment) return
     const mutation = editor === 'reschedule' ? mutations.reschedule : mutations.update
     mutation.mutate({ id: activeAppointment.id, body }, { onSuccess: () => { message.success(editor === 'reschedule' ? 'Đổi lịch hẹn thành công' : 'Cập nhật lịch hẹn thành công'); setEditor(null) }, onError: handleError })
   }
-  const error = appointments.isError || staff.isError || customers.isError
+  const listError = viewMode === 'timeline' ? timeline.error : appointments.error
+  const error = (viewMode === 'timeline' ? timeline.isError : appointments.isError) || (canReadStaff && staff.isError) || customers.isError
   const errorMessage = error
-    ? getApiErrorMessage(appointments.error ?? staff.error ?? customers.error, 'Không thể tải danh sách lịch hẹn. Vui lòng thử lại.')
+    ? getApiErrorMessage(listError ?? staff.error ?? customers.error, 'Không thể tải danh sách lịch hẹn. Vui lòng thử lại.')
     : ''
-  const staffNames = useMemo(() => new Map((staff.data ?? []).map((item) => [item.nhanVienId, item.hoTen])), [staff.data])
-  const customerNames = useMemo(() => new Map((customers.data ?? []).map((item) => [item.id, item.fullName])), [customers.data])
-  const appointmentItems = appointments.data?.items ?? []
+  const appointmentItems = useMemo(() => viewMode === 'timeline' ? timelineModel.appointments : appointments.data?.items ?? [], [viewMode, timelineModel.appointments, appointments.data?.items])
+  const staffNames = useMemo(() => {
+    const names = new Map((visibleStaff).map(item => [item.nhanVienId, item.hoTen]))
+    for (const item of appointmentItems) if (item.staffId !== null && item.staffName) names.set(item.staffId, item.staffName)
+    return names
+  }, [visibleStaff, appointmentItems])
+  const customerNames = useMemo(() => {
+    const names = new Map((customers.data ?? []).map(item => [item.id, item.fullName]))
+    for (const item of appointmentItems) if (item.customerName) names.set(item.customerId, item.customerName)
+    return names
+  }, [customers.data, appointmentItems])
   const changeStatus = (appointment: Appointment, nextStatus: string) => {
     const complete = nextStatus === 'HoanThanh'
     modal.confirm({
@@ -285,7 +317,7 @@ export default function AppointmentsPage() {
   }
 
   const kpiCards = [
-    { title: 'Tất cả lịch hẹn', count: appointments.data?.totalCount ?? 0, status: undefined, color: '#d9d9d9' },
+    { title: 'Tất cả lịch hẹn', count: viewMode === 'timeline' ? appointmentItems.length : appointments.data?.totalCount ?? 0, status: undefined, color: '#d9d9d9' },
     { title: 'Chờ xác nhận', count: statusCounts.ChoXacNhan ?? 0, status: 'ChoXacNhan', color: '#faad14' },
     { title: 'Đang phục vụ', count: (statusCounts.DangThucHien ?? 0) + (statusCounts.DaDen ?? 0), status: 'DaDen', color: '#1677ff' },
     { title: 'Đã hoàn thành', count: statusCounts.HoanThanh ?? 0, status: 'HoanThanh', color: '#52c41a' },
@@ -293,6 +325,17 @@ export default function AppointmentsPage() {
 
   return <>
     {error && <Alert type="error" showIcon message="Không tải được dữ liệu lịch hẹn" description={errorMessage} style={{ marginBottom: 16 }} />}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+      <Segmented
+        value={viewMode}
+        onChange={(val) => setViewMode(val as 'table' | 'timeline')}
+        options={[
+          { label: 'Bảng danh sách', value: 'table', icon: <TableOutlined /> },
+          { label: 'Ma trận KTV', value: 'timeline', icon: <AppstoreOutlined /> },
+        ]}
+      />
+      {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
+    </div>
     <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
       {kpiCards.map((card) => <Col xs={12} sm={12} md={6} key={card.title}>
         <Card size="small" hoverable style={{ borderTop: `3px solid ${card.color}`, cursor: 'pointer' }} onClick={() => { setStatus(card.status); setPage(1) }}>
@@ -301,40 +344,57 @@ export default function AppointmentsPage() {
         </Card>
       </Col>)}
     </Row>
-    <ManagementTable<Appointment>
-      title="Lịch hẹn"
-      columns={[
-        { title: 'Ngày giờ', dataIndex: 'appointmentAt', key: 'appointmentAt', render: (value: string, appointment: Appointment) => <Space>{dayjs(value).format('DD/MM/YYYY HH:mm')}{appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}</Space> },
-        { title: 'Khách hàng', dataIndex: 'customerId', key: 'customer', render: (id: number, appointment: Appointment) => appointment.customerName ?? customerNames.get(id) ?? `Khách #${id}` },
-        { title: 'Nhân viên', dataIndex: 'staffId', key: 'staff', render: (id: number | null) => id === null ? 'Chưa phân công' : staffNames.get(id) ?? `Nhân viên #${id}` },
-        { title: 'Dịch vụ', dataIndex: 'items', key: 'items', render: (items: Appointment['items']) => items.map((item) => item.serviceName).join(', ') || '—' },
+    {viewMode === 'table' ? (
+      <ManagementTable<Appointment>
+        title="Lịch hẹn"
+        columns={[
+          { title: 'Ngày giờ', dataIndex: 'appointmentAt', key: 'appointmentAt', render: (value: string, appointment: Appointment) => <Space>{dayjs(value).format('DD/MM/YYYY HH:mm')}{appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}</Space> },
+          { title: 'Khách hàng', dataIndex: 'customerId', key: 'customer', render: (id: number) => customerNames.get(id) ?? `Khách #${id}` },
+          { title: 'Nhân viên', dataIndex: 'staffId', key: 'staff', render: (id: number | null) => id === null ? 'Chưa phân công' : staffNames.get(id) ?? `Nhân viên #${id}` },
+          { title: 'Dịch vụ', dataIndex: 'items', key: 'items', render: (items: Appointment['items']) => items.map((item) => item.serviceName).join(', ') || '—' },
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent' }}>{presentation.label}</Tag> } },
-        { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
+          { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
         { title: 'Thao tác', key: 'details', render: (_, record) => <Space orientation="vertical" align="start">{appointmentActions(record)}<Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button></Space> },
-      ]}
-      data={appointmentItems}
-      total={appointments.data?.totalCount ?? 0}
-      searchFields={[]}
-      onSearch={(value) => { setKeyword(value); setPage(1) }}
-      searchPlaceholder="Tìm theo tên khách hoặc SĐT"
-      loading={appointments.isLoading || staff.isLoading || customers.isLoading}
-      error={error}
-      page={page}
-      pageSize={pageSize}
-      onPageChange={(next, size) => { setPageSize(size); setPage(next) }}
-      canManage={false}
-      onEdit={() => undefined}
-      onDelete={() => undefined}
-      toolbar={<>
-        <DatePicker allowClear placeholder="Lọc theo ngày" format="DD/MM/YYYY" value={date} onChange={(value) => { setDate(value); setPage(1) }} />
-        <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={APPOINTMENT_STATUSES.map((value) => ({ value, label: statusLabels[value] }))} />
-        {canReadStaff && <Select allowClear showSearch optionFilterProp="label" placeholder="Tất cả nhân viên" style={{ width: 190, maxWidth: '100%' }} value={staffId} onChange={(value) => { setStaffId(value); setPage(1) }} options={(staff.data ?? []).map((item) => ({ value: item.nhanVienId, label: item.hoTen }))} />}
-        <Button onClick={() => { setDate(dayjs()); setPage(1) }}>Hôm nay</Button>
-        <Button icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách</Button>
-        {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
-      </>}
-    />
-    {canCreate && <AppointmentCreateDrawer open={createOpen} staff={staff.data ?? []} form={createForm} onClose={() => setCreateOpen(false)} onSubmit={createAppointment} busy={mutations.create.isPending} />}
+        ]}
+        data={appointmentItems}
+        total={appointments.data?.totalCount ?? 0}
+        searchFields={[]}
+        onSearch={(value) => { setKeyword(value); setPage(1) }}
+        searchPlaceholder="Tìm theo tên khách hoặc SĐT"
+        loading={appointments.isLoading || (canReadStaff && staff.isLoading) || customers.isLoading}
+        error={error}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={(next, size) => { setPageSize(size); setPage(next) }}
+        canManage={false}
+        onEdit={() => undefined}
+        onDelete={() => undefined}
+        toolbar={<>
+          <DatePicker allowClear placeholder="Lọc theo ngày" format="DD/MM/YYYY" value={date} onChange={(value) => { setDate(value); setPage(1) }} />
+          <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={APPOINTMENT_STATUSES.map((value) => ({ value, label: statusLabels[value] }))} />
+          {canReadStaff && <Select allowClear showSearch optionFilterProp="label" placeholder="Tất cả nhân viên" style={{ width: 190, maxWidth: '100%' }} value={staffId} onChange={(value) => { setStaffId(value); setPage(1) }} options={(visibleStaff).map((item) => ({ value: item.nhanVienId, label: item.hoTen }))} />}
+          <Button onClick={() => { setDate(dayjs()); setPage(1) }}>Hôm nay</Button>
+          <Button icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách</Button>
+          {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
+        </>}
+      />
+    ) : (
+      <StaffTimelineMatrix
+        currentDate={date ?? dayjs()}
+        onDateChange={(newDate) => { setDate(newDate); setPage(1) }}
+        appointments={timeline.data ?? []}
+        staffList={visibleStaff}
+        customerNames={customerNames}
+        onSelectAppointment={setSelected}
+        onQuickBook={handleQuickBook}
+        canCreate={canCreate}
+        isLoading={timeline.isPending || (canReadStaff && staff.isLoading)}
+        isRefreshing={timeline.isFetching}
+        error={timeline.isError || (canReadStaff && staff.isError) ? getApiErrorMessage(timeline.error ?? staff.error, 'Không tải đủ dữ liệu lịch hẹn. Vui lòng thử lại.') : undefined}
+        onRetry={() => { void timeline.refetch(); if (canReadStaff) void staff.refetch() }}
+      />
+    )}
+    {canCreate && <AppointmentCreateDrawer open={createOpen} staff={visibleStaff} form={createForm} onClose={() => setCreateOpen(false)} onSubmit={createAppointment} busy={mutations.create.isPending} />}
     <Drawer className="responsive-drawer" title={`Chi tiết lịch hẹn #${activeAppointment?.id ?? ''}`} open={Boolean(activeAppointment)} onClose={() => setSelected(null)} width={560}>
       {activeAppointment && <>
         {detail.isError && <Alert type="warning" message={getApiErrorMessage(detail.error, 'Không tải được thông tin chi tiết lịch hẹn.')} style={{ marginBottom: 12 }} />}
@@ -368,7 +428,7 @@ export default function AppointmentsPage() {
       </Form>
     </Modal>
     <Modal className="responsive-modal" title={editor === 'reschedule' ? 'Đổi lịch hẹn' : 'Sửa ghi chú / nhân viên'} open={editor !== null && canWrite} footer={null} onCancel={() => setEditor(null)} destroyOnClose>
-      {activeAppointment && editor && <AppointmentEditor key={`${activeAppointment.id}-${editor}`} appointment={activeAppointment} staff={staff.data ?? []} mode={editor} onCancel={() => setEditor(null)} onSubmit={submitEditor} busy={mutations.update.isPending || mutations.reschedule.isPending} />}
+      {activeAppointment && editor && <AppointmentEditor key={`${activeAppointment.id}-${editor}`} appointment={activeAppointment} staff={visibleStaff} mode={editor} onCancel={() => setEditor(null)} onSubmit={submitEditor} busy={mutations.update.isPending || mutations.reschedule.isPending} />}
     </Modal>
   </>
 }

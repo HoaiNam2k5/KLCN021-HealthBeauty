@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography, Row, Col } from 'antd'
-import { DeleteOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, PrinterOutlined, QrcodeOutlined } from '@ant-design/icons'
+import { useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { Appointment } from '../../types/appointments'
@@ -17,7 +18,10 @@ import { INVOICE_STATUS, INVOICE_STATUS_LABELS, PAYMENT_METHOD, PAYMENT_METHOD_O
 import { useApplyInvoiceDiscount, useCreateInvoice, useInvoiceDetail, useInvoices, useRecordInvoicePayment } from './billingQueries'
 import { buildInvoiceDraft, eligibleInvoiceAppointments } from './invoiceDraft'
 import { canApplyInvoiceDiscount, currentInvoice } from './invoiceSync'
-import InvoiceCollection from './InvoiceCollection'
+import BankTransferModal from './BankTransferModal'
+import { cacheVerifiedPaidInvoice } from './transferSafety'
+import { getSession } from '../../api/session'
+import { useCreateIntent } from '../../hooks/useCreateIntent'
 
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
 type CreateFields = { appointmentId: number; voucherCode?: string; pointsToRedeem?: number }
@@ -29,7 +33,9 @@ export default function BillingPage() {
   const [searchParams] = useSearchParams()
   const { message } = App.useApp()
   const { has } = usePermissions()
-  const cashierName = useAuth()?.account?.name ?? 'HealthBeauty Spa & Clinic'
+  const session = useAuth()
+  const client = useQueryClient()
+  const cashierName = session?.account?.name ?? 'HealthBeauty Spa & Clinic'
   const canWrite = has('INVOICE.WRITE') && has('APPOINTMENT.READ')
   const canPay = has('PAYMENT.WRITE')
   const invoices = useInvoices()
@@ -49,11 +55,11 @@ export default function BillingPage() {
     return searchParams.get('collect') !== '1' && Number.isSafeInteger(id) && id > 0 ? id : null
   })
   const [receiptInvoiceId, setReceiptInvoiceId] = useState<number | null>(null)
-  const [collectionId, setCollectionId] = useState<number | null>(() => {
+  const [qrInvoiceId, setQrInvoiceId] = useState<number | null>(() => {
     const id = Number(searchParams.get('invoiceId'))
     return searchParams.get('collect') === '1' && Number.isSafeInteger(id) && id > 0 ? id : null
   })
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useCreateIntent(canWrite)
   const [invoiceLineEdits, setInvoiceLineEdits] = useState<{ appointmentId: number | undefined; lines: EditableInvoiceLine[] } | null>(null)
   const [newItemKey, setNewItemKey] = useState<string>()
   const [newItemQuantity, setNewItemQuantity] = useState(1)
@@ -87,6 +93,12 @@ export default function BillingPage() {
   const unpaidCount = list.filter((invoice) => invoice.status === INVOICE_STATUS.UNPAID).length
   const openInvoice = (invoice: Invoice) => setSelectedId(invoice.id)
   const printReceipt = (invoice: Invoice) => { openInvoice(invoice); setReceiptInvoiceId(invoice.id) }
+  async function acceptPaidInvoice(invoice: Invoice, print = false) {
+    if (!session || !await cacheVerifiedPaidInvoice(client, invoice, () => getSession() === session)) return
+    if (print) printReceipt(invoice)
+    else message.success(`Hóa đơn #${invoice.id} đã được thanh toán.`)
+    void Promise.all(['invoices', 'customers', 'appointment-customers', 'appointments', 'reports'].map(key => client.invalidateQueries({ queryKey: [key] })))
+  }
   const filtered = useMemo(() => list.filter((invoice) => {
     const matchesCustomer = !keyword || (customerNames.get(invoice.customerId) ?? '').toLocaleLowerCase().includes(keyword.trim().toLocaleLowerCase())
     const matchesStatus = !status || invoice.status === status
@@ -174,10 +186,23 @@ export default function BillingPage() {
         ? <Space size={[4, 4]} wrap>{successfulPayments.map((payment) => <Tag key={payment.id}>{PAYMENT_METHOD_LABELS[payment.method] ?? 'Phương thức khác'}</Tag>)}</Space>
         : '—'
     } },
-    { title: 'Thao tác', key: 'actions', render: (_, invoice) => <Space>
-      {invoice.status === INVOICE_STATUS.UNPAID && invoice.total > 0 && <Button type="primary" onClick={(event) => { event.stopPropagation(); setCollectionId(invoice.id) }}>Thu tiền</Button>}
-      <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button>
-    </Space> },
+    { title: 'Thao tác', key: 'actions', render: (_, invoice) => (
+      <Space size={4}>
+        {invoice.status === INVOICE_STATUS.UNPAID && invoice.total > 0 && (
+          <Button
+            type="link"
+            icon={<QrcodeOutlined />}
+            onClick={(event) => {
+              event.stopPropagation()
+              setQrInvoiceId(invoice.id)
+            }}
+          >
+            Quét QR
+          </Button>
+        )}
+        <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button>
+      </Space>
+    ) },
   ]
 
   const receiptCustomer = receiptInvoice ? customers.data?.find((customer) => customer.id === receiptInvoice.customerId) : undefined
@@ -188,7 +213,6 @@ export default function BillingPage() {
   const printNow = () => window.print()
 
   return <section>
-    {collectionId !== null && <InvoiceCollection key={collectionId} invoiceId={collectionId} customerName={customerNames.get(list.find(invoice => invoice.id === collectionId)?.customerId ?? 0) ?? `Hóa đơn #${collectionId}`} canPayCash={canPay} onClose={() => setCollectionId(null)} onCash={() => { setSelectedId(collectionId); setCollectionId(null); paymentForm.setFieldsValue({ method: PAYMENT_METHOD.CASH, status: PAYMENT_STATUS.SUCCESS }) }} onPrint={invoice => { setCollectionId(null); printReceipt(invoice) }} />}
     <style>{`@media print { body * { visibility: hidden !important; } #healthbeauty-receipt, #healthbeauty-receipt * { visibility: visible !important; } #healthbeauty-receipt { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 20mm !important; box-shadow: none !important; color: #222 !important; background: #fff !important; } .receipt-no-print { display: none !important; } @page { size: A4; margin: 0; } }`}</style>
     <div className="page-heading">
       <Typography.Title level={4} style={{ margin: 0 }}>Hóa đơn và thanh toán</Typography.Title>
@@ -210,8 +234,19 @@ export default function BillingPage() {
     <Drawer className="responsive-drawer" title={`Chi tiết hóa đơn #${selectedId ?? ''}`} open={selectedId !== null} onClose={() => setSelectedId(null)} width={640}>
       {!selected && <Alert type={invoiceDetail.isError ? 'error' : 'info'} showIcon message={invoiceDetail.isError ? 'Không tải được hóa đơn. Vui lòng thử lại.' : 'Đang tải hóa đơn…'} />}
       {selected && <>
-        <Space className="receipt-no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}><Button icon={<PrinterOutlined />} onClick={() => printReceipt(selected)}>In hóa đơn</Button></Space>
-        {selected.status === INVOICE_STATUS.UNPAID && selected.total > 0 && <Button type="primary" block onClick={() => { setCollectionId(selected.id); setSelectedId(null) }}>Thu tiền / Hiện QR cho khách</Button>}
+        <Space className="receipt-no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          {selected.status === INVOICE_STATUS.UNPAID && selected.total > 0 && (
+            <Button
+              type="primary"
+              icon={<QrcodeOutlined />}
+              onClick={() => setQrInvoiceId(selected.id)}
+              style={{ background: '#8c4559', borderColor: '#8c4559' }}
+            >
+              Mã QR SePay
+            </Button>
+          )}
+          <Button icon={<PrinterOutlined />} onClick={() => printReceipt(selected)}>In hóa đơn</Button>
+        </Space>
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Lịch hẹn">#{selected.appointmentId}</Descriptions.Item>
           <Descriptions.Item label="Khách hàng">{customerNames.get(selected.customerId) ?? `#${selected.customerId}`}</Descriptions.Item>
@@ -304,5 +339,18 @@ export default function BillingPage() {
         {(services.isError || combos.isError) && <Alert type="warning" message="Không tải được danh mục dịch vụ/combo." />}
       </Form>
     </Modal>
+    <BankTransferModal
+      open={qrInvoiceId !== null}
+      invoiceId={qrInvoiceId}
+      onClose={() => setQrInvoiceId(null)}
+      canPayCash={canPay}
+      onCash={(invoice) => { setSelectedId(invoice.id); setQrInvoiceId(null); paymentForm.setFieldsValue({ method: PAYMENT_METHOD.CASH, status: PAYMENT_STATUS.SUCCESS }) }}
+      onPaymentSuccess={(invoice) => {
+        void acceptPaidInvoice(invoice)
+      }}
+      onPrintReceipt={(invoice) => {
+        void acceptPaidInvoice(invoice, true)
+      }}
+    />
   </section>
 }

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import * as appointmentsApi from '../../api/appointments'
 import type { AppointmentFilters } from '../../types/appointments'
+import { useAuth } from '../../hooks/useAuth'
+import { loadTimelineAppointments } from './timelineModel'
 
 export const appointmentKeys = {
   appointments: ['appointments'] as const,
@@ -10,8 +12,19 @@ export const appointmentKeys = {
   availableSlots: ['appointment-available-slots'] as const,
 }
 
-export function useAppointments(filters: AppointmentFilters = {}) {
-  return useQuery({ queryKey: appointmentKeys.appointmentList(filters), queryFn: () => appointmentsApi.getAppointments(filters), refetchInterval: 15000, refetchIntervalInBackground: false })
+export function useAppointments(filters: AppointmentFilters = {}, enabled = true) {
+  return useQuery({ queryKey: appointmentKeys.appointmentList(filters), queryFn: () => appointmentsApi.getAppointments(filters), enabled, refetchInterval: 15000, refetchIntervalInBackground: false })
+}
+
+export function useTimelineAppointments(from: string, to: string, enabled: boolean) {
+  const accountId = useAuth()?.account?.id
+  return useQuery({
+    queryKey: [...appointmentKeys.appointments, 'timeline', accountId, from, to],
+    queryFn: ({ signal }) => loadTimelineAppointments({ from, to }, filters => appointmentsApi.getAppointments(filters, signal)),
+    enabled: enabled && accountId !== undefined,
+    refetchInterval: 30000, refetchIntervalInBackground: false,
+    refetchOnWindowFocus: 'always', refetchOnMount: 'always', retry: 1,
+  })
 }
 
 export function useAllAppointments(enabled = true) {

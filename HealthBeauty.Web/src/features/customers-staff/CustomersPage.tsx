@@ -11,6 +11,7 @@ import { useInvoices } from '../billing/billingQueries'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useCreateIntent } from '../../hooks/useCreateIntent'
 import type { Customer, UpdateCustomerRequest } from '../../types/customersStaff'
 import type { CreateCustomerInput } from '../../api/customersStaff'
 import { useCreateCustomer, useCustomerPointHistory, useCustomers, useUpdateCustomer } from './customerStaffQueries'
@@ -34,12 +35,12 @@ export default function CustomersPage() {
   const [pageSize, setPageSize] = useState(10)
   const [keyword, setKeyword] = useState('')
   const [editing, setEditing] = useState<Customer | null>(null)
-  const [creating, setCreating] = useState(false)
   const [form] = Form.useForm<UpdateCustomerRequest>()
   const [createForm] = Form.useForm<CreateCustomerInput>()
   const { message } = App.useApp()
   const { has } = usePermissions()
   const canEdit = has('CUSTOMER.WRITE')
+  const [creating, setCreating] = useCreateIntent(canEdit)
   const query = useCustomers(keyword)
   const update = useUpdateCustomer()
   const createMutation = useCreateCustomer()

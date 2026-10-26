@@ -1,8 +1,8 @@
 import api from './client'
 import { asArray, asAvailableSlots, type AppointmentDetail, type Appointment, type AppointmentFilters, type AppointmentListResponse, type AppointmentStatusRequest, type AppointmentUpdateRequest, type AvailableSlot, type Customer, type Staff, type CreateAppointmentRequest } from '../types/appointments'
 
-export async function getAppointments(filters: AppointmentFilters = {}): Promise<AppointmentListResponse> {
-  const { data } = await api.get<unknown>('/appointments', { params: filters })
+export async function getAppointments(filters: AppointmentFilters = {}, signal?: AbortSignal): Promise<AppointmentListResponse> {
+  const { data } = await api.get<unknown>('/appointments', { params: filters, signal })
   if (typeof data !== 'object' || data === null || !('items' in data) || !Array.isArray(data.items)) {
     throw new Error('Phản hồi danh sách lịch hẹn không hợp lệ.')
   }
