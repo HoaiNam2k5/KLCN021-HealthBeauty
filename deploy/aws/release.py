@@ -19,6 +19,21 @@ RELEASE = STACK / 'releases' / RELEASE_ID
 PRIVATE = RELEASE / 'private'
 PUBLIC = 'https://healthbeauty.duckdns.org'
 
+def release_services(value=None):
+    value = value if value is not None else os.environ.get('HEALTHBEAUTY_RELEASE_SERVICES', 'api,web')
+    if value not in ('api', 'api,web'):
+        raise RuntimeError('Release services must be api or api,web')
+    return value.split(',')
+
+def selected_services(state):
+    # Older prepared releases always updated both services.
+    return release_services(','.join(state.get('services', ['api', 'web'])))
+
+def image_override(state, key):
+    selected = selected_services(state)
+    return {'services': {t['service']: {'image': t[key]} for t in state['targets'].values()
+                         if t['service'] in selected}}
+
 def run(args, capture=True):
     p = subprocess.run(args, cwd=str(STACK), stdout=subprocess.PIPE if capture else None,
                        stderr=subprocess.PIPE if capture else None, text=True)
@@ -97,6 +112,7 @@ def check_config(base, merged, containers, images):
                 raise RuntimeError('Startup drift: ' + name)
 
 def prepare():
+    services = release_services()
     if (PRIVATE / 'prepared.json').exists():
         raise RuntimeError('Release already prepared; use activate or a new release directory')
     containers = {name: inspect(name) for name in ['healthbeauty-api', 'healthbeauty-web']}
@@ -122,8 +138,10 @@ def prepare():
             raise RuntimeError('Protected Docker/nginx file changed: ' + name)
     version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
     manifest = {'release': RELEASE_ID}
-    state = {'files': files, 'targets': {}, 'untouched': {n: inspect(n)['Id'] for n in ['sqlserver', 'healthbeauty-caddy']},
+    state = {'files': files, 'services': services, 'targets': {}, 'untouched': {n: inspect(n)['Id'] for n in ['sqlserver', 'healthbeauty-caddy']},
              'compose_hashes': {f: hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in files}}
+    if 'web' not in services:
+        state['untouched']['healthbeauty-web'] = web['Id']
     images = {}
     base = json.loads(compose(files, 'config', '--format', 'json'))
     save('compose-before.json', base)
@@ -132,6 +150,8 @@ def prepare():
         short = 'api' if name == 'healthbeauty-api' else 'web'
         old = 'healthbeauty-' + short + ':before-lifecycle-' + version
         new = 'healthbeauty-' + short + ':lifecycle-' + version
+        if short not in services:
+            new = old
         docker('tag', c['Image'], old)
         state['targets'][name] = {'id': c['Id'], 'old': old, 'new': new, 'service': c['Config']['Labels']['com.docker.compose.service']}
         save(short + '-container.json', c)
@@ -148,12 +168,12 @@ def prepare():
     rollback = STACK / ('compose.rollback' + suffix + '.yaml')
     if override.exists() or rollback.exists():
         raise RuntimeError('Existing release overrides require review; nothing overwritten')
-    override.write_text(json.dumps({'services': {t['service']: {'image': t['new']} for t in state['targets'].values()}}, indent=2))
-    rollback.write_text(json.dumps({'services': {t['service']: {'image': t['old']} for t in state['targets'].values()}}, indent=2))
+    override.write_text(json.dumps(image_override(state, 'new'), indent=2))
+    rollback.write_text(json.dumps(image_override(state, 'old'), indent=2))
     state.update(override=str(override), rollback=str(rollback))
     merged = json.loads(compose(files + [str(override)], 'config', '--format', 'json'))
     check_config(base, merged, containers, images)
-    for short in ['api', 'web']:
+    for short in services:
         name = 'healthbeauty-' + short
         target = state['targets'][name]
         print('Building Linux ' + short + ' from approved Git source; production still running.', flush=True)
@@ -167,7 +187,7 @@ def prepare():
     manifest['source_commit'] = run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).strip()
     save('release.json', manifest)
     save('prepared.json', state)
-    print('PREPARED: API/web images built and hashed; exact environment/startup/settings preserved; running services unchanged.')
+    print('PREPARED: selected images built; API/web hashed; exact environment/startup/settings preserved; running services unchanged.')
 
 def load():
     return json.loads((PRIVATE / 'prepared.json').read_text())
@@ -183,7 +203,8 @@ def probe(path, expected):
         raise RuntimeError('HTTPS probe failed: ' + path + ' HTTP ' + code)
 
 def rollback(state):
-    services = [t['service'] for t in state['targets'].values()]
+    services = selected_services(state)
+    untouched(state)
     compose(state['files'] + [state['rollback']], 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', *services)
     untouched(state)
     for attempt in range(18):
@@ -203,10 +224,12 @@ def rollback(state):
     if hashes('healthbeauty-api', '/app', 'appsettings*.json') != state['settings'] or hashes('healthbeauty-web', '/etc/nginx', '*') != state['nginx']:
         raise RuntimeError('Rollback configuration mismatch')
     save('rollback-result.json', {'time': time.time(), 'status': 'previous images restored and HTTPS verified'})
-    print('ROLLED BACK API/web only; existing Compose environment retained.')
+    print('ROLLED BACK ' + ','.join(services) + '; existing Compose environment retained.')
 
 def activate():
     state = load()
+    services = selected_services(state)
+    untouched(state)
     for f, digest in state['compose_hashes'].items():
         if hashlib.sha256(Path(f).read_bytes()).hexdigest() != digest:
             raise RuntimeError('Active Compose files changed since prepare')
@@ -224,7 +247,6 @@ def activate():
         before = json.loads((PRIVATE / ('api-container.json' if name.endswith('-api') else 'web-container.json')).read_text())
         if env(before['Config']) != env(containers[name]['Config']):
             raise RuntimeError('Runtime environment changed during build')
-    services = [t['service'] for t in state['targets'].values()]
     try:
         compose(state['files'] + [state['override']], 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', *services)
         for attempt in range(18):
@@ -266,7 +288,7 @@ def activate():
         print('DEPLOYED: public HTTPS/services/assets verified; API/web environment and config unchanged; SQL/Caddy unchanged.')
         print('Persistent override: ' + state['override'])
     except Exception:
-        print('Activation validation failed; restoring previous API/web images.', file=sys.stderr)
+        print('Activation validation failed; restoring previous selected images.', file=sys.stderr)
         rollback(state)
         raise
 

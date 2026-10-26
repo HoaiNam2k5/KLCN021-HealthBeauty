@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
 import '../core/format.dart';
+import '../core/token_storage.dart';
 import '../models/catalog.dart';
+import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
+import '../providers/profile_provider.dart';
 import '../widgets/common.dart';
+import 'login_screen.dart';
 
 class OffersScreen extends StatefulWidget {
   const OffersScreen({super.key});
@@ -30,6 +35,11 @@ class _OffersScreenState extends State<OffersScreen> {
       _code.clear();
       _result = null;
       _checking = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !context.read<AuthProvider>().isLoggedIn) return;
+        final profile = context.read<ProfileProvider>();
+        if (profile.customer == null && !profile.loading) profile.load();
+      });
     }
   }
 
@@ -63,16 +73,102 @@ class _OffersScreenState extends State<OffersScreen> {
     });
   }
 
+  Future<void> _refresh() async {
+    final catalog = context.read<CatalogProvider>();
+    final profile = context.read<ProfileProvider>();
+    final id = catalog.accountId;
+    await Future.wait([
+      catalog.load(force: true),
+      catalog.loadMyVouchers(force: true),
+      catalog.loadVoucherOffers(force: true),
+      if (id != null)
+        profile.refreshAfterVoucherRedemption(
+          expectedAccountId: id,
+          expectedSession: TokenStorage.sessionGeneration,
+        ),
+    ]);
+  }
+
+  Future<void> _confirmRedeem(VoucherOffer offer, int points) async {
+    if (points < offer.pointsCost) return;
+    final catalog = context.read<CatalogProvider>();
+    final profile = context.read<ProfileProvider>();
+    final accountVersion = catalog.accountVersion;
+    final accountId = catalog.accountId;
+    final session = TokenStorage.sessionGeneration;
+    bool current() =>
+        mounted &&
+        accountId != null &&
+        catalog.accountVersion == accountVersion &&
+        catalog.accountId == accountId &&
+        TokenStorage.sessionGeneration == session;
+    if (!mounted || !current()) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xác nhận đổi voucher'),
+        content: Text(
+          'Bạn sẽ dùng ${offer.pointsCost} điểm để đổi voucher "${offer.promotionName}". '
+          'Sau khi đổi, voucher sẽ được thêm vào ví của bạn.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Để sau'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Xác nhận đổi'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || !current()) return;
+    final result = await catalog.redeemVoucher(
+      offer.id,
+      expectedPointsCost: offer.pointsCost,
+      expectedAccountVersion: accountVersion,
+    );
+    if (!mounted || !current()) return;
+    await profile.refreshAfterVoucherRedemption(
+      expectedAccountId: accountId!,
+      expectedSession: session,
+      confirmedRemainingPoints: result?.remainingPoints,
+    );
+    if (!mounted || !current()) return;
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(catalog.offerError ?? 'Đổi voucher thất bại.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Đổi voucher ${result.code} thành công. Còn ${result.remainingPoints} điểm.',
+        ),
+        backgroundColor: AppColors.ok,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogProvider>();
+    final auth = context.watch<AuthProvider>();
+    final profile = context.watch<ProfileProvider>();
     final cs = Theme.of(context).colorScheme;
+    final points = profile.customer?.rewardPoints ?? 0;
     final availableVouchers = catalog.myVouchers
         .where((voucher) => voucher.isAvailableAt(DateTime.now()))
         .toList();
 
     return RefreshIndicator(
-      onRefresh: () => catalog.load(force: true),
+      onRefresh: _refresh,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
@@ -127,6 +223,100 @@ class _OffersScreenState extends State<OffersScreen> {
             'Voucher được áp dụng khi xuất hóa đơn. Mức giảm thực tế phụ thuộc tổng tiền và chương trình khuyến mãi.',
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
+          const SizedBox(height: 24),
+          const SectionTitle('Đổi điểm lấy voucher'),
+          const SizedBox(height: 8),
+          if (!auth.isLoggedIn)
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Đăng nhập để đổi điểm thưởng',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Điểm thưởng và voucher sau khi đổi sẽ được lưu vào tài khoản của bạn.',
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    ),
+                    icon: const Icon(Icons.login),
+                    label: const Text('Đăng nhập'),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            AppCard(
+              color: AppColors.roseContainer.withValues(alpha: 0.35),
+              child: Row(
+                children: [
+                  const Icon(Icons.stars_rounded, color: AppColors.rose),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Điểm thưởng hiện có',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (profile.loading && profile.customer == null)
+                    const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Text(
+                      '$points điểm',
+                      style: const TextStyle(
+                        color: AppColors.rose,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (catalog.offersLoading && catalog.voucherOffers.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (catalog.offerError != null &&
+                catalog.voucherOffers.isEmpty)
+              ErrorState(
+                message: catalog.offerError!,
+                onRetry: catalog.loadVoucherOffers,
+              )
+            else if (catalog.voucherOffers.isEmpty)
+              const AppCard(
+                child: EmptyState(
+                  icon: Icons.redeem_outlined,
+                  title: 'Chưa có voucher để đổi điểm',
+                  subtitle: 'Các ưu đãi mới sẽ xuất hiện tại đây',
+                ),
+              )
+            else
+              for (final offer in catalog.voucherOffers)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _VoucherOfferCard(
+                    offer: offer,
+                    points: points,
+                    redeeming: catalog.redeemingVoucherId == offer.id,
+                    anotherRedemptionRunning:
+                        catalog.redeemingVoucherId != null &&
+                        catalog.redeemingVoucherId != offer.id,
+                    onRedeem: () => _confirmRedeem(offer, points),
+                  ),
+                ),
+          ],
           if (catalog.vouchersLoading)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -259,6 +449,110 @@ class _OffersScreenState extends State<OffersScreen> {
                   : (r.message ?? 'Mã không hợp lệ'),
               style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoucherOfferCard extends StatelessWidget {
+  final VoucherOffer offer;
+  final int points;
+  final bool redeeming;
+  final bool anotherRedemptionRunning;
+  final VoidCallback onRedeem;
+
+  const _VoucherOfferCard({
+    required this.offer,
+    required this.points,
+    required this.redeeming,
+    required this.anotherRedemptionRunning,
+    required this.onRedeem,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final enoughPoints = points >= offer.pointsCost;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.roseContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.redeem, color: AppColors.rose),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      offer.promotionName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Giảm tối đa ${vnd(offer.discountValue)}',
+                      style: const TextStyle(
+                        color: AppColors.rose,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Hạn sử dụng: ${dateStr(offer.expiresAt)}',
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                Icons.stars_rounded,
+                size: 18,
+                color: enoughPoints ? AppColors.warn : cs.outline,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${offer.pointsCost} điểm',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              FilledButton(
+                onPressed:
+                    enoughPoints && !redeeming && !anotherRedemptionRunning
+                    ? onRedeem
+                    : null,
+                child: redeeming
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(enoughPoints ? 'Đổi ngay' : 'Chưa đủ điểm'),
+              ),
+            ],
           ),
         ],
       ),

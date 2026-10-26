@@ -68,3 +68,20 @@ The new override filenames are `compose.release.20261026-payments.yaml` and
 `compose.rollback.20261026-payments.yaml`. Continue using all previously active
 Compose files plus the appropriate new override. Omitting `HEALTHBEAUTY_RELEASE_ID`
 retains access to the original release's state for backward-compatible rollback.
+
+For an API-only source update, set `HEALTHBEAUTY_RELEASE_SERVICES=api` when preparing
+a new release. The default remains `api,web`. Only API is built, included in the new
+image overrides, recreated, and rolled back. Web is still snapshotted and verified
+(image/config/environment/public HTML), and its container ID must remain unchanged.
+SQL Server and Caddy are also checked before activation/rollback and afterward.
+The selected services are saved in the release state, so activation/rollback use
+that saved selection regardless of later shell environment values. Old releases
+without a saved selection keep their original API-and-Web behavior.
+
+```bash
+HEALTHBEAUTY_RELEASE_ID=20261026-mobile-enhancements \
+  HEALTHBEAUTY_RELEASE_SERVICES=api python3 deploy/aws/release.py prepare
+HEALTHBEAUTY_RELEASE_ID=20261026-mobile-enhancements python3 deploy/aws/release.py activate
+# Only when rollback is needed:
+HEALTHBEAUTY_RELEASE_ID=20261026-mobile-enhancements python3 deploy/aws/release.py rollback
+```

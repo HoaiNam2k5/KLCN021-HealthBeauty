@@ -11,6 +11,7 @@ import '../providers/service_package_provider.dart';
 import '../widgets/common.dart';
 import 'login_screen.dart';
 import 'invoice_detail_screen.dart';
+import 'reschedule_screen.dart';
 
 class AppointmentsScreen extends StatefulWidget {
   const AppointmentsScreen({super.key});
@@ -215,6 +216,14 @@ class _AppointmentCard extends StatelessWidget {
                   '${weekdayStr(d)} · ${timeStr(d)} · ${durationStr(a.durationMinutes)}',
                   style: TextStyle(color: cs.onSurfaceVariant),
                 ),
+                if (a.needsOutcomeUpdate)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Đã qua ngày hẹn · Cửa hàng chưa cập nhật kết quả',
+                      style: TextStyle(color: AppColors.warn, fontSize: 12),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -268,6 +277,14 @@ class _AppointmentCard extends StatelessWidget {
                 '${weekdayStr(a.appointmentAt)}, ${dateStr(a.appointmentAt)} · ${timeStr(a.appointmentAt)}',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
+              if (a.needsOutcomeUpdate)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Lịch đã qua ngày hẹn. Cửa hàng chưa cập nhật kết quả; vui lòng liên hệ lễ tân để kiểm tra.',
+                    style: TextStyle(color: AppColors.warn),
+                  ),
+                ),
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -344,10 +361,16 @@ class _AppointmentCard extends StatelessWidget {
                     label: const Text('Xem hóa đơn / Thanh toán'),
                     onPressed: () async {
                       Navigator.pop(sheetContext);
-                      await Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => InvoiceDetailScreen(invoiceId: a.invoiceId!),
-                      ));
-                      if (context.mounted) context.read<AppointmentProvider>().load();
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              InvoiceDetailScreen(invoiceId: a.invoiceId!),
+                        ),
+                      );
+                      if (context.mounted) {
+                        context.read<AppointmentProvider>().load();
+                      }
                     },
                   ),
                 ),
@@ -360,6 +383,36 @@ class _AppointmentCard extends StatelessWidget {
                     style: TextStyle(color: cs.primary),
                   ),
                 ),
+              if (a.canReschedule) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.event_repeat),
+                    label: const Text('Đổi ngày / giờ hẹn'),
+                    onPressed: () async {
+                      Navigator.pop(sheetContext);
+                      final changed = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RescheduleScreen(appointment: a),
+                        ),
+                      );
+                      if (changed != true || !context.mounted) return;
+                      await context.read<AppointmentProvider>().load();
+                      if (!context.mounted) return;
+                      if (a.customerPackageId != null) {
+                        context.read<ServicePackageProvider>().loadMine();
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đổi lịch hẹn thành công'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
               if (a.canCancel) ...[
                 const SizedBox(height: 16),
                 SizedBox(

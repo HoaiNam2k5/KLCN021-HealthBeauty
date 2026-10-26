@@ -140,9 +140,27 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
 
     [AllowAnonymous, HttpGet("available-slots"), HttpGet("availability")]
     public async Task<IActionResult> AvailableSlots([FromQuery] DateOnly date, [FromQuery] int? staffId,
-        CancellationToken ct, [FromQuery] int? serviceId = null, [FromQuery] int durationMinutes = 30)
+        CancellationToken ct, [FromQuery] int? serviceId = null, [FromQuery] int durationMinutes = 30,
+        [FromQuery] int? excludeAppointmentId = null)
     {
         if (date == default || date == DateOnly.MaxValue || durationMinutes <= 0 || durationMinutes > 1440) return BadRequest("A date and a duration between 1 and 1440 minutes are required.");
+        if (excludeAppointmentId.HasValue)
+        {
+            if (excludeAppointmentId.Value <= 0) return BadRequest("Invalid appointment identifier.");
+            if (User.Identity?.IsAuthenticated != true || !int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actor)) return Unauthorized();
+            var appointment = await db.Lichhens.AsNoTracking().FirstOrDefaultAsync(x => x.LichHenId == excludeAppointmentId.Value, ct);
+            if (appointment is null) return NotFound();
+            var owns = await db.Khachhangs.AnyAsync(x => x.KhachHangId == appointment.KhachHangId && x.TaiKhoanId == actor, ct);
+            var management = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
+            if (!owns)
+            {
+                if (!management) return NotFound();
+                var utcNow = DateTime.UtcNow;
+                if (!await db.Taikhoans.AnyAsync(x => x.TaiKhoanId == actor && x.TrangThai && (!x.KhoaDen.HasValue || x.KhoaDen <= utcNow)
+                    && db.VaitroQuyens.Any(g => g.VaiTroId == x.VaiTroId && g.DuocCap && g.Quyen.TrangThai && g.Quyen.MaQuyen == "APPOINTMENT.READ"), ct)) return Forbid();
+            }
+            if (appointment.TrangThai is not ("ChoXacNhan" or "DaXacNhan")) return Conflict("This appointment cannot be rescheduled.");
+        }
         if (staffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == staffId.Value, ct)) return BadRequest("Staff does not exist.");
         if (serviceId.HasValue)
         {
@@ -151,7 +169,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             durationMinutes = service.ThoiLuongPhut > 0 ? service.ThoiLuongPhut : 30;
             if (durationMinutes > 1440) return BadRequest("Service duration exceeds one working day.");
         }
-        var slots = await LoadAvailableSlots(date, date, staffId, durationMinutes, ct);
+        var slots = await LoadAvailableSlots(date, date, staffId, durationMinutes, ct, excludeAppointmentId);
         return Ok(slots.Select(x => new { NhanVienId = x.StaffId, GioBatDau = TimeOnly.FromDateTime(x.Start), GioKetThuc = TimeOnly.FromDateTime(x.End) }));
     }
 
@@ -173,7 +191,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
 
     private sealed record AvailableStaffSlot(int StaffId, DateTime Start, DateTime End);
 
-    private async Task<List<AvailableStaffSlot>> LoadAvailableSlots(DateOnly from, DateOnly to, int? staffId, int durationMinutes, CancellationToken ct)
+    private async Task<List<AvailableStaffSlot>> LoadAvailableSlots(DateOnly from, DateOnly to, int? staffId, int durationMinutes, CancellationToken ct, int? excludeAppointmentId = null)
     {
         var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam >= from && x.NgayLam <= to && x.TrangThai != "NghiPhep");
         if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
@@ -182,7 +200,8 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         if (shifts.Count == 0) return [];
         var dayEnd = to.AddDays(1).ToDateTime(TimeOnly.MinValue);
         var busy = await db.Lichhens.AsNoTracking().Include(x => x.Chitietlichhens).ThenInclude(x => x.DichVu)
-            .Where(x => x.TrangThai != "DaHuy" && x.NgayGioHen < dayEnd && x.NhanVienId.HasValue && staffIds.Contains(x.NhanVienId.Value))
+            .Where(x => x.TrangThai != "DaHuy" && (!excludeAppointmentId.HasValue || x.LichHenId != excludeAppointmentId.Value)
+                && x.NgayGioHen < dayEnd && x.NhanVienId.HasValue && staffIds.Contains(x.NhanVienId.Value))
             .ToListAsync(ct);
         var busyByStaff = busy.ToLookup(x => x.NhanVienId!.Value);
         var slots = new List<AvailableStaffSlot>();

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/catalog.dart';
+import '../models/service_price_filter.dart';
 import '../providers/catalog_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/service_tile.dart';
+import '../widgets/service_price_filter.dart';
 import 'service_detail_screen.dart';
 import 'service_packages_screen.dart';
 
@@ -18,6 +20,7 @@ class ServicesScreen extends StatefulWidget {
 class _ServicesScreenState extends State<ServicesScreen> {
   final _search = TextEditingController();
   int? _categoryId;
+  ServicePriceRange _priceRange = const ServicePriceRange();
   int _tab = 0; // 0 = dịch vụ, 1 = combo
 
   @override
@@ -34,6 +37,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final services = catalog.services.where((s) {
       if (_categoryId != null && s.categoryId != _categoryId) return false;
       if (q.isNotEmpty && !s.name.toLowerCase().contains(q)) return false;
+      if (!_priceRange.includes(s.price)) return false;
       return true;
     }).toList();
 
@@ -97,7 +101,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
             onSelectionChanged: (s) => setState(() => _tab = s.first),
           ),
         ),
-        if (_tab == 0 && catalog.categories.isNotEmpty) ...[
+        if (_tab == 0) ...[
           const SizedBox(height: 8),
           SizedBox(
             height: 44,
@@ -105,6 +109,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ServicePriceFilter(
+                    range: _priceRange,
+                    prices: catalog.services.map((s) => s.price).toList(),
+                    onChanged: (range) => setState(() => _priceRange = range),
+                  ),
+                ),
                 _chip(
                   'Tất cả',
                   _categoryId == null,
@@ -168,7 +180,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     title: isServiceTab
                         ? 'Chưa có dịch vụ phù hợp'
                         : 'Chưa có combo nào đang áp dụng',
-                    subtitle: 'Kéo xuống để tải lại',
+                    subtitle:
+                        isServiceTab &&
+                            (_priceRange.isActive ||
+                                _categoryId != null ||
+                                _search.text.trim().isNotEmpty)
+                        ? 'Hãy thử thay đổi hoặc xóa bớt bộ lọc'
+                        : 'Kéo xuống để tải lại',
                   ),
                 ),
               ],

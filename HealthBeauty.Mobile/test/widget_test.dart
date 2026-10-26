@@ -34,7 +34,8 @@ void main() {
       expect(appointment.statusLabel, 'Đã đến');
       expect(appointment.isCancelled, false);
       expect(appointment.isDone, false);
-      expect(appointment.isUpcoming, true);
+      expect(appointment.isUpcomingAt(DateTime(2026, 10, 15, 9)), true);
+      expect(appointment.isUpcomingAt(DateTime(2026, 10, 16)), false);
       expect(appointment.total, 250000.0);
       expect(appointment.items.length, 1);
       expect(appointment.items.first.serviceName, 'Chăm sóc da');

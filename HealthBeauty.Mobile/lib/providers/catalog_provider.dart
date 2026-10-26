@@ -1,8 +1,11 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../core/api_client.dart';
 import '../core/api_error.dart';
+import '../core/token_storage.dart';
 import '../models/catalog.dart';
 import '../models/review.dart';
 
@@ -15,6 +18,7 @@ class CatalogProvider extends ChangeNotifier {
   List<Combo> combos = [];
   List<Promotion> promotions = [];
   List<CustomerVoucher> myVouchers = [];
+  List<VoucherOffer> voucherOffers = [];
   List<Staff> staffList = [];
 
   bool loading = false;
@@ -22,6 +26,9 @@ class CatalogProvider extends ChangeNotifier {
   String? error;
   bool vouchersLoading = false;
   String? voucherError;
+  bool offersLoading = false;
+  String? offerError;
+  int? redeemingVoucherId;
   bool staffLoading = false;
   String? staffError;
   int? _accountId;
@@ -29,6 +36,7 @@ class CatalogProvider extends ChangeNotifier {
   int? get accountId => _accountId;
   int _accountVersion = 0;
   int _voucherRequest = 0;
+  int _offerRequest = 0;
   int _staffRequest = 0;
   bool _disposed = false;
 
@@ -38,12 +46,17 @@ class CatalogProvider extends ChangeNotifier {
     _accountId = accountId;
     final version = ++_accountVersion;
     _voucherRequest++;
+    _offerRequest++;
     _staffRequest++;
     myVouchers = [];
+    voucherOffers = [];
     staffList = [];
     vouchersLoading = false;
+    offersLoading = false;
+    redeemingVoucherId = null;
     staffLoading = false;
     voucherError = null;
+    offerError = null;
     staffError = null;
     // ProxyProvider may bind while building. Notify and refresh after that build.
     scheduleMicrotask(() {
@@ -51,6 +64,7 @@ class CatalogProvider extends ChangeNotifier {
       _notify();
       if (_accountId != null) {
         unawaited(loadMyVouchers());
+        unawaited(loadVoucherOffers());
         unawaited(loadStaff());
       }
     });
@@ -92,7 +106,7 @@ class CatalogProvider extends ChangeNotifier {
       combos = nextCombos;
       promotions = nextPromotions;
       loaded = true;
-      await Future.wait([loadMyVouchers(), loadStaff()]);
+      await Future.wait([loadMyVouchers(), loadVoucherOffers(), loadStaff()]);
     } on DioException catch (e) {
       if (!_disposed) error = ApiError.message(e);
     } catch (e) {
@@ -144,37 +158,174 @@ class CatalogProvider extends ChangeNotifier {
     return null;
   }
 
-  Future<void> loadMyVouchers() async {
-    if (_disposed || _accountId == null || vouchersLoading) return;
+  Future<void> loadMyVouchers({bool force = false}) async {
+    if (_disposed || _accountId == null || (vouchersLoading && !force)) return;
     final version = _accountVersion;
+    final session = TokenStorage.sessionGeneration;
     final request = ++_voucherRequest;
     myVouchers = [];
     voucherError = null;
     vouchersLoading = true;
     _notify();
     try {
-      final res = await _dio.get('/customers/me/vouchers');
+      final res = await _dio.get(
+        '/customers/me/vouchers',
+        options: Options(extra: {'sessionGeneration': session}),
+      );
       final now = DateTime.now();
       final next = (res.data as List)
           .map((e) => CustomerVoucher.fromJson(e as Map<String, dynamic>))
           .where((voucher) => voucher.isAvailableAt(now))
           .toList();
-      if (!_isCurrent(version) || request != _voucherRequest) return;
+      if (!_isCurrent(version) ||
+          session != TokenStorage.sessionGeneration ||
+          request != _voucherRequest) {
+        return;
+      }
       myVouchers = next;
     } on DioException catch (e) {
-      if (_isCurrent(version) && request == _voucherRequest) {
+      if (_isCurrent(version) &&
+          session == TokenStorage.sessionGeneration &&
+          request == _voucherRequest) {
         voucherError = ApiError.message(e);
       }
     } catch (_) {
-      if (_isCurrent(version) && request == _voucherRequest) {
+      if (_isCurrent(version) &&
+          session == TokenStorage.sessionGeneration &&
+          request == _voucherRequest) {
         voucherError = 'Dữ liệu voucher trả về không đúng định dạng';
       }
     } finally {
-      if (_isCurrent(version) && request == _voucherRequest) {
+      if (_isCurrent(version) &&
+          session == TokenStorage.sessionGeneration &&
+          request == _voucherRequest) {
         vouchersLoading = false;
         _notify();
       }
     }
+  }
+
+  Future<void> loadVoucherOffers({bool force = false}) async {
+    if (_disposed || _accountId == null || (offersLoading && !force)) return;
+    final version = _accountVersion, session = TokenStorage.sessionGeneration;
+    final request = ++_offerRequest;
+    offersLoading = true;
+    offerError = null;
+    _notify();
+    try {
+      final response = await _dio.get(
+        '/customers/me/voucher-offers',
+        options: Options(extra: {'sessionGeneration': session}),
+      );
+      final now = DateTime.now();
+      final next =
+          (response.data as List)
+              .map(
+                (x) =>
+                    VoucherOffer.fromJson(Map<String, dynamic>.from(x as Map)),
+              )
+              .where((offer) => offer.isAvailableAt(now))
+              .toList()
+            ..sort((a, b) => a.pointsCost.compareTo(b.pointsCost));
+      if (!_isCurrent(version) ||
+          session != TokenStorage.sessionGeneration ||
+          request != _offerRequest) {
+        return;
+      }
+      voucherOffers = next;
+    } on DioException catch (e) {
+      if (_isCurrent(version) &&
+          session == TokenStorage.sessionGeneration &&
+          request == _offerRequest) {
+        offerError = ApiError.message(e);
+      }
+    } catch (_) {
+      if (_isCurrent(version) &&
+          session == TokenStorage.sessionGeneration &&
+          request == _offerRequest) {
+        offerError = 'Không đọc được danh sách voucher đổi điểm.';
+      }
+    } finally {
+      if (_isCurrent(version) &&
+          session == TokenStorage.sessionGeneration &&
+          request == _offerRequest) {
+        offersLoading = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<VoucherRedemption?> redeemVoucher(
+    int voucherId, {
+    required int expectedPointsCost,
+    required int expectedAccountVersion,
+  }) async {
+    if (_disposed ||
+        _accountId == null ||
+        redeemingVoucherId != null ||
+        expectedAccountVersion != _accountVersion ||
+        expectedPointsCost <= 0) {
+      return null;
+    }
+    final version = _accountVersion, session = TokenStorage.sessionGeneration;
+    bool current() =>
+        _isCurrent(version) && session == TokenStorage.sessionGeneration;
+    redeemingVoucherId = voucherId;
+    offerError = null;
+    _notify();
+    try {
+      final response = await _dio.post(
+        '/customers/me/vouchers/$voucherId/redeem',
+        data: {'expectedPointsCost': expectedPointsCost},
+        options: Options(extra: {'sessionGeneration': session}),
+      );
+      if (!current()) return null;
+      final result = VoucherRedemption.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      if (result.voucherId != voucherId ||
+          result.pointsSpent != expectedPointsCost) {
+        throw const FormatException('Unexpected redemption result');
+      }
+      // A pre-redemption wallet request must not win over this fresh read.
+      await Future.wait([
+        loadMyVouchers(force: true),
+        loadVoucherOffers(force: true),
+      ]);
+      return current() ? result : null;
+    } on DioException catch (e) {
+      if (current()) {
+        final uncertain =
+            e.response == null || (e.response?.statusCode ?? 0) >= 500;
+        final message = uncertain
+            ? 'Chưa xác nhận được kết quả đổi voucher. Kiểm tra lại ví và điểm trước khi thử lại.'
+            : switch (e.response?.statusCode) {
+                400 => 'Số điểm hiện có không đủ để đổi voucher này.',
+                404 => 'Voucher đã hết hạn hoặc không còn khả dụng.',
+                409 => 'Voucher hoặc mức điểm vừa thay đổi. Vui lòng kiểm tra và xác nhận lại.',
+                _ => ApiError.message(e),
+              };
+        await Future.wait([
+          loadMyVouchers(force: true),
+          loadVoucherOffers(force: true),
+        ]);
+        if (current()) offerError = message;
+      }
+    } catch (_) {
+      if (current()) {
+        await Future.wait([
+          loadMyVouchers(force: true),
+          loadVoucherOffers(force: true),
+        ]);
+        if (current()) offerError = 'Chưa đọc được kết quả. Vui lòng kiểm tra ví và điểm trước khi thử lại.';
+      }
+    } finally {
+      if (current()) {
+        redeemingVoucherId = null;
+        _notify();
+      }
+    }
+    return null;
   }
 
   Future<VoucherCheck> validateVoucher(String code) async {

@@ -13,6 +13,7 @@ class ProfileProvider extends ChangeNotifier {
   int? _accountId;
   int _epoch = 0;
   int _revision = 0;
+  int _loadRequest = 0;
   bool _disposed = false;
   Customer? customer;
   List<PointTransaction> transactions = [];
@@ -45,6 +46,7 @@ class ProfileProvider extends ChangeNotifier {
     if (_accountId == null || loading || _disposed) return;
     final epoch = _epoch;
     final revision = _revision;
+    final request = ++_loadRequest;
     loading = true;
     error = null;
     notifyListeners();
@@ -53,7 +55,11 @@ class ProfileProvider extends ChangeNotifier {
         _dio.get('/customers/me'),
         _dio.get('/customers/me/points'),
       ]);
-      if (!_current(epoch) || revision != _revision) return;
+      if (!_current(epoch) ||
+          revision != _revision ||
+          request != _loadRequest) {
+        return;
+      }
       final profile = Customer.fromJson(
         Map<String, dynamic>.from(responses[0].data as Map),
       );
@@ -68,19 +74,49 @@ class ProfileProvider extends ChangeNotifier {
       customer = profile;
       transactions = parsed;
     } on DioException catch (exception) {
-      if (_current(epoch) && revision == _revision) {
+      if (_current(epoch) && revision == _revision && request == _loadRequest) {
         error = ApiError.message(exception);
       }
     } catch (_) {
-      if (_current(epoch) && revision == _revision) {
+      if (_current(epoch) && revision == _revision && request == _loadRequest) {
         error = 'Dữ liệu hồ sơ trả về không đúng định dạng';
       }
     } finally {
-      if (_current(epoch)) {
+      if (_current(epoch) && request == _loadRequest) {
         loading = false;
         notifyListeners();
       }
     }
+  }
+
+  /// Invalidates an in-flight balance read before reconciling a voucher exchange.
+  Future<void> refreshAfterVoucherRedemption({
+    required int expectedAccountId,
+    required int expectedSession,
+    int? confirmedRemainingPoints,
+  }) async {
+    if (_disposed ||
+        _accountId != expectedAccountId ||
+        expectedSession != TokenStorage.sessionGeneration ||
+        (confirmedRemainingPoints != null && confirmedRemainingPoints < 0)) {
+      return;
+    }
+    _revision++;
+    _loadRequest++;
+    loading = false;
+    final old = customer;
+    if (old != null && confirmedRemainingPoints != null) {
+      customer = Customer(
+        id: old.id,
+        fullName: old.fullName,
+        phone: old.phone,
+        gender: old.gender,
+        rewardPoints: confirmedRemainingPoints,
+        avatarUrl: old.avatarUrl,
+      );
+    }
+    notifyListeners();
+    await load();
   }
 
   Future<bool> update({

@@ -3,9 +3,13 @@ using HealthBeauty.Api.Models;
 using HealthBeauty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
 namespace HealthBeauty.Api.Controllers;
+
+public sealed record VoucherRedemptionRequest([param: Range(1, 1000000)] int ExpectedPointsCost);
 
 [ApiController, Authorize, Route("api/v1/customers/me")]
 public sealed class VoucherRedemptionController(Klcn021HealthBeautyContext db) : ControllerBase
@@ -34,7 +38,8 @@ public sealed class VoucherRedemptionController(Klcn021HealthBeautyContext db) :
     }
 
     [HttpPost("vouchers/{id:int}/redeem")]
-    public async Task<IActionResult> Redeem(int id, CancellationToken ct)
+    public async Task<IActionResult> Redeem(int id, CancellationToken ct,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] VoucherRedemptionRequest? request = null)
     {
         var customer = await Customer(ct);
         if (customer is null) return Forbid();
@@ -43,6 +48,10 @@ public sealed class VoucherRedemptionController(Klcn021HealthBeautyContext db) :
         if (voucher.KhachHangId.HasValue || voucher.RedeemedAt.HasValue)
             return Conflict("Voucher was already claimed. No additional points were charged.");
         if (!await Offers(DateTime.Now).AnyAsync(x => x.VoucherId == id, ct) || !ValidDiscount(voucher)) return NotFound();
+        if (request is not null && request.ExpectedPointsCost is < 1 or > 1000000)
+            return BadRequest("Số điểm xác nhận không hợp lệ.");
+        if (request is not null && request.ExpectedPointsCost != voucher.PointsCost)
+            return Conflict("Số điểm đổi voucher vừa thay đổi. Vui lòng tải lại và xác nhận mức điểm mới.");
         if (customer.DiemThuong < voucher.PointsCost) return BadRequest("Insufficient reward points.");
         customer.DiemThuong -= voucher.PointsCost;
         voucher.KhachHangId = customer.KhachHangId;

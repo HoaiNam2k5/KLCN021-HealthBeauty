@@ -8,11 +8,23 @@ import '../models/booking_contract.dart';
 import '../models/availability_day.dart';
 import '../core/token_storage.dart';
 
+class _RescheduleAttempt {
+  const _RescheduleAttempt(this.original, this.at);
+  final Appointment original;
+  final DateTime at;
+}
+
 class AppointmentProvider extends ChangeNotifier {
-  AppointmentProvider({Dio? dio}) : _dio = dio ?? ApiClient().dio;
+  AppointmentProvider({Dio? dio, DateTime Function()? now})
+    : _dio = dio ?? ApiClient().dio,
+      _now = now ?? DateTime.now;
 
   final Dio _dio;
+  final DateTime Function() _now;
   int? _accountId;
+  int get accountVersion => _generation;
+  final Map<int, _RescheduleAttempt> _uncertainReschedules = {};
+  bool hasUncertainReschedule(int id) => _uncertainReschedules.containsKey(id);
   int _generation = 0;
   int _revision = 0;
   bool _disposed = false;
@@ -33,6 +45,7 @@ class AppointmentProvider extends ChangeNotifier {
     error = null;
     loading = false;
     submitting = false;
+    _uncertainReschedules.clear();
   }
 
   @override
@@ -43,13 +56,15 @@ class AppointmentProvider extends ChangeNotifier {
   }
 
   List<Appointment> get upcoming {
-    final list = items.where((item) => item.isUpcoming).toList();
+    final now = _now();
+    final list = items.where((item) => item.isUpcomingAt(now)).toList();
     list.sort((a, b) => a.appointmentAt.compareTo(b.appointmentAt));
     return list;
   }
 
   List<Appointment> get history {
-    final list = items.where((item) => !item.isUpcoming).toList();
+    final now = _now();
+    final list = items.where((item) => !item.isUpcomingAt(now)).toList();
     list.sort((a, b) => b.appointmentAt.compareTo(a.appointmentAt));
     return list;
   }
@@ -129,6 +144,7 @@ class AppointmentProvider extends ChangeNotifier {
     required DateTime date,
     int? staffId,
     required int durationMinutes,
+    int? excludeAppointmentId,
   }) async {
     final generation = _generation;
     if (!_current(generation)) return [];
@@ -143,6 +159,7 @@ class AppointmentProvider extends ChangeNotifier {
         'date': localBookingDateTime(date).split('T').first,
         'staffId': ?staffId,
         'durationMinutes': durationMinutes,
+        'excludeAppointmentId': ?excludeAppointmentId,
       },
     );
     if (!_current(generation)) return [];
@@ -205,6 +222,11 @@ class AppointmentProvider extends ChangeNotifier {
   Future<bool> cancel(int id) async {
     final generation = _generation;
     if (!_current(generation)) return false;
+    if (hasUncertainReschedule(id)) {
+      error = 'Vui lòng kiểm tra kết quả đổi lịch trước khi hủy lịch hẹn này.';
+      notifyListeners();
+      return false;
+    }
     final matches = items.where((item) => item.id == id);
     if (matches.isNotEmpty && !matches.first.canCancel) {
       error = 'Lịch hẹn này không còn được phép hủy.';
@@ -227,6 +249,144 @@ class AppointmentProvider extends ChangeNotifier {
     }
     if (_current(generation)) notifyListeners();
     return false;
+  }
+
+  bool _matchesReschedule(Appointment row, _RescheduleAttempt attempt) =>
+      row.id == attempt.original.id &&
+      localBookingDateTime(row.appointmentAt) ==
+          localBookingDateTime(attempt.at) &&
+      row.staffId == attempt.original.staffId &&
+      (row.note?.trim() ?? '') == (attempt.original.note?.trim() ?? '') &&
+      row.customerPackageId == attempt.original.customerPackageId;
+
+  void _storeRescheduled(Appointment row) {
+    _revision++;
+    items = [
+      for (final old in items)
+        if (old.id == row.id) row else old,
+    ];
+  }
+
+  Future<Appointment?> _reconcileReschedule(
+    int id,
+    int generation,
+    int session,
+  ) async {
+    final attempt = _uncertainReschedules[id];
+    if (attempt == null) return null;
+    bool current() =>
+        _current(generation) && session == TokenStorage.sessionGeneration;
+    try {
+      final response = await _dio.get(
+        '/appointments/$id',
+        options: Options(extra: {'sessionGeneration': session}),
+      );
+      if (!current()) return null;
+      final row = Appointment.fromRescheduleJson(
+        Map<String, dynamic>.from(response.data as Map),
+        fallback: attempt.original,
+      );
+      _storeRescheduled(row);
+      if (_matchesReschedule(row, attempt)) {
+        _uncertainReschedules.remove(id);
+        error = null;
+        return row;
+      }
+      if (!row.canReschedule) {
+        _uncertainReschedules.remove(id);
+        error = 'Trạng thái lịch hẹn đã được cửa hàng cập nhật. Vui lòng xem lại lịch hẹn.';
+        return null;
+      }
+    } catch (_) {
+      // A second network/parse error cannot establish whether the write committed.
+    }
+    if (current()) {
+      error = 'Chưa xác nhận được kết quả đổi lịch. Bấm kiểm tra kết quả hoặc liên hệ lễ tân; không gửi đổi lịch lại.';
+    }
+    return null;
+  }
+
+  /// Change only the date/time, retaining booked services, assigned staff and note.
+  /// An ambiguous result is reconciled by GET; a subsequent tap never repeats POST.
+  Future<Appointment?> reschedule({
+    required int id,
+    required DateTime at,
+  }) async {
+    final generation = _generation;
+    final session = TokenStorage.sessionGeneration;
+    bool current() =>
+        _current(generation) && session == TokenStorage.sessionGeneration;
+    if (!current() || submitting) return null;
+    final previous = items.where((row) => row.id == id).firstOrNull;
+    if (previous == null) {
+      error = 'Vui lòng tải lại danh sách lịch hẹn trước khi đổi lịch.';
+      notifyListeners();
+      return null;
+    }
+    if (!hasUncertainReschedule(id) && !previous.canReschedule) {
+      error = 'Lịch hẹn này không còn được phép đổi.';
+      notifyListeners();
+      return null;
+    }
+    if (!hasUncertainReschedule(id) && !at.isAfter(_now())) {
+      error = 'Thời gian hẹn mới phải ở trong tương lai.';
+      notifyListeners();
+      return null;
+    }
+    if (!hasUncertainReschedule(id) &&
+        localBookingDateTime(at) ==
+            localBookingDateTime(previous.appointmentAt)) {
+      error = 'Vui lòng chọn ngày giờ khác lịch hẹn hiện tại.';
+      notifyListeners();
+      return null;
+    }
+    submitting = true;
+    error = null;
+    _revision++; // Do not let an older list response overwrite the committed update.
+    notifyListeners();
+    try {
+      if (hasUncertainReschedule(id)) {
+        return await _reconcileReschedule(id, generation, session);
+      }
+      final attempt = _RescheduleAttempt(previous, at);
+      try {
+        final response = await _dio.post(
+          '/appointments/$id/reschedule',
+          data: {
+            'appointmentAt': localBookingDateTime(at),
+            'staffId': previous.staffId,
+            'note': previous.note,
+          },
+          options: Options(extra: {'sessionGeneration': session}),
+        );
+        if (!current()) return null;
+        final row = Appointment.fromRescheduleJson(
+          Map<String, dynamic>.from(response.data as Map),
+          fallback: previous,
+        );
+        if (!_matchesReschedule(row, attempt)) {
+          throw const FormatException('Unexpected reschedule response');
+        }
+        _storeRescheduled(row);
+        return row;
+      } on DioException catch (exception) {
+        if (!current()) return null;
+        final code = exception.response?.statusCode;
+        if (code != null && code >= 400 && code < 500 && code != 408) {
+          error = ApiError.message(exception);
+          return null;
+        }
+      } catch (_) {
+        if (!current()) return null;
+      }
+      _uncertainReschedules[id] = attempt;
+      return await _reconcileReschedule(id, generation, session);
+    } finally {
+      if (current()) {
+        submitting = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<Appointment?> create({

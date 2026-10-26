@@ -88,6 +88,94 @@ class Appointment {
         : null,
   );
 
+  /// Rescheduling returns the API's detail DTO, not its list DTO. Preserve fields
+  /// absent from the detail response, especially the paid-package association.
+  factory Appointment.fromRescheduleJson(
+    Map<String, dynamic> j, {
+    required Appointment fallback,
+  }) {
+    final id = (j['id'] ?? j['lichHenId']) as num?;
+    final customer = (j['customerId'] ?? j['khachHangId']) as num?;
+    final rawAt = j['appointmentAt'] ?? j['ngayGioHen'];
+    if (id?.toInt() != fallback.id ||
+        (customer != null && customer.toInt() != fallback.customerId) ||
+        rawAt is! String) {
+      throw const FormatException('Unexpected rescheduled appointment');
+    }
+    final rawItems = j['items'] ?? j['chitietlichhens'];
+    final items = rawItems is List
+        ? rawItems.map((raw) {
+            final item = Map<String, dynamic>.from(raw as Map);
+            if (item['id'] != null) return AppointmentItem.fromJson(item);
+            final rawService = item['dichVu'];
+            final service = rawService is Map
+                ? Map<String, dynamic>.from(rawService)
+                : const <String, dynamic>{};
+            final serviceId = (item['dichVuId'] as num).toInt();
+            final old = fallback.items
+                .where((line) => line.serviceId == serviceId)
+                .firstOrNull;
+            return AppointmentItem(
+              id: (item['chiTietLichHenId'] as num).toInt(),
+              serviceId: serviceId,
+              serviceName:
+                  service['tenDichVu'] as String? ?? old?.serviceName ?? '',
+              comboId: (item['comboId'] as num?)?.toInt(),
+              expectedPrice:
+                  (item['giaDuKien'] as num?)?.toDouble() ??
+                  old?.expectedPrice ??
+                  0,
+              durationMinutes:
+                  (item['durationMinutes'] as num?)?.toInt() ??
+                  old?.durationMinutes ??
+                  30,
+            );
+          }).toList()
+        : fallback.items;
+    DateTime? date(String key, DateTime? previous) => !j.containsKey(key)
+        ? previous
+        : j[key] == null
+        ? null
+        : DateTime.parse(j[key] as String).toLocal();
+    int? integer(String key, int? previous) =>
+        j.containsKey(key) ? (j[key] as num?)?.toInt() : previous;
+    return Appointment(
+      id: fallback.id,
+      customerId: fallback.customerId,
+      staffId: j.containsKey('staffId')
+          ? (j['staffId'] as num?)?.toInt()
+          : j.containsKey('nhanVienId')
+          ? (j['nhanVienId'] as num?)?.toInt()
+          : fallback.staffId,
+      appointmentAt: DateTime.parse(rawAt).toLocal(),
+      status: (j['status'] ?? j['trangThai']) as String? ?? fallback.status,
+      note: j.containsKey('note')
+          ? j['note'] as String?
+          : j.containsKey('ghiChu')
+          ? j['ghiChu'] as String?
+          : fallback.note,
+      items: items,
+      invoiceId: integer('invoiceId', fallback.invoiceId),
+      customerPackageId: integer(
+        'customerPackageId',
+        fallback.customerPackageId,
+      ),
+      invoiceStatus: j.containsKey('invoiceStatus')
+          ? j['invoiceStatus'] as String?
+          : fallback.invoiceStatus,
+      hasReviewed: j['hasReviewed'] as bool? ?? fallback.hasReviewed,
+      reviewStars: integer('reviewStars', fallback.reviewStars),
+      reviewComment: j.containsKey('reviewComment')
+          ? j['reviewComment'] as String?
+          : fallback.reviewComment,
+      reviewedAt: date('reviewedAt', fallback.reviewedAt),
+      reviewReply: j.containsKey('reviewReply')
+          ? j['reviewReply'] as String?
+          : fallback.reviewReply,
+      reviewRepliedAt: date('reviewRepliedAt', fallback.reviewRepliedAt),
+    );
+  }
+
   /// Mã hiển thị, ví dụ #LH12
   String get code => '#LH$id';
 
@@ -117,8 +205,25 @@ class Appointment {
 
   bool get canReschedule => status == 'ChoXacNhan' || status == 'DaXacNhan';
 
-  /// "Sắp tới": chưa hủy, chưa hoàn thành
-  bool get isUpcoming => !isCancelled && !isDone;
+  /// Compare calendar days; today's appointments stay visible while being served.
+  bool isPastDateAt(DateTime now) {
+    final scheduled = appointmentAt.toLocal();
+    final today = now.toLocal();
+    return DateTime(
+      scheduled.year,
+      scheduled.month,
+      scheduled.day,
+    ).isBefore(DateTime(today.year, today.month, today.day));
+  }
+
+  bool isUpcomingAt(DateTime now) =>
+      !isCancelled && !isDone && !isPastDateAt(now);
+
+  bool get isUpcoming => isUpcomingAt(DateTime.now());
+
+  /// Display-only warning; never invent a completion/cancellation in the database.
+  bool get needsOutcomeUpdate =>
+      !isCancelled && !isDone && isPastDateAt(DateTime.now());
 
   /// Nhãn hiển thị trạng thái lịch hẹn theo backend
   String get statusLabel {

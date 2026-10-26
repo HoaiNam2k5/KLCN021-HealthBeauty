@@ -285,8 +285,8 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               _MenuItem(
                 icon: Icons.military_tech_outlined,
-                title: 'Đặc quyền hạng thành viên',
-                subtitle: 'Xem quyền lợi các hạng thẻ VIP',
+                title: 'Mốc điểm & quyền lợi',
+                subtitle: 'Thông tin tham khảo theo điểm hiện có',
                 onTap: () => _showTierBenefits(context, tier),
               ),
               _MenuItem(
@@ -467,7 +467,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     const Icon(Icons.spa, color: Colors.white70, size: 20),
                     const SizedBox(width: 6),
                     Text(
-                      'HEALTHBEAUTY VIP',
+                      'HEALTHBEAUTY',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
@@ -519,7 +519,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'ĐIỂM TÍCH LŨY',
+                        'ĐIỂM KHẢ DỤNG',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 11,
@@ -553,7 +553,12 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
             const SizedBox(height: 18),
 
-            // Thanh tiến trình lên hạng
+            const Text(
+              'Mốc tham khảo theo số dư điểm',
+              style: TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+            const SizedBox(height: 6),
+            // Progress is informational; points spent can lower this displayed milestone.
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
@@ -570,8 +575,8 @@ class _AccountScreenState extends State<AccountScreen> {
               children: [
                 Text(
                   tier.nextPoints == null
-                      ? 'Đã đạt hạng cao nhất'
-                      : 'Còn thiếu ${pointsNeeded ?? 0} điểm để lên ${tier.nextTierName}',
+                      ? 'Đã đạt mốc tham khảo cao nhất'
+                      : 'Còn ${pointsNeeded ?? 0} điểm đến mốc ${tier.nextTierName}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.75),
                     fontSize: 11,
@@ -779,12 +784,12 @@ class _AccountScreenState extends State<AccountScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Đặc quyền hạng thành viên',
+                  'Mốc điểm & quyền lợi tham khảo',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Tích lũy điểm khi sử dụng dịch vụ để nâng hạng và nhận nhiều ưu đãi độc quyền.',
+                  MembershipTier.referenceNote,
                   style: TextStyle(
                     fontSize: 13,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -838,7 +843,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: const Text(
-                                      'Hạng hiện tại',
+                                      'Mốc hiện tại',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 11,

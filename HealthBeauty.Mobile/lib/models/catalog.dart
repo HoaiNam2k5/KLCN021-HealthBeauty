@@ -279,6 +279,92 @@ bool _voucherFlag(dynamic value) {
 }
 
 /// Nhân viên / Kỹ thuật viên (GET /staff)
+class VoucherOffer {
+  final int id;
+  final int promotionId;
+  final String promotionName;
+  final double discountValue;
+  final DateTime expiresAt;
+  final int pointsCost;
+
+  const VoucherOffer({
+    required this.id,
+    required this.promotionId,
+    required this.promotionName,
+    required this.discountValue,
+    required this.expiresAt,
+    required this.pointsCost,
+  });
+
+  factory VoucherOffer.fromJson(Map<String, dynamic> j) {
+    final id = (j['id'] as num?)?.toInt();
+    final promotionId = (j['promotionId'] as num?)?.toInt();
+    final discountValue = (j['discountValue'] as num?)?.toDouble();
+    final expiresAt = DateTime.tryParse(j['expiresAt']?.toString() ?? '');
+    final pointsCost = (j['pointsCost'] as num?)?.toInt();
+    if (id == null ||
+        id <= 0 ||
+        promotionId == null ||
+        promotionId <= 0 ||
+        discountValue == null ||
+        !discountValue.isFinite ||
+        discountValue < 0 ||
+        expiresAt == null ||
+        pointsCost == null ||
+        pointsCost <= 0) {
+      throw const FormatException('Incomplete voucher offer response');
+    }
+    return VoucherOffer(
+      id: id,
+      promotionId: promotionId,
+      promotionName: j['promotionName'] as String? ?? 'Voucher ưu đãi',
+      discountValue: discountValue,
+      expiresAt: expiresAt,
+      pointsCost: pointsCost,
+    );
+  }
+
+  bool isAvailableAt(DateTime now) => !expiresAt.isBefore(now);
+}
+
+class VoucherRedemption {
+  final int voucherId;
+  final String code;
+  final int pointsSpent;
+  final int remainingPoints;
+
+  const VoucherRedemption({
+    required this.voucherId,
+    required this.code,
+    required this.pointsSpent,
+    required this.remainingPoints,
+  });
+
+  factory VoucherRedemption.fromJson(Map<String, dynamic> j) {
+    final voucherId = (j['voucherId'] as num?)?.toInt();
+    final code = j['code'] as String?;
+    final pointsSpent = (j['pointsSpent'] as num?)?.toInt();
+    final remainingPoints = (j['remainingPoints'] as num?)?.toInt();
+    if (voucherId == null ||
+        voucherId <= 0 ||
+        code == null ||
+        code.isEmpty ||
+        pointsSpent == null ||
+        pointsSpent <= 0 ||
+        remainingPoints == null ||
+        remainingPoints < 0) {
+      throw const FormatException('Incomplete voucher redemption response');
+    }
+    return VoucherRedemption(
+      voucherId: voucherId,
+      code: code,
+      pointsSpent: pointsSpent,
+      remainingPoints: remainingPoints,
+    );
+  }
+}
+
+/// Nhân viên / Kỹ thuật viên (GET /staff)
 class Staff {
   final int id;
   final String fullName;
