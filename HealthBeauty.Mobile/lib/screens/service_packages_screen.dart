@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../core/app_theme.dart';
 import '../models/service_package.dart';
 import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
@@ -118,11 +119,25 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
     }
   }
 
+  Future<void> _openOwnedPackage(int id) async {
+    final provider = context.read<ServicePackageProvider>();
+    final version = provider.accountVersion;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerPackageDetailScreen(customerPackageId: id),
+      ),
+    );
+    if (mounted && version == provider.accountVersion) {
+      await provider.loadMine();
+    }
+  }
+
   String _serviceName(int id) {
     for (final service in context.read<CatalogProvider>().services) {
       if (service.id == id) return service.name;
     }
-    return 'Dịch vụ #$id';
+    return 'Dịch vụ chưa có thông tin';
   }
 
   @override
@@ -156,9 +171,16 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
                   child: TextField(
                     controller: _search,
                     onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Tìm gói dịch vụ',
-                      prefixIcon: Icon(Icons.search),
+                    decoration: InputDecoration(
+                      hintText: 'Tìm gói dịch vụ',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Xóa tìm kiếm',
+                              onPressed: () => setState(_search.clear),
+                              icon: const Icon(Icons.close),
+                            ),
                     ),
                   ),
                 ),
@@ -213,7 +235,18 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    '${vnd(offer.price)} · Hạn dùng ${offer.validityDays} ngày sau thanh toán',
+                                    vnd(offer.price),
+                                    style: const TextStyle(
+                                      color: AppColors.rose,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Hạn dùng ${offer.validityDays} ngày sau thanh toán',
+                                    style: const TextStyle(
+                                      color: AppColors.inkMuted,
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   for (final item in offer.items)
@@ -276,17 +309,7 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: AppCard(
-                              onTap: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CustomerPackageDetailScreen(
-                                      customerPackageId: owned.id,
-                                    ),
-                                  ),
-                                );
-                                if (mounted) await provider.loadMine();
-                              },
+                              onTap: () => _openOwnedPackage(owned.id),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -296,10 +319,15 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
                                         .textTheme
                                         .titleMedium,
                                   ),
+                                  Text(owned.statusLabel),
                                   Text(
-                                    'Mã gói đã mua #${owned.id} · ${owned.statusLabel}',
+                                    vnd(owned.price),
+                                    style: const TextStyle(
+                                      color: AppColors.rose,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
                                   ),
-                                  Text(vnd(owned.price)),
                                   if (owned.expiresAt != null)
                                     Text(
                                       'Hết hạn: ${dateStr(owned.expiresAt!)} ${timeStr(owned.expiresAt!)}',
@@ -310,8 +338,22 @@ class _ServicePackagesScreenState extends State<ServicePackagesScreen> {
                                       '${item.serviceName}: còn ${item.remaining}, có thể đặt ${item.available}, đang giữ ${item.reserved} lượt',
                                     ),
                                   const SizedBox(height: 8),
-                                  const Text(
-                                    'Xem chi tiết và lịch sử sử dụng →',
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: () =>
+                                          _openOwnedPackage(owned.id),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: AppColors.rose,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.receipt_long_outlined,
+                                      ),
+                                      label: const Text(
+                                        'Xem chi tiết và lịch sử sử dụng',
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),

@@ -261,7 +261,10 @@ void main() {
     (tester) async {
       var pendingReads = 0;
       final dio = fixtures.transport((r) {
-        pendingReads++;
+        if (r.path == '/invoices' &&
+            r.queryParameters['status'] == 'ChuaThanhToan') {
+          pendingReads++;
+        }
         return <Object>[];
       });
       final provider = InvoiceProvider(dio: dio)..bind(1);
@@ -303,17 +306,13 @@ void main() {
       expect(pendingReads, 2);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.paused,
-      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump(const Duration(seconds: 30));
       await tester.pumpAndSettle();
       expect(pendingReads, 2);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.resumed,
-      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(pendingReads, 3);
       await tester.pumpWidget(const SizedBox());

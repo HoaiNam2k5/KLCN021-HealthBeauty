@@ -9,39 +9,43 @@ import 'package:app_doancunhan/screens/service_detail_screen.dart';
 void main() {
   testWidgets('ServiceDetailScreen displays review section', (tester) async {
     final dio = Dio();
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (options.path.contains('/reviews')) {
-          return handler.resolve(Response(
-            requestOptions: options,
-            statusCode: 200,
-            data: {
-              'averageRating': 4.5,
-              'totalReviews': 2,
-              'items': [
-                {
-                  'danhGiaId': 4,
-                  'hoaDonId': 7,
-                  'soSao': 4,
-                  'binhLuan': 'tam on',
-                  'ngayDanhGia': '2026-10-22T21:05:10',
-                  'tenKhachHang': 'Nghia',
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path.contains('/reviews')) {
+            return handler.resolve(
+              Response(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'averageRating': 4.5,
+                  'totalReviews': 2,
+                  'items': [
+                    {
+                      'danhGiaId': 4,
+                      'hoaDonId': 7,
+                      'soSao': 4,
+                      'binhLuan': 'tam on',
+                      'ngayDanhGia': '2026-10-22T21:05:10',
+                      'tenKhachHang': 'Nghia',
+                    },
+                    {
+                      'danhGiaId': 3,
+                      'hoaDonId': 6,
+                      'soSao': 5,
+                      'binhLuan': 'ok',
+                      'ngayDanhGia': '2026-10-22T20:45:04',
+                      'tenKhachHang': 'Nghia',
+                    },
+                  ],
                 },
-                {
-                  'danhGiaId': 3,
-                  'hoaDonId': 6,
-                  'soSao': 5,
-                  'binhLuan': 'ok',
-                  'ngayDanhGia': '2026-10-22T20:45:04',
-                  'tenKhachHang': 'Nghia',
-                },
-              ],
-            },
-          ));
-        }
-        handler.next(options);
-      },
-    ));
+              ),
+            );
+          }
+          handler.next(options);
+        },
+      ),
+    );
 
     final catalogProvider = CatalogProvider(dio: dio);
 
@@ -59,12 +63,8 @@ void main() {
 
     await tester.pumpWidget(
       MultiProvider(
-        providers: [
-          ChangeNotifierProvider.value(value: catalogProvider),
-        ],
-        child: const MaterialApp(
-          home: ServiceDetailScreen(service: service),
-        ),
+        providers: [ChangeNotifierProvider.value(value: catalogProvider)],
+        child: const MaterialApp(home: ServiceDetailScreen(service: service)),
       ),
     );
 
@@ -72,6 +72,11 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 100));
+
+    // The upgraded detail page places reviews below the hero and service details.
+    // Scroll like a customer so the lazy list mounts and loads the review section.
+    await tester.scrollUntilVisible(find.text('Đánh giá & Nhận xét'), 400);
+    await tester.pumpAndSettle();
 
     expect(find.text('Đánh giá & Nhận xét'), findsOneWidget);
     expect(find.text('Nghia'), findsNWidgets(2));

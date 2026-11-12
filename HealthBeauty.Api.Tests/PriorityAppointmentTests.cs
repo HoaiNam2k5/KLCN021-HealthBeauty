@@ -17,7 +17,7 @@ public sealed class PriorityAppointmentTests
     {
         var db = new Klcn021HealthBeautyContext(new DbContextOptionsBuilder<Klcn021HealthBeautyContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Khachhangs.AddRange(new Khachhang { KhachHangId = 1, TaiKhoanId = 1, HoTen = "One" }, new Khachhang { KhachHangId = 2, TaiKhoanId = 2, HoTen = "Two" });
-        db.Nhanviens.Add(new Nhanvien { NhanVienId = 1, HoTen = "Staff" });
+        db.Nhanviens.Add(new Nhanvien { NhanVienId = 1, HoTen = "Staff", ChucVu = "KTV" });
         db.Dichvus.Add(new Dichvu { DichVuId = 1, TenDichVu = "Service", ThoiLuongPhut = 60, Gia = 1000m, TrangThai = true });
         db.Lichlamviecs.Add(new Lichlamviec { LichLamViecId = 1, NhanVienId = 1, NgayLam = DateOnly.FromDateTime(Day), GioBatDau = new TimeOnly(9,0), GioKetThuc = new TimeOnly(17,0), TrangThai = "HoatDong" });
         db.Lichhens.Add(new Lichhen { LichHenId = 1, KhachHangId = 1, NhanVienId = 1, NgayGioHen = Day.AddHours(9), TrangThai = status,

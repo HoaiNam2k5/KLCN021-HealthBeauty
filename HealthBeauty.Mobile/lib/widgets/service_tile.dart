@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
+
 import '../core/app_theme.dart';
 import '../core/format.dart';
 import '../models/catalog.dart';
 import 'common.dart';
 import 'catalog_image.dart';
 
-/// Thẻ dịch vụ hình chữ nhật đứng theo phong cách e-commerce (2 cột, như hình 1)
+/// Only display promotions and ratings explicitly supplied by data.
 class ServiceCard extends StatelessWidget {
-  final Service service;
-  final String categoryName;
-  final VoidCallback onTap;
-  final String? discountLabel;
-
   const ServiceCard({
     super.key,
     required this.service,
@@ -19,526 +15,237 @@ class ServiceCard extends StatelessWidget {
     required this.onTap,
     this.discountLabel,
   });
+  final Service service;
+  final String categoryName;
+  final VoidCallback onTap;
+  final String? discountLabel;
+
+  @override
+  Widget build(BuildContext context) => _CatalogCard(
+    name: service.name,
+    imageUrl: service.imageUrl,
+    price: service.price,
+    subtitle: durationStr(service.durationMinutes),
+    category: categoryName,
+    rating: service.totalReviews > 0 ? service.averageRating : null,
+    discountLabel: discountLabel,
+    bookingLabel: service.bookedCount > 0
+        ? 'Đã đặt ${service.bookedCount}'
+        : service.hasBookingStatistics
+        ? 'Mới'
+        : null,
+    reviewLabel: !service.hasReviewStatistics
+        ? 'Xem đánh giá'
+        : service.totalReviews == 0
+        ? 'Chưa đánh giá'
+        : '${service.totalReviews} đánh giá',
+    onTap: onTap,
+  );
+}
+
+class ComboCard extends StatelessWidget {
+  const ComboCard({super.key, required this.combo, required this.onTap});
+  final Combo combo;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => _CatalogCard(
+    name: combo.name,
+    imageUrl: combo.imageUrl,
+    price: combo.price,
+    subtitle: '${combo.totalServices} d\u1ecbch v\u1ee5',
+    category: 'Combo ch\u0103m s\u00f3c',
+    onTap: onTap,
+  );
+}
+
+class _CatalogCard extends StatelessWidget {
+  const _CatalogCard({
+    required this.name,
+    required this.imageUrl,
+    required this.price,
+    required this.subtitle,
+    required this.category,
+    required this.onTap,
+    this.rating,
+    this.discountLabel,
+    this.bookingLabel,
+    this.reviewLabel,
+  });
+  final String name;
+  final String? imageUrl;
+  final double price;
+  final String subtitle;
+  final String category;
+  final VoidCallback onTap;
+  final double? rating;
+  final String? discountLabel;
+  final String? bookingLabel;
+  final String? reviewLabel;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    // Giảm giá hiển thị ở góc trên bên phải ảnh (nếu có khuyến mãi)
-    final discount = discountLabel;
-
-    // Số lượt đặt dịch vụ thực tế từ CSDL
-    final bookedText = service.bookedCount > 0 ? 'Đã đặt ${service.bookedCount}' : 'Mới';
-
+    final scale = MediaQuery.textScalerOf(context).scale(1);
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: AppColors.outline.withValues(alpha: .45)),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.55)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Ảnh minh họa kèm các badge (Voucher & Discount)
-              AspectRatio(
-                aspectRatio: 1.15,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-                      child: CatalogImage(
-                        imageUrl: service.imageUrl,
-                        semanticLabel: service.name,
-                      ),
-                    ),
-                    // Badge giảm giá góc trên phải (-XX% như hình 1)
-                    if (discount != null)
-                      Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFFECEE),
-                          borderRadius: BorderRadius.only(
-                            topRight: Radius.circular(11),
-                            bottomLeft: Radius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          discount,
-                          style: const TextStyle(
-                            color: Color(0xFFE53935),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Badge Voucher góc dưới trái ảnh (như hình 1)
-                    Positioned(
-                      bottom: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE000),
-                          borderRadius: BorderRadius.circular(3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.confirmation_number_outlined, size: 9, color: Color(0xFFD63031)),
-                            SizedBox(width: 2),
-                            Text(
-                              'VOUCHER',
-                              style: TextStyle(
-                                color: Color(0xFFD63031),
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 2. Nội dung chi tiết (Tên kèm tag "Yêu thích", Đánh giá, Giá tiền, Danh mục)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final imageHeight =
+                (constraints.maxHeight -
+                        (bookingLabel == null && reviewLabel == null
+                                ? 146
+                                : 174) *
+                            scale)
+                    .clamp(48.0, constraints.maxWidth * .82);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: imageHeight,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      // Tên dịch vụ kèm tag "Yêu thích" đỏ (như hình 1)
-                      RichText(
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        text: TextSpan(
-                          children: [
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 4, bottom: 2),
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEE4D2D),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: const Text(
-                                  'Yêu thích',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.1,
-                                  ),
-                                ),
-                              ),
+                      CatalogImage(imageUrl: imageUrl, semanticLabel: name),
+                      if (discountLabel != null &&
+                          discountLabel!.trim().isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 4,
                             ),
-                            TextSpan(
-                              text: service.name,
+                            decoration: BoxDecoration(
+                              color: AppColors.roseContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              discountLabel!,
                               style: const TextStyle(
-                                fontSize: 13,
+                                color: AppColors.onRoseContainer,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.ink,
-                                height: 1.25,
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-
-                      // Hàng Tag thời lượng + Đánh giá sao (như hình 1)
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: AppColors.roseContainer.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(
-                                  color: AppColors.rose.withValues(alpha: 0.3),
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                durationStr(service.durationMinutes),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.onRoseContainer,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          if (service.totalReviews > 0 && service.averageRating != null)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.star_rounded, size: 13, color: Color(0xFFFFB300)),
-                                const SizedBox(width: 1),
-                                Text(
-                                  service.averageRating!.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.inkMuted,
-                                  ),
-                                ),
-                              ],
-                            )
-                          else
-                            const Text(
-                              'Chưa đánh giá',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                color: AppColors.inkMuted,
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      // Hàng Giá tiền + Số lượt đã đặt
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              vnd(service.price),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.rose,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            bookedText,
-                            style: TextStyle(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 9.5,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Hàng Danh mục dịch vụ
-                      Row(
-                        children: [
-                          Icon(Icons.spa_outlined, size: 11, color: cs.onSurfaceVariant),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              categoryName.isNotEmpty ? categoryName : 'Chăm sóc sắc đẹp',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: cs.onSurfaceVariant,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Thẻ combo hình chữ nhật đứng (Grid card phong cách e-commerce)
-class ComboCard extends StatelessWidget {
-  final Combo combo;
-  final VoidCallback onTap;
-
-  const ComboCard({
-    super.key,
-    required this.combo,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bookedCount = 'Trọn gói';
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      elevation: 0,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.55)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Ảnh combo + Badges
-              AspectRatio(
-                aspectRatio: 1.15,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-                      child: CatalogImage(
-                        imageUrl: combo.imageUrl,
-                        semanticLabel: combo.name,
-                        icon: Icons.auto_awesome_outlined,
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.only(
-                            topRight: Radius.circular(11),
-                            bottomLeft: Radius.circular(8),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            height: 1.25,
+                            color: AppColors.ink,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: const Text(
-                          'TIẾT KIỆM',
-                          style: TextStyle(
-                            color: Color(0xFF2E7D32),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE000),
-                          borderRadius: BorderRadius.circular(3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 3,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
+                        Row(
                           children: [
-                            Icon(Icons.star, size: 9, color: Color(0xFFD63031)),
-                            SizedBox(width: 2),
-                            Text(
-                              'COMBO HOT',
-                              style: TextStyle(
-                                color: Color(0xFFD63031),
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.2,
-                              ),
+                            const Icon(
+                              Icons.schedule_outlined,
+                              size: 13,
+                              color: AppColors.inkMuted,
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 2. Nội dung chi tiết Combo
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      RichText(
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        text: TextSpan(
-                          children: [
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 4, bottom: 2),
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: AppColors.sage,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: const Text(
-                                  'Combo',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            TextSpan(
-                              text: combo.name,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.ink,
-                                height: 1.25,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: AppColors.sageContainer,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
+                            const SizedBox(width: 4),
+                            Expanded(
                               child: Text(
-                                '${combo.totalServices} dịch vụ',
+                                subtitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.onSageContainer,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.auto_awesome, size: 12, color: Color(0xFFFFB300)),
-                              SizedBox(width: 2),
-                              Text(
-                                'Ưu đãi',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
                                   color: AppColors.inkMuted,
                                 ),
                               ),
+                            ),
+                            if (rating != null) ...[
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 14,
+                                color: Color(0xFFD19A38),
+                              ),
+                              Text(
+                                rating!.toStringAsFixed(1),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          vnd(price),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: AppColors.rose,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (category.isNotEmpty)
+                          Text(
+                            category,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.inkMuted,
+                            ),
+                          ),
+                        if (bookingLabel != null || reviewLabel != null)
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 3,
+                            children: [
+                              if (reviewLabel != null)
+                                Text(
+                                  reviewLabel!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ),
+                              if (bookingLabel != null)
+                                Text(
+                                  bookingLabel!,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ),
                             ],
                           ),
-                        ],
-                      ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              vnd(combo.price),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.rose,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            bookedCount,
-                            style: TextStyle(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 9.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Icon(Icons.card_giftcard_outlined, size: 11, color: cs.onSurfaceVariant),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              'Liệu trình trọn gói',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: cs.onSurfaceVariant,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-/// Thẻ danh sách hàng ngang (legacy / dùng khi cần hiển thị dạng list hàng ngang)
 class ServiceTile extends StatelessWidget {
   final Service service;
   final String categoryName;
@@ -572,10 +279,15 @@ class ServiceTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(service.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(
+                  service.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   [
@@ -588,9 +300,13 @@ class ServiceTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(vnd(service.price),
-              style: const TextStyle(
-                  color: AppColors.rose, fontWeight: FontWeight.w700)),
+          Text(
+            vnd(service.price),
+            style: const TextStyle(
+              color: AppColors.rose,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -623,20 +339,31 @@ class ComboTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(combo.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(
+                  combo.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('${combo.totalServices} dịch vụ trong combo',
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+                Text(
+                  '${combo.totalServices} dịch vụ trong combo',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(vnd(combo.price),
-              style: const TextStyle(
-                  color: AppColors.rose, fontWeight: FontWeight.w700)),
+          Text(
+            vnd(combo.price),
+            style: const TextStyle(
+              color: AppColors.rose,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );

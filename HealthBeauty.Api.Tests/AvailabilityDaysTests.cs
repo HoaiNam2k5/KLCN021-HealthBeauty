@@ -17,7 +17,7 @@ public sealed class AvailabilityDaysTests
     {
         var db = new Klcn021HealthBeautyContext(new DbContextOptionsBuilder<Klcn021HealthBeautyContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        db.Nhanviens.AddRange(new Nhanvien { NhanVienId = 1, HoTen = "One" }, new Nhanvien { NhanVienId = 2, HoTen = "Two" });
+        db.Nhanviens.AddRange(new Nhanvien { NhanVienId = 1, HoTen = "One", ChucVu = "KTV" }, new Nhanvien { NhanVienId = 2, HoTen = "Two", ChucVu = "KTV" });
         db.Dichvus.Add(new Dichvu { DichVuId = 1, TenDichVu = "Service", ThoiLuongPhut = 60, TrangThai = true });
         db.Lichlamviecs.AddRange(
             new Lichlamviec { LichLamViecId = 1, NhanVienId = 1, NgayLam = Day, GioBatDau = new(9, 0), GioKetThuc = new(11, 0) },

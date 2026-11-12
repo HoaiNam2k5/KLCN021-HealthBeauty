@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tag, Typography, Row, Col } from 'antd'
-import { DeleteOutlined, PlusOutlined, PrinterOutlined, QrcodeOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Table, Tabs, Tag, Typography, Row, Col } from 'antd'
+import { DeleteOutlined, PlusOutlined, PrinterOutlined, QrcodeOutlined, SearchOutlined } from '@ant-design/icons'
+import { ActionButton, ActionGrid } from '../../components/ActionButton'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -22,6 +23,7 @@ import BankTransferModal from './BankTransferModal'
 import { cacheVerifiedPaidInvoice } from './transferSafety'
 import { getSession } from '../../api/session'
 import { useCreateIntent } from '../../hooks/useCreateIntent'
+import PackagePayments from './PackagePayments'
 
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`
 type CreateFields = { appointmentId: number; voucherCode?: string; pointsToRedeem?: number }
@@ -30,7 +32,7 @@ type DiscountFields = { voucherCode?: string; pointsToRedeem?: number }
 type EditableInvoiceLine = { key: string; name: string; serviceId: number | null; comboId: number | null; quantity: number; unitPrice: number }
 
 export default function BillingPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { message } = App.useApp()
   const { has } = usePermissions()
   const session = useAuth()
@@ -187,21 +189,20 @@ export default function BillingPage() {
         : '—'
     } },
     { title: 'Thao tác', key: 'actions', render: (_, invoice) => (
-      <Space size={4}>
+      <ActionGrid>
         {invoice.status === INVOICE_STATUS.UNPAID && invoice.total > 0 && (
-          <Button
-            type="link"
+          <ActionButton
+            label="Quét QR thanh toán"
+            tone="confirm"
             icon={<QrcodeOutlined />}
             onClick={(event) => {
               event.stopPropagation()
               setQrInvoiceId(invoice.id)
             }}
-          >
-            Quét QR
-          </Button>
+          />
         )}
-        <Button type="link" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }}>In phiếu</Button>
-      </Space>
+        <ActionButton label="In phiếu" tone="print" icon={<PrinterOutlined />} onClick={(event) => { event.stopPropagation(); printReceipt(invoice) }} />
+      </ActionGrid>
     ) },
   ]
 
@@ -216,13 +217,15 @@ export default function BillingPage() {
     <style>{`@media print { body * { visibility: hidden !important; } #healthbeauty-receipt, #healthbeauty-receipt * { visibility: visible !important; } #healthbeauty-receipt { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 20mm !important; box-shadow: none !important; color: #222 !important; background: #fff !important; } .receipt-no-print { display: none !important; } @page { size: A4; margin: 0; } }`}</style>
     <div className="page-heading">
       <Typography.Title level={4} style={{ margin: 0 }}>Hóa đơn và thanh toán</Typography.Title>
-      <Space className="filter-bar" wrap>
-        <Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm theo tên khách" style={{ width: 220, maxWidth: '100%' }} />
+    </div>
+    <Tabs activeKey={searchParams.get('tab') === 'packages' ? 'packages' : 'services'} onChange={value => { const next = new URLSearchParams(searchParams); next.set('tab', value); setSearchParams(next) }} items={[{ key: 'services', label: 'Hóa đơn dịch vụ / combo' }, { key: 'packages', label: 'Lịch sử thanh toán gói dịch vụ' }]} />
+    {searchParams.get('tab') === 'packages' ? <PackagePayments /> : <>
+      <Space className="admin-filter-row" wrap>
+        <Input className="admin-search" prefix={<SearchOutlined />} aria-label="Tìm theo tên khách" allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm theo tên khách" />
         <Select allowClear value={status} onChange={setStatus} placeholder="Trạng thái thanh toán" style={{ width: 210, maxWidth: '100%' }} options={[...new Set(list.map((invoice) => invoice.status))].map((value) => ({ value, label: INVOICE_STATUS_LABELS[value] ?? 'Trạng thái chưa xác định' }))} />
         <DatePicker.RangePicker value={range} onChange={setRange} format="DD/MM/YYYY" />
         {canWrite && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo hóa đơn</Button>}
       </Space>
-    </div>
     <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
       <Col xs={24} sm={8}><Card size="small"><Statistic title="Tổng doanh thu đã thu" value={paidRevenue} formatter={(value) => money(Number(value))} /></Card></Col>
       <Col xs={24} sm={8}><Card size="small"><Statistic title="Chờ thanh toán" value={unpaidCount} /></Card></Col>
@@ -257,7 +260,7 @@ export default function BillingPage() {
         <Table className="responsive-table" scroll={{ x: 'max-content' }} rowKey="id" size="small" pagination={false} dataSource={selected.items} columns={[{ title: 'Dịch vụ / combo', render: (_, item) => item.serviceName ?? item.comboName ?? (item.serviceId !== null ? services.data?.find((s) => s.id === item.serviceId)?.name : null) ?? (item.comboId !== null ? combos.data?.find((c) => c.id === item.comboId)?.name : null) ?? 'Không rõ tên' }, { title: 'SL', dataIndex: 'quantity' }, { title: 'Đơn giá', dataIndex: 'unitPrice', render: (value: number) => money(value) }]} />
         <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
           <Descriptions.Item label="Tạm tính">{money(selected.subtotal)}</Descriptions.Item>
-          <Descriptions.Item label="Chênh lệch tạm tính và tổng">{money(selected.subtotal - selected.total)}</Descriptions.Item>
+          <Descriptions.Item label="Tổng giảm giá">{money(Math.max(0, selected.subtotal - selected.total))}</Descriptions.Item>
           <Descriptions.Item label="Tổng">{money(selected.total)}</Descriptions.Item>
         </Descriptions>
         <Typography.Title level={5}>Các lần thanh toán</Typography.Title>
@@ -300,7 +303,7 @@ export default function BillingPage() {
         </table>
         <section style={{ marginLeft: 'auto', maxWidth: 340, lineHeight: 2 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tạm tính:</span><span>{money(receiptInvoice.subtotal)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Giảm giá voucher / Đổi điểm thưởng:</span><span>-{money(receiptDiscount)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tổng giảm giá:</span><span>{money(receiptDiscount)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #b88b62', paddingTop: 5, fontSize: 18, fontWeight: 700 }}><span>TỔNG TIỀN PHẢI TRẢ:</span><span>{money(receiptInvoice.total)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Đã thanh toán:</span><span>{money(receiptPaid)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Phương thức thanh toán:</span><span>{receiptMethodLabel}</span></div>
@@ -323,7 +326,7 @@ export default function BillingPage() {
             { title: 'SL', key: 'quantity', render: (_, line) => <InputNumber min={1} max={99} precision={0} value={line.quantity} onChange={(value) => { if (value !== null) setInvoiceLines((lines) => lines.map((item) => item.key === line.key ? { ...item, quantity: value } : item)) }} style={{ width: 70 }} /> },
             { title: 'Đơn giá', dataIndex: 'unitPrice', render: (value: number) => money(value) },
             { title: 'Thành tiền', key: 'amount', align: 'right', render: (_, line) => money(line.quantity * line.unitPrice) },
-            { title: 'Thao tác', key: 'actions', render: (_, line) => <Button type="text" danger icon={<DeleteOutlined />} aria-label={`Xóa ${line.name}`} disabled={invoiceLines.length <= 1} onClick={() => setInvoiceLines((lines) => lines.filter((item) => item.key !== line.key))} /> },
+            { title: 'Thao tác', key: 'actions', render: (_, line) => <ActionButton tone="delete" icon={<DeleteOutlined />} label={`Xóa ${line.name}`} disabled={invoiceLines.length <= 1} onClick={() => setInvoiceLines((lines) => lines.filter((item) => item.key !== line.key))} /> },
           ]} />
           <Space wrap style={{ display: 'flex', marginTop: 12 }}>
             <Select placeholder="Chọn dịch vụ hoặc combo" value={newItemKey} onChange={setNewItemKey} style={{ minWidth: 240, flex: 1 }} options={[
@@ -353,5 +356,6 @@ export default function BillingPage() {
         void acceptPaidInvoice(invoice, true)
       }}
     />
+    </>}
   </section>
 }

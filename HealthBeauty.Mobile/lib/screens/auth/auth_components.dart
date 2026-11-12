@@ -20,7 +20,7 @@ class AuthScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: cs.surface,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -67,7 +67,7 @@ class AuthScaffold extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 24),
               Text(
                 title,
                 style: const TextStyle(

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { App as AntApp, Avatar, Button, DatePicker, Form, Image, Input, Modal, Select, Typography } from 'antd'
+import { App as AntApp, Avatar, Button, DatePicker, Form, Image, Input, Modal, Select, Typography, Upload } from 'antd'
+import { uploadImage } from '../../api/services'
 import dayjs, { type Dayjs } from 'dayjs'
 import ManagementTable from '../../components/ManagementTable'
 import { getApiErrorMessage } from '../../components/apiError'
@@ -18,6 +19,7 @@ export default function StaffPage() {
   const avatarUrl = Form.useWatch('avatarUrl', form)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [open, setOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [position, setPosition] = useState<string>()
   const [page, setPage] = useState(1)
@@ -36,21 +38,18 @@ export default function StaffPage() {
     if (!canManage) return
     setEditing(record ?? null)
     form.resetFields()
-    form.setFieldsValue({ fullName: record?.hoTen ?? '', position: record?.chucVu ?? '', specialty: record?.chuyenMon ?? '', phone: record?.soDienThoai ?? '', hireDate: record ? dayjs(record.ngayVaoLam) : dayjs(), avatarUrl: record ? readStaffAvatar(record.nhanVienId) : '' })
+    form.setFieldsValue({ fullName: record?.hoTen ?? '', position: record?.chucVu ?? '', specialty: record?.chuyenMon ?? '', phone: record?.soDienThoai ?? '', hireDate: record ? dayjs(record.ngayVaoLam) : dayjs(), avatarUrl: record ? (record.avatarUrl ?? readStaffAvatar(record.nhanVienId)) : '' })
     setOpen(true)
   }
 
   async function submit(values: StaffFormValues) {
-    if (!canManage || save.isPending) return
-    const body: StaffRequest = mapStaffRequest({ fullName: values.fullName, position: values.position, specialty: values.specialty, phone: values.phone, hireDate: values.hireDate.format('YYYY-MM-DD') })
+    if (!canManage || save.isPending || uploading) return
+    const body: StaffRequest = mapStaffRequest({ fullName: values.fullName, position: values.position, specialty: values.specialty, phone: values.phone, hireDate: values.hireDate.format('YYYY-MM-DD'), avatarUrl: values.avatarUrl ?? '' })
     const request = editing ? body : mapCreateStaffRequest({ ...body, email: values.email, password: values.password })
     try {
       await save.mutateAsync({ id: editing?.nhanVienId, body: request })
-      const refreshed = await query.refetch()
-      const staffId = editing?.nhanVienId ?? refreshed.data?.find((item) => item.hoTen === values.fullName)?.nhanVienId
-      if (staffId !== undefined) {
-        if (values.avatarUrl?.trim()) localStorage.setItem(staffAvatarKey(staffId), values.avatarUrl.trim())
-        else localStorage.removeItem(staffAvatarKey(staffId))
+      if (editing) {
+        try { localStorage.removeItem(staffAvatarKey(editing.nhanVienId)) } catch { /* Server is authoritative. */ }
       }
       message.success(editing ? 'Cập nhật nhân viên thành công.' : 'Thêm nhân viên thành công.')
       setOpen(false)
@@ -69,10 +68,31 @@ export default function StaffPage() {
     }
   }
 
+  async function uploadAvatar(file: File) {
+    if (!canManage || uploading) return false
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      message.error('Chỉ hỗ trợ ảnh PNG, JPEG hoặc WebP.')
+      return false
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('Kích thước ảnh tối đa là 5MB.')
+      return false
+    }
+    setUploading(true)
+    try {
+      const result = await uploadImage(file)
+      form.setFieldValue('avatarUrl', result.imageUrl)
+      message.success('Đã tải ảnh lên. Bấm Lưu để cập nhật hồ sơ KTV.')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, 'Không thể tải ảnh lên. Vui lòng thử lại.'))
+    } finally { setUploading(false) }
+    return false
+  }
+
   return <>
     <ManagementTable<Staff>
       title="Nhân viên" columns={[
-        { title: 'Ảnh đại diện', key: 'avatar', render: (_, record) => <Avatar size={42} src={readStaffAvatar(record.nhanVienId) || undefined} style={{ backgroundColor: '#b58a70', color: '#fff' }}>{staffInitials(record.hoTen)}</Avatar> },
+        { title: 'Ảnh đại diện', key: 'avatar', render: (_, record) => <Avatar size={42} src={record.avatarUrl ?? (record.avatarUrl === undefined ? readStaffAvatar(record.nhanVienId) || undefined : undefined)} style={{ backgroundColor: '#b58a70', color: '#fff' }}>{staffInitials(record.hoTen)}</Avatar> },
         { title: 'Họ tên', dataIndex: 'hoTen', key: 'hoTen', render: (value: string | null) => value || '—' },
         { title: 'Mã tài khoản', dataIndex: 'taiKhoanId', key: 'taiKhoanId', render: (value: number | null | undefined) => value ?? 'Chưa có' },
         { title: 'Chức vụ', dataIndex: 'chucVu', key: 'chucVu', render: (value: string | null) => value || '—' },
@@ -91,7 +111,7 @@ export default function StaffPage() {
       </>}
     />
     {query.isError && <div role="alert">{getApiErrorMessage(query.error, 'Không tải được danh sách nhân viên.')}</div>}
-    <Modal className="responsive-modal" title={editing ? 'Sửa nhân viên' : 'Thêm nhân viên'} open={open && canManage} onCancel={() => { if (!save.isPending) { setOpen(false); form.resetFields() } }} maskClosable={!save.isPending} onOk={() => form.submit()} confirmLoading={save.isPending} okText="Lưu" cancelText="Hủy">
+    <Modal className="responsive-modal" title={editing ? 'Sửa nhân viên' : 'Thêm nhân viên'} open={open && canManage} onCancel={() => { if (!save.isPending && !uploading) { setOpen(false); form.resetFields() } }} maskClosable={!save.isPending && !uploading} onOk={() => form.submit()} confirmLoading={save.isPending || uploading} okText="Lưu" cancelText="Hủy">
       <Form className="responsive-form" form={form} layout="vertical" onFinish={submit}>
         <Form.Item name="fullName" label="Họ tên" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập họ tên.' }]}><Input maxLength={100} /></Form.Item>
         <Form.Item name="position" label="Chức vụ" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập chức vụ.' }]}><Input maxLength={50} /></Form.Item>
@@ -102,7 +122,11 @@ export default function StaffPage() {
           <Form.Item name="password" label="Mật khẩu ban đầu" rules={[{ required: true, message: 'Nhập mật khẩu.' }, { min: 8, message: 'Mật khẩu tối thiểu 8 ký tự.' }, { max: 128 }]}><Input.Password autoComplete="new-password" maxLength={128} /></Form.Item>
         </>}
         <Form.Item name="hireDate" label="Ngày vào làm" rules={[{ required: true, message: 'Vui lòng chọn ngày vào làm.' }]}><DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} /></Form.Item>
-        <Form.Item name="avatarUrl" label="Đường dẫn ảnh đại diện (tùy chọn)"><Input type="url" placeholder="https://..." /></Form.Item>
+        <Form.Item name="avatarUrl" label="Đường dẫn ảnh đại diện (tùy chọn)" rules={[{ validator: async (_, value: string | undefined) => { if (!value?.trim()) return; try { const url = new URL(value.trim()); if (['https:', 'http:'].includes(url.protocol) && value.trim().length <= 2048) return } catch { /* Reject below. */ } throw new Error('Nhập đường dẫn ảnh HTTP/HTTPS hợp lệ, tối đa 2048 ký tự.') } }]}><Input type="url" placeholder="https://..." maxLength={2048} disabled={uploading} /></Form.Item>
+        <Upload accept="image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={uploadAvatar} disabled={uploading || save.isPending}>
+          <Button loading={uploading} disabled={save.isPending}>Tải ảnh đại diện lên</Button>
+        </Upload>
+        {avatarUrl && <Button disabled={uploading || save.isPending} onClick={() => form.setFieldValue('avatarUrl', '')}>Xóa ảnh đại diện</Button>}
         {avatarUrl && <div style={{ marginBottom: 16 }}><Typography.Text type="secondary">Xem trước</Typography.Text><br /><Image src={avatarUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: '50%' }} fallback="" /></div>}
       </Form>
     </Modal>

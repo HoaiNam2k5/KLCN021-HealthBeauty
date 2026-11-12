@@ -11,6 +11,33 @@ using Xunit;
 namespace HealthBeauty.Api.Tests;
 public sealed class ServicePackageTests
 {
+    [Fact]
+    public async Task PaymentListShowsPaidPurchasesAndRequiresCurrentInvoiceReadGrant()
+    {
+        await using var db = Db();
+        await Seed(db);
+        db.Vaitros.Add(new Vaitro { VaiTroId = 1, TenVaiTro = "Reception" });
+        db.Taikhoans.Add(new Taikhoan { TaiKhoanId = 1, VaiTroId = 1, Email = "cashier@example.invalid", MatKhauHash = "test", TrangThai = true });
+        db.Quyens.Add(new Quyen { QuyenId = 1, MaQuyen = "INVOICE.READ", TenQuyen = "Xem hóa đơn", NhomQuyen = "INVOICE", TrangThai = true });
+        var grant = new VaitroQuyen { VaiTroId = 1, QuyenId = 1, DuocCap = true };
+        db.VaitroQuyens.Add(grant);
+        db.CustomerPackages.AddRange(
+            new CustomerPackage { Id = 1, CustomerId = 1, Name = "Gói đã chuyển khoản", Price = 100000, Status = "Paid", PaymentMethod = "ChuyenKhoan", CreatedAt = DateTime.Now, PaidAt = DateTime.Now },
+            new CustomerPackage { Id = 2, CustomerId = 1, Name = "Gói chờ thu", Price = 200000, Status = "Pending", CreatedAt = DateTime.Now });
+        await db.SaveChangesAsync();
+        var api = Controller(db, "Reception");
+        var result = Json(Assert.IsType<OkObjectResult>(await api.PaymentList(default, status: "Paid")).Value!);
+        Assert.Equal(1, result.GetProperty("totalCount").GetInt32());
+        var item = result.GetProperty("items")[0];
+        Assert.Equal("One", item.GetProperty("customerName").GetString());
+        Assert.Equal("ChuyenKhoan", item.GetProperty("paymentMethod").GetString());
+        Assert.Equal(100000, item.GetProperty("price").GetDecimal());
+        Assert.IsType<BadRequestObjectResult>(await api.PaymentList(default, page: 0));
+        Assert.IsType<ForbidResult>(await Controller(db).PaymentList(default));
+        grant.DuocCap = false;
+        await db.SaveChangesAsync();
+        Assert.IsType<ForbidResult>(await api.PaymentList(default));
+    }
     static DbContextOptions<Klcn021HealthBeautyContext> Options() => new DbContextOptionsBuilder<Klcn021HealthBeautyContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
     static Klcn021HealthBeautyContext Db() => new(Options());
     static ServicePackagesController Controller(Klcn021HealthBeautyContext db, string role = "Customer", int id = 1) => new(db)

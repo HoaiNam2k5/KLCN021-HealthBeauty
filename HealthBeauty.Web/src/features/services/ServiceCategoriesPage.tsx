@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { App as AntApp, Button, Form, Input, Modal } from 'antd'
 import ManagementTable from '../../components/ManagementTable'
+import DescriptionDetails from '../../components/DescriptionDetails'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
 import type { CategoryRequest, ServiceCategory } from '../../types/services'
@@ -54,7 +55,7 @@ export default function ServiceCategoriesPage() {
     <ManagementTable<ServiceCategory>
       title="Loại dịch vụ" columns={[
         { title: 'Tên loại', dataIndex: 'name', key: 'name' },
-        { title: 'Mô tả', dataIndex: 'description', key: 'description', render: (value: string | null) => value || '—' },
+        { title: 'Mô tả', dataIndex: 'description', key: 'description', render: (value: string | null) => <DescriptionDetails value={value} /> },
       ]} data={data} searchFields={['name']} loading={query.isLoading} error={query.isError} page={page} pageSize={pageSize}
       onPageChange={(next, size) => { setPageSize(size); setPage(next) }} onSearch={(value) => { setKeyword(value); setPage(1) }} searchPlaceholder="Tìm theo tên loại dịch vụ" canManage={canManage} onEdit={openForm} onDelete={removeRecord}
       onDeleteForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')} onEditForbidden={() => message.error('Bạn không có quyền thực hiện thao tác này')}

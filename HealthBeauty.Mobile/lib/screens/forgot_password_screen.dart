@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
 import '../providers/auth_provider.dart';
 import 'auth/auth_components.dart';
@@ -24,6 +27,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   String? _passErr;
   String? _confirmPassErr;
   String? _serverError;
+  Timer? _resendTimer;
+  int _resendSeconds = 0;
 
   @override
   void initState() {
@@ -35,6 +40,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _email.dispose();
     _otp.dispose();
     _newPass.dispose();
@@ -43,6 +49,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   void _sendOtp({bool isResend = false}) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.isLoading || _resendSeconds > 0) return;
     final emailText = _email.text.trim();
     if (emailText.isEmpty || !emailText.contains('@')) {
       setState(() => _emailErr = 'Vui lòng nhập email hợp lệ');
@@ -54,7 +62,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _serverError = null;
     });
 
-    final auth = context.read<AuthProvider>();
     final data = await auth.forgotPassword(emailText);
 
     if (!mounted) return;
@@ -63,25 +70,48 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() {
         _step = 1;
         _otp.clear();
+        _resendSeconds = 60;
+      });
+      _resendTimer?.cancel();
+      _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        setState(() => _resendSeconds--);
+        if (_resendSeconds <= 0) timer.cancel();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(data['message']?.toString() ?? 'Mã xác thực đã được gửi đến email.'),
+          content: Text(
+            data['message']?.toString() ?? 'Mã xác thực đã được gửi đến email.',
+          ),
           backgroundColor: AppColors.ok,
         ),
       );
     } else {
       setState(() {
-        _serverError = auth.error ?? 'Không thể gửi mã xác thực. Vui lòng thử lại.';
+        _serverError =
+            auth.error ?? 'Không thể gửi mã xác thực. Vui lòng thử lại.';
       });
     }
   }
 
   void _submitReset() async {
+    if (context.read<AuthProvider>().isLoading) return;
     setState(() {
-      _otpErr = _otp.text.trim().length != 6 ? 'Mã xác thực gồm 6 chữ số' : null;
-      _passErr = _newPass.text.length < 8 ? 'Mật khẩu tối thiểu 8 ký tự' : null;
-      _confirmPassErr = _newPass.text != _confirmPass.text ? 'Mật khẩu xác nhận không khớp' : null;
+      _otpErr = !RegExp(r'^\d{6}$').hasMatch(_otp.text.trim())
+          ? 'Mã xác thực gồm 6 chữ số'
+          : null;
+      _passErr =
+          _newPass.text.trim().isEmpty ||
+              _newPass.text.length < 8 ||
+              _newPass.text.length > 128
+          ? 'Mật khẩu từ 8 đến 128 ký tự, không chỉ gồm khoảng trắng'
+          : null;
+      _confirmPassErr = _newPass.text != _confirmPass.text
+          ? 'Mật khẩu xác nhận không khớp'
+          : null;
       _serverError = null;
     });
 
@@ -100,7 +130,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       Navigator.pop(context, _email.text.trim());
     } else {
       setState(() {
-        _serverError = auth.error ?? 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.';
+        _serverError =
+            auth.error ?? 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.';
       });
     }
   }
@@ -115,6 +146,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ? 'Nhập email đã đăng ký để nhận mã xác thực đặt lại mật khẩu'
           : 'Nhập mã xác thực (OTP) và mật khẩu mới cho ${_email.text.trim()}',
       onBack: () {
+        if (auth.isLoading) return;
         if (_step == 1) {
           setState(() {
             _step = 0;
@@ -142,7 +174,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 6),
           AuthButton(
-            text: 'Gửi mã xác nhận',
+            text: _resendSeconds > 0
+                ? 'Gửi lại sau ${_resendSeconds}s'
+                : 'Gửi mã xác nhận',
             loading: auth.isLoading,
             onPressed: () => _sendOtp(),
           ),
@@ -195,15 +229,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton(
-                onPressed: () => setState(() {
-                  _step = 0;
-                  _serverError = null;
-                }),
+                onPressed: auth.isLoading
+                    ? null
+                    : () => setState(() {
+                        _step = 0;
+                        _serverError = null;
+                      }),
                 child: const Text('Đổi email khác'),
               ),
               TextButton(
-                onPressed: auth.isLoading ? null : () => _sendOtp(isResend: true),
-                child: const Text('Gửi lại mã OTP'),
+                onPressed: auth.isLoading || _resendSeconds > 0
+                    ? null
+                    : () => _sendOtp(isResend: true),
+                child: Text(
+                  _resendSeconds > 0
+                      ? 'Gửi lại (${_resendSeconds}s)'
+                      : 'Gửi lại mã OTP',
+                ),
               ),
             ],
           ),

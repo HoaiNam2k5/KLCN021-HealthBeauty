@@ -101,48 +101,56 @@ void main() {
   });
 
   group('ServiceCard & ComboCard Widget Tests', () {
-    testWidgets('ServiceCard renders vertical layout without overflow and handles tap', (tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 2.75;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'ServiceCard renders vertical layout without overflow and handles tap',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 2.75;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      var tapped = false;
-      const service = Service(
-        id: 1,
-        categoryId: 1,
-        name: 'Chăm sóc da chuyên sâu',
-        price: 650000,
-        durationMinutes: 75,
-        description: 'Liệu trình chăm sóc da chuyên sâu',
-      );
+        var tapped = false;
+        const service = Service(
+          id: 1,
+          categoryId: 1,
+          name: 'Chăm sóc da chuyên sâu',
+          price: 650000,
+          durationMinutes: 75,
+          description: 'Liệu trình chăm sóc da chuyên sâu',
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              width: 180,
-              height: 300,
-              child: ServiceCard(
-                service: service,
-                categoryName: 'Chăm sóc da',
-                onTap: () => tapped = true,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 180,
+                height: 300,
+                child: ServiceCard(
+                  service: service,
+                  categoryName: 'Chăm sóc da',
+                  onTap: () => tapped = true,
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Yêu thích'), findsOneWidget);
-      expect(find.textContaining('Chăm sóc da chuyên sâu', findRichText: true), findsOneWidget);
-      expect(find.text('VOUCHER'), findsOneWidget);
-      expect(find.textContaining('650.000'), findsOneWidget);
+        expect(find.text('Yêu thích'), findsNothing);
+        expect(
+          find.textContaining('Chăm sóc da chuyên sâu', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.text('VOUCHER'), findsNothing);
+        expect(find.textContaining('650.000'), findsOneWidget);
 
-      await tester.tap(find.byType(ServiceCard));
-      expect(tapped, true);
-    });
+        await tester.tap(find.byType(ServiceCard));
+        expect(tapped, true);
+      },
+    );
 
-    testWidgets('ServiceCard works in 2-column GridView without overflow', (tester) async {
+    testWidgets('ServiceCard works in 2-column GridView without overflow', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.75;
       addTearDown(tester.view.resetPhysicalSize);
@@ -186,33 +194,36 @@ void main() {
   });
 
   group('Booking & Appointment Enhancements Tests', () {
-    testWidgets('AppointmentsScreen parses and displays voucher and payment details', (tester) async {
-      final json = {
-        'id': 202,
-        'customerId': 1,
-        'staffId': 3,
-        'appointmentAt': '2026-10-18T14:00:00.000',
-        'status': 'DaXacNhan',
-        'note': '[Nhắc hẹn: 30 phút trước] [Voucher: SPA50K (-50.000 đ)] [Thanh toán: Chuyển khoản] Da nhạy cảm cần chăm sóc kỹ',
-        'items': [
-          {
-            'id': 1,
-            'serviceId': 10,
-            'serviceName': 'Chăm sóc da chuyên sâu',
-            'comboId': null,
-            'expectedPrice': 650000.0,
-          },
-        ],
-      };
+    testWidgets(
+      'AppointmentsScreen parses and displays voucher and payment details',
+      (tester) async {
+        final json = {
+          'id': 202,
+          'customerId': 1,
+          'staffId': 3,
+          'appointmentAt': '2026-10-18T14:00:00.000',
+          'status': 'DaXacNhan',
+          'note': '[Nhắc hẹn: 30 phút trước] [Voucher: SPA50K (-50.000 đ)] [Thanh toán: Chuyển khoản] Da nhạy cảm cần chăm sóc kỹ',
+          'items': [
+            {
+              'id': 1,
+              'serviceId': 10,
+              'serviceName': 'Chăm sóc da chuyên sâu',
+              'comboId': null,
+              'expectedPrice': 650000.0,
+            },
+          ],
+        };
 
-      final appointment = Appointment.fromJson(json);
+        final appointment = Appointment.fromJson(json);
 
-      // Verify Appointment model values
-      expect(appointment.id, 202);
-      expect(appointment.note, contains('[Voucher: SPA50K (-50.000 đ)]'));
-      expect(appointment.note, contains('[Thanh toán: Chuyển khoản]'));
-      expect(appointment.note, contains('[Nhắc hẹn: 30 phút trước]'));
-    });
+        // Verify Appointment model values
+        expect(appointment.id, 202);
+        expect(appointment.note, contains('[Voucher: SPA50K (-50.000 đ)]'));
+        expect(appointment.note, contains('[Thanh toán: Chuyển khoản]'));
+        expect(appointment.note, contains('[Nhắc hẹn: 30 phút trước]'));
+      },
+    );
   });
 
   group('Review & Rating Model Tests', () {
@@ -302,7 +313,9 @@ void main() {
       expect(service.bookedCount, 15);
     });
 
-    testWidgets('ServiceCard displays real rating and booked count', (tester) async {
+    testWidgets('ServiceCard displays real rating and booked count', (
+      tester,
+    ) async {
       const ratedService = Service(
         id: 1,
         categoryId: 1,
@@ -335,37 +348,40 @@ void main() {
       expect(find.textContaining('102+'), findsNothing);
     });
 
-    testWidgets('ServiceCard displays "Chưa đánh giá" and "Mới" when counts are 0', (tester) async {
-      const newService = Service(
-        id: 2,
-        categoryId: 1,
-        name: 'Dịch vụ thử nghiệm',
-        price: 300000,
-        durationMinutes: 45,
-        averageRating: null,
-        totalReviews: 0,
-        bookedCount: 0,
-      );
+    testWidgets(
+      'ServiceCard displays "Chưa đánh giá" and "Mới" when counts are 0',
+      (tester) async {
+        const newService = Service(
+          id: 2,
+          categoryId: 1,
+          name: 'Dịch vụ thử nghiệm',
+          price: 300000,
+          durationMinutes: 45,
+          averageRating: null,
+          totalReviews: 0,
+          bookedCount: 0,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              width: 180,
-              height: 300,
-              child: ServiceCard(
-                service: newService,
-                categoryName: 'Chăm sóc da',
-                onTap: () {},
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 180,
+                height: 300,
+                child: ServiceCard(
+                  service: newService,
+                  categoryName: 'Chăm sóc da',
+                  onTap: () {},
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Chưa đánh giá'), findsOneWidget);
-      expect(find.text('Mới'), findsOneWidget);
-      expect(find.textContaining('102+'), findsNothing);
-    });
+        expect(find.text('Chưa đánh giá'), findsOneWidget);
+        expect(find.text('Mới'), findsOneWidget);
+        expect(find.textContaining('102+'), findsNothing);
+      },
+    );
   });
 }

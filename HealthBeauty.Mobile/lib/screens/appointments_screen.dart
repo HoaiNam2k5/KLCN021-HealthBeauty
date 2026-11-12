@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/service_package_provider.dart';
 import '../widgets/common.dart';
+import '../widgets/spa_boarding_pass.dart';
 import 'login_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'reschedule_screen.dart';
@@ -22,6 +25,21 @@ class AppointmentsScreen extends StatefulWidget {
 
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
   int _tab = 0; // 0 = sắp tới, 1 = lịch sử
+  Timer? _clockTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) context.read<AppointmentProvider>().refreshClock();
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,20 +91,36 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Text(
-            'Lịch hẹn',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Lịch hẹn',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Theo dõi lịch chăm sóc và xem vé hẹn của bạn',
+                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              ),
+            ],
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: SegmentedButton<int>(
+            showSelectedIcon: false,
             segments: [
               ButtonSegment(
                 value: 0,
+                icon: const Icon(Icons.event_available_outlined),
                 label: Text('Sắp tới (${ap.upcoming.length})'),
               ),
-              const ButtonSegment(value: 1, label: Text('Lịch sử')),
+              const ButtonSegment(
+                value: 1,
+                icon: Icon(Icons.history),
+                label: Text('Lịch sử'),
+              ),
             ],
             selected: {_tab},
             onSelectionChanged: (s) => setState(() => _tab = s.first),
@@ -125,7 +159,12 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               ],
             )
           : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.paddingOf(context).bottom + 24,
+              ),
               itemCount: list.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, i) => _AppointmentCard(a: list[i]),
@@ -140,96 +179,7 @@ class _AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final d = a.appointmentAt;
-    return AppCard(
-      onTap: () => _showDetail(context),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 56,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  two(d.day),
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onPrimaryContainer,
-                  ),
-                ),
-                Text(
-                  'Thg ${d.month}',
-                  style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        a.code,
-                        style: TextStyle(
-                          color: cs.onSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    if (a.isDone && a.hasReviewed)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: StatusChip(
-                          label: '${a.reviewStars ?? 5} ⭐',
-                          color: AppColors.warn,
-                        ),
-                      ),
-                    StatusChip(
-                      label: a.statusLabel,
-                      color: statusColor(a.status),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  a.serviceSummary,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${weekdayStr(d)} · ${timeStr(d)} · ${durationStr(a.durationMinutes)}',
-                  style: TextStyle(color: cs.onSurfaceVariant),
-                ),
-                if (a.needsOutcomeUpdate)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Text(
-                      'Đã qua ngày hẹn · Cửa hàng chưa cập nhật kết quả',
-                      style: TextStyle(color: AppColors.warn, fontSize: 12),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return SpaBoardingPassCard(a: a, onTap: () => _showDetail(context));
   }
 
   void _showDetail(BuildContext context) {
@@ -239,365 +189,360 @@ class _AppointmentCard extends StatelessWidget {
     final staffDisplay = a.staffId != null
         ? (staff != null
               ? '${staff.fullName} (${staff.displayTitle})'
-              : 'KTV #${a.staffId}')
+              : 'Chưa có thông tin kỹ thuật viên')
         : 'Spa tự sắp xếp KTV';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+      ),
       backgroundColor: AppColors.cream,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Lịch hẹn ${a.code}',
+        child: SingleChildScrollView(
+          key: const ValueKey('appointment-ticket-scroll'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'Chi tiết lịch hẹn',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
-                  StatusChip(
-                    label: a.statusLabel,
-                    color: statusColor(a.status),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${weekdayStr(a.appointmentAt)}, ${dateStr(a.appointmentAt)} · ${timeStr(a.appointmentAt)}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              if (a.needsOutcomeUpdate)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Lịch đã qua ngày hẹn. Cửa hàng chưa cập nhật kết quả; vui lòng liên hệ lễ tân để kiểm tra.',
-                    style: TextStyle(color: AppColors.warn),
-                  ),
+                    StatusChip(
+                      label: a.statusLabel,
+                      color: statusColor(a.status),
+                    ),
+                  ],
                 ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(Icons.schedule, size: 16, color: AppColors.sage),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Thời lượng: ${durationStr(a.durationMinutes)}',
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-                  ),
-                  const SizedBox(width: 16),
-                  const Icon(
-                    Icons.person_outline,
-                    size: 16,
-                    color: AppColors.rose,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
+                const SizedBox(height: 8),
+                Text(
+                  '${weekdayStr(a.appointmentAt)}, ${dateStr(a.appointmentAt)} · ${timeStr(a.appointmentAt)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (a.needsOutcomeUpdate)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
                     child: Text(
-                      'KTV: $staffDisplay',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
+                      'Lịch đã qua ngày hẹn. Cửa hàng chưa cập nhật kết quả; vui lòng liên hệ lễ tân để kiểm tra.',
+                      style: TextStyle(color: AppColors.warn),
                     ),
                   ),
-                ],
-              ),
-              const Divider(height: 24),
-              for (final it in a.items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          it.durationMinutes > 0
-                              ? '${it.serviceName} (${durationStr(it.durationMinutes)})'
-                              : it.serviceName,
-                        ),
-                      ),
-                      Text(
-                        vnd(it.expectedPrice),
-                        style: TextStyle(color: cs.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 6),
+                _detailLine(
+                  Icons.schedule,
+                  'Thời lượng: ',
+                  durationStr(a.durationMinutes),
+                  cs.onSurfaceVariant,
                 ),
-              const Divider(height: 24),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
+                const SizedBox(height: 6),
+                _detailLine(
+                  Icons.person_outline,
+                  'KTV: ',
+                  staffDisplay,
+                  cs.onSurfaceVariant,
+                ),
+                const SizedBox(height: 12),
+                _manualTicket(cs),
+                const Divider(height: 24),
+                for (final it in a.items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: _priceLine(
+                      context,
+                      it.durationMinutes > 0
+                          ? '${it.serviceName} (${durationStr(it.durationMinutes)})'
+                          : it.serviceName,
+                      it.expectedPrice,
+                      TextStyle(color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                const Divider(height: 24),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    const Text(
                       'Tạm tính',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  Text(
-                    vnd(a.total),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.rose,
+                    Text(
+                      vnd(a.total),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.rose,
+                      ),
+                    ),
+                  ],
+                ),
+                ..._buildNoteDetails(a.note, cs),
+                if (a.invoiceId != null) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Xem hóa đơn / Thanh toán'),
+                      onPressed: () async {
+                        Navigator.pop(sheetContext);
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                InvoiceDetailScreen(invoiceId: a.invoiceId!),
+                          ),
+                        );
+                        if (context.mounted) {
+                          context.read<AppointmentProvider>().load();
+                        }
+                      },
                     ),
                   ),
                 ],
-              ),
-              ..._buildNoteDetails(a.note, cs),
-              if (a.invoiceId != null) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.receipt_long_outlined),
-                    label: const Text('Xem hóa đơn / Thanh toán'),
-                    onPressed: () async {
-                      Navigator.pop(sheetContext);
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              InvoiceDetailScreen(invoiceId: a.invoiceId!),
-                        ),
-                      );
-                      if (context.mounted) {
-                        context.read<AppointmentProvider>().load();
-                      }
-                    },
-                  ),
-                ),
-              ],
-              if (a.customerPackageId != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Sử dụng lượt từ gói dịch vụ #${a.customerPackageId} · không thu thêm tiền dịch vụ.',
-                    style: TextStyle(color: cs.primary),
-                  ),
-                ),
-              if (a.canReschedule) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.event_repeat),
-                    label: const Text('Đổi ngày / giờ hẹn'),
-                    onPressed: () async {
-                      Navigator.pop(sheetContext);
-                      final changed = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RescheduleScreen(appointment: a),
-                        ),
-                      );
-                      if (changed != true || !context.mounted) return;
-                      await context.read<AppointmentProvider>().load();
-                      if (!context.mounted) return;
-                      if (a.customerPackageId != null) {
-                        context.read<ServicePackageProvider>().loadMine();
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Đổi lịch hẹn thành công'),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-              if (a.canCancel) ...[
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: const BorderSide(color: AppColors.danger),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                if (a.customerPackageId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Sử dụng lượt từ gói dịch vụ · không thu thêm tiền dịch vụ.',
+                      style: TextStyle(color: cs.primary),
                     ),
-                    icon: const Icon(Icons.cancel_outlined),
-                    label: const Text(
-                      'Hủy lịch hẹn',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    onPressed: () => _confirmCancel(context, sheetContext),
                   ),
-                ),
-              ] else if (a.isUpcoming) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Lịch hẹn đang được xử lý. Để đổi/hủy vui lòng liên hệ spa.',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-                ),
-              ] else if (a.isDone) ...[
-                const SizedBox(height: 16),
-                if (!a.hasReviewed)
+                if (a.canReschedule) ...[
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.rose,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.event_repeat),
+                      label: const Text('Đổi ngày / giờ hẹn'),
+                      onPressed: () async {
+                        Navigator.pop(sheetContext);
+                        final changed = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RescheduleScreen(appointment: a),
+                          ),
+                        );
+                        if (changed != true || !context.mounted) return;
+                        await context.read<AppointmentProvider>().load();
+                        if (!context.mounted) return;
+                        if (a.customerPackageId != null) {
+                          context.read<ServicePackageProvider>().loadMine();
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Đổi lịch hẹn thành công'),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                if (a.canCancel) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        side: const BorderSide(color: AppColors.danger),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      icon: const Icon(Icons.star_rounded),
+                      icon: const Icon(Icons.cancel_outlined),
                       label: const Text(
-                        'Đánh giá dịch vụ',
+                        'Hủy lịch hẹn',
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      onPressed: () => _openReviewDialog(context, sheetContext),
+                      onPressed: () => _confirmCancel(context, sheetContext),
                     ),
-                  )
-                else
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.roseContainer.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.rose.withValues(alpha: 0.3),
+                  ),
+                ] else if (a.isUpcoming) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Lịch hẹn đang được xử lý. Để đổi/hủy vui lòng liên hệ spa.',
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                  ),
+                ] else if (a.isDone) ...[
+                  const SizedBox(height: 16),
+                  if (!a.hasReviewed)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.rose,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.star_rounded),
+                        label: const Text(
+                          'Đánh giá dịch vụ',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: () =>
+                            _openReviewDialog(context, sheetContext),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              'Đánh giá của bạn',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            const Spacer(),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: List.generate(
-                                5,
-                                (i) => Icon(
-                                  i < (a.reviewStars ?? 5)
-                                      ? Icons.star_rounded
-                                      : Icons.star_outline_rounded,
-                                  color: Colors.amber,
-                                  size: 18,
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.roseContainer.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.rose.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              const Text(
+                                'Đánh giá của bạn',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: AppColors.ink,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: List.generate(
+                                  5,
+                                  (i) => Icon(
+                                    i < (a.reviewStars ?? 5)
+                                        ? Icons.star_rounded
+                                        : Icons.star_outline_rounded,
+                                    color: Colors.amber,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${a.reviewStars ?? 5}/5',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                  color: AppColors.rose,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (a.reviewedAt != null) ...[
+                            const SizedBox(height: 3),
                             Text(
-                              '${a.reviewStars ?? 5}/5',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                                color: AppColors.rose,
+                              dateStr(a.reviewedAt!),
+                              style: TextStyle(
+                                color: cs.onSurfaceVariant,
+                                fontSize: 11,
                               ),
                             ),
                           ],
-                        ),
-                        if (a.reviewedAt != null) ...[
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 8),
                           Text(
-                            dateStr(a.reviewedAt!),
-                            style: TextStyle(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        Text(
-                          (a.reviewComment != null &&
-                                  a.reviewComment!.trim().isNotEmpty)
-                              ? '"${a.reviewComment!.trim()}"'
-                              : '(Bạn không để lại nhận xét bằng chữ)',
-                          style: TextStyle(
-                            fontStyle:
-                                (a.reviewComment != null &&
+                            (a.reviewComment != null &&
                                     a.reviewComment!.trim().isNotEmpty)
-                                ? FontStyle.normal
-                                : FontStyle.italic,
-                            fontSize: 13,
-                            color: AppColors.ink,
-                            height: 1.4,
-                          ),
-                        ),
-                        if (a.reviewReply != null &&
-                            a.reviewReply!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: AppColors.rose.withValues(alpha: 0.2),
-                              ),
+                                ? '"${a.reviewComment!.trim()}"'
+                                : '(Bạn không để lại nhận xét bằng chữ)',
+                            style: TextStyle(
+                              fontStyle:
+                                  (a.reviewComment != null &&
+                                      a.reviewComment!.trim().isNotEmpty)
+                                  ? FontStyle.normal
+                                  : FontStyle.italic,
+                              fontSize: 13,
+                              color: AppColors.ink,
+                              height: 1.4,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.reply_rounded,
-                                      size: 14,
-                                      color: AppColors.rose,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Text(
-                                      'Phản hồi từ Spa:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
+                          ),
+                          if (a.reviewReply != null &&
+                              a.reviewReply!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: AppColors.rose.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Wrap(
+                                    spacing: 4,
+                                    runSpacing: 4,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.reply_rounded,
+                                        size: 14,
                                         color: AppColors.rose,
                                       ),
-                                    ),
-                                    if (a.reviewRepliedAt != null) ...[
-                                      const Spacer(),
-                                      Text(
-                                        dateStr(a.reviewRepliedAt!),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'Phản hồi từ Spa:',
                                         style: TextStyle(
-                                          color: cs.onSurfaceVariant,
-                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                          color: AppColors.rose,
                                         ),
                                       ),
+                                      if (a.reviewRepliedAt != null) ...[
+                                        Text(
+                                          dateStr(a.reviewRepliedAt!),
+                                          style: TextStyle(
+                                            color: cs.onSurfaceVariant,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
                                     ],
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  a.reviewReply!.trim(),
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    height: 1.4,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    a.reviewReply!.trim(),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -794,6 +739,7 @@ class _AppointmentCard extends StatelessWidget {
           backgroundColor: AppColors.ok,
         ),
       );
+      unawaited(context.read<CatalogProvider>().load(force: true));
     }
   }
 
@@ -805,7 +751,7 @@ class _AppointmentCard extends StatelessWidget {
       context: sheetContext,
       builder: (d) => AlertDialog(
         title: const Text('Xác nhận hủy lịch'),
-        content: Text('Bạn có chắc chắn muốn hủy lịch hẹn ${a.code}?'),
+        content: const Text('Bạn có chắc chắn muốn hủy lịch hẹn này?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(d, false),
@@ -830,14 +776,95 @@ class _AppointmentCard extends StatelessWidget {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            ok
-                ? 'Đã hủy lịch hẹn ${a.code}'
-                : (ap.error ?? 'Hủy lịch thất bại'),
+            ok ? 'Đã hủy lịch hẹn' : (ap.error ?? 'Hủy lịch thất bại'),
           ),
         ),
       );
     }
   }
+
+  Widget _priceLine(
+    BuildContext context,
+    String name,
+    double price,
+    TextStyle style,
+  ) {
+    final amount = Text(vnd(price), style: style);
+    if (MediaQuery.textScalerOf(context).scale(14) > 21) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(name),
+          Align(alignment: Alignment.centerRight, child: amount),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: Text(name)),
+        const SizedBox(width: 8),
+        Flexible(child: amount),
+      ],
+    );
+  }
+
+  Widget _manualTicket(ColorScheme cs) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AppColors.rose.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppColors.rose.withValues(alpha: 0.2)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.confirmation_number_outlined, color: AppColors.rose),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'THÔNG TIN LỊCH HẸN',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.rose,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Xuất trình thông tin lịch hẹn để lễ tân đối chiếu',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _detailLine(IconData icon, String label, String value, Color color) =>
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: TextStyle(color: color, fontSize: 13),
+                children: [
+                  TextSpan(
+                    text: label,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
 
   List<Widget> _buildNoteDetails(String? rawNote, ColorScheme cs) {
     if (rawNote == null || rawNote.trim().isEmpty) return const [];
@@ -865,88 +892,45 @@ class _AppointmentCard extends StatelessWidget {
       text = text.replaceAll(paymentMatch.group(0)!, '').trim();
     }
 
+    text = text.replaceAll(RegExp(r'\[Sử dụng gói:\s*[^\]]+\]'), '').trim();
     final remaining = text.trim();
     final widgets = <Widget>[];
 
     if (paymentMethod != null) {
       widgets.add(const SizedBox(height: 10));
       widgets.add(
-        Row(
-          children: [
-            Icon(
-              paymentMethod.contains('Chuyển khoản')
-                  ? Icons.qr_code_2
-                  : Icons.payments_outlined,
-              size: 17,
-              color: AppColors.rose,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Hình thức thanh toán: ',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            Text(
-              paymentMethod,
-              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-            ),
-          ],
+        _detailLine(
+          Icons.payments_outlined,
+          'Hình thức thanh toán: ',
+          paymentMethod,
+          cs.onSurfaceVariant,
         ),
       );
     }
-
     if (voucher != null) {
       widgets.add(const SizedBox(height: 6));
       widgets.add(
-        Row(
-          children: [
-            const Icon(
-              Icons.confirmation_number_outlined,
-              size: 17,
-              color: AppColors.rose,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Voucher ưu đãi: ',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            Text(
-              voucher,
-              style: const TextStyle(
-                color: AppColors.rose,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
-          ],
+        _detailLine(
+          Icons.confirmation_number_outlined,
+          'Voucher ưu đãi: ',
+          voucher,
+          AppColors.rose,
         ),
       );
     }
-
     if (reminder != null) {
       widgets.add(const SizedBox(height: 6));
       widgets.add(
-        Row(
-          children: [
-            Icon(
-              Icons.notifications_active_outlined,
-              size: 17,
-              color: cs.onSurfaceVariant,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Nhắc hẹn: ',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            Text(
-              reminder,
-              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-            ),
-          ],
+        _detailLine(
+          Icons.notifications_active_outlined,
+          'Nhắc hẹn đã chọn: ',
+          reminder,
+          cs.onSurfaceVariant,
         ),
       );
     }
 
-    if (remaining.isNotEmpty) {
+    if (remaining.isNotEmpty && a.customerPackageId == null) {
       widgets.add(const SizedBox(height: 8));
       widgets.add(
         Row(

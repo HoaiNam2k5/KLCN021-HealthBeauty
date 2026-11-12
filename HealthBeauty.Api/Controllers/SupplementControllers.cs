@@ -36,7 +36,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         var item = await db.Lichhens.FindAsync([id], ct); if (item is null) return NotFound();
         if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan")) return Conflict("Only pending or confirmed appointments can be rescheduled.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Thời gian hẹn phải ở tương lai.");
-        if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, ct)) return BadRequest("Nhân viên không tồn tại.");
+        if (request.StaffId.HasValue && !await TechnicianEligibility.ExistsAsync(db, request.StaffId.Value, ct)) return BadRequest("The selected technician is unavailable or is not eligible for service appointments.");
         var durationMinutes = await AppointmentTiming.LoadDurationMinutesAsync(db, item.LichHenId, ct);
         if (await AppointmentTiming.HasConflictAsync(db, item.KhachHangId, request.StaffId,
             request.AppointmentAt, durationMinutes, item.LichHenId, ct))
@@ -112,7 +112,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
         if (customerId != item.KhachHangId && !User.IsInRole("Admin") && !User.IsInRole("Manager") && !User.IsInRole("Reception")) return Forbid();
         if (item.TrangThai is not ("ChoXacNhan" or "DaXacNhan")) return Conflict("Only pending or confirmed appointments can be rescheduled.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Thời gian hẹn phải ở tương lai.");
-        if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, ct)) return BadRequest("Nhân viên không tồn tại.");
+        if (request.StaffId.HasValue && !await TechnicianEligibility.ExistsAsync(db, request.StaffId.Value, ct)) return BadRequest("The selected technician is unavailable or is not eligible for service appointments.");
         var durationMinutes = await AppointmentTiming.LoadDurationMinutesAsync(db, item.LichHenId, ct);
         if (await AppointmentTiming.HasConflictAsync(db, item.KhachHangId, request.StaffId,
             request.AppointmentAt, durationMinutes, item.LichHenId, ct))
@@ -161,7 +161,7 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             }
             if (appointment.TrangThai is not ("ChoXacNhan" or "DaXacNhan")) return Conflict("This appointment cannot be rescheduled.");
         }
-        if (staffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == staffId.Value, ct)) return BadRequest("Staff does not exist.");
+        if (staffId.HasValue && !await TechnicianEligibility.ExistsAsync(db, staffId.Value, ct)) return BadRequest("The selected technician is unavailable or is not eligible for service appointments.");
         if (serviceId.HasValue)
         {
             var service = await db.Dichvus.AsNoTracking().FirstOrDefaultAsync(x => x.DichVuId == serviceId.Value && x.TrangThai, ct);
@@ -181,8 +181,8 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
             return BadRequest("Provide an ordered date range of at most 61 days.");
         if (durationMinutes <= 0 || durationMinutes > 1440)
             return BadRequest("Duration must be between 1 and 1440 minutes.");
-        if (staffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == staffId.Value, ct))
-            return BadRequest("Staff does not exist.");
+        if (staffId.HasValue && !await TechnicianEligibility.ExistsAsync(db, staffId.Value, ct))
+            return BadRequest("The selected technician is unavailable or is not eligible for service appointments.");
 
         var slots = await LoadAvailableSlots(from, to, staffId, durationMinutes, ct);
         return Ok(slots.GroupBy(x => DateOnly.FromDateTime(x.Start)).OrderBy(x => x.Key)
@@ -193,7 +193,9 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
 
     private async Task<List<AvailableStaffSlot>> LoadAvailableSlots(DateOnly from, DateOnly to, int? staffId, int durationMinutes, CancellationToken ct, int? excludeAppointmentId = null)
     {
-        var query = db.Lichlamviecs.AsNoTracking().Where(x => x.NgayLam >= from && x.NgayLam <= to && x.TrangThai != "NghiPhep");
+        var eligibleIds = TechnicianEligibility.Query(db).Select(x => x.NhanVienId);
+        var query = db.Lichlamviecs.AsNoTracking().Where(x => eligibleIds.Contains(x.NhanVienId)
+            && x.NgayLam >= from && x.NgayLam <= to && x.TrangThai != "NghiPhep");
         if (staffId.HasValue) query = query.Where(x => x.NhanVienId == staffId.Value);
         var shifts = await query.ToListAsync(ct);
         var staffIds = shifts.Select(x => x.NhanVienId).Distinct().ToList();
@@ -226,7 +228,8 @@ public sealed class AppointmentManagementController(Klcn021HealthBeautyContext d
 public sealed class StaffManagementController(Klcn021HealthBeautyContext db) : ControllerBase
 {
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> Get(int id, CancellationToken ct) => (await db.Nhanviens.AsNoTracking().Include(x => x.Lichlamviecs).FirstOrDefaultAsync(x => x.NhanVienId == id, ct)) is { } x ? Ok(new { x.NhanVienId, x.TaiKhoanId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam,
+    public async Task<IActionResult> Get(int id, CancellationToken ct) => (await db.Nhanviens.AsNoTracking().Include(x => x.Lichlamviecs).Include(x => x.TaiKhoan).ThenInclude(x => x!.VaiTro).FirstOrDefaultAsync(x => x.NhanVienId == id, ct)) is { } x ? Ok(new { x.NhanVienId, x.TaiKhoanId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam, x.AvatarUrl,
+        Role = x.TaiKhoan?.VaiTro.TenVaiTro, IsActive = !x.TaiKhoanId.HasValue || x.TaiKhoan?.TrangThai == true,
         Lichlamviecs = x.Lichlamviecs.Select(s => new { s.LichLamViecId, s.NhanVienId, s.NgayLam, s.GioBatDau, s.GioKetThuc, s.TrangThai }).ToList() }) : NotFound();
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)

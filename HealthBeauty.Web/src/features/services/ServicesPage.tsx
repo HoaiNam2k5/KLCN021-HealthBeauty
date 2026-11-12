@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { App, Button, Form, Image, Input, InputNumber, Modal, Select, Space, Typography, Upload } from 'antd'
 import type { UploadProps } from 'antd'
 import ManagementTable from '../../components/ManagementTable'
+import DescriptionDetails from '../../components/DescriptionDetails'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
 import type { Service, ServiceRequest } from '../../types/services'
@@ -63,18 +64,18 @@ export default function ServicesPage() {
 
   async function removeRecord(record: Service) {
     if (!canManage) return
-    try { await remove.mutateAsync(record.id); message.success('Xóa dịch vụ thành công.') }
-    catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể xóa dịch vụ. Vui lòng kiểm tra dữ liệu liên quan.')); throw error }
+    try { await remove.mutateAsync(record.id); message.success('Đã ngừng cung cấp dịch vụ.') }
+    catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể ngừng cung cấp dịch vụ. Vui lòng thử lại.')); throw error }
   }
 
   return <>
-    <ManagementTable<Service> title="Dịch vụ" columns={[
+    <ManagementTable<Service> title="Dịch vụ" deleteLabel="Ngừng cung cấp" deleteConfirmation="Dịch vụ sẽ ngừng nhận lịch mới. Dữ liệu dịch vụ, lịch hẹn và hóa đơn đã có vẫn được lưu. Combo hoặc gói chứa dịch vụ này có thể không đặt lịch mới được." columns={[
       { title: 'Hình ảnh', key: 'image', render: (_, record) => { const category = categories.data?.find((item) => item.id === record.categoryId)?.name ?? ''; return <Image width={64} height={48} src={record.imageUrl || defaultServiceImage(record.name ?? '', category)} style={{ borderRadius: 8, objectFit: 'cover' }} preview={{ mask: 'Xem' }} alt={record.name ?? 'Dịch vụ'} /> } },
       { title: 'Tên dịch vụ', dataIndex: 'name', key: 'name' },
       { title: 'Danh mục', key: 'category', render: (_, record) => categories.data?.find((item) => item.id === record.categoryId)?.name ?? `#${record.categoryId}` },
       { title: 'Giá', dataIndex: 'price', key: 'price', render: money },
       { title: 'Thời lượng', dataIndex: 'durationMinutes', key: 'durationMinutes', render: (value: number) => `${value} phút` },
-      { title: 'Mô tả', dataIndex: 'description', key: 'description' },
+      { title: 'Mô tả', dataIndex: 'description', key: 'description', render: (value: string | null) => <DescriptionDetails value={value} /> },
     ]} data={data.filter((item) => categoryId === undefined || item.categoryId === categoryId)} searchFields={['name', 'description']} loading={query.isLoading} error={query.isError} page={page} pageSize={pageSize} onPageChange={(next, size) => { setPageSize(size); setPage(next) }} onSearch={() => setPage(1)} canManage={canManage} onEdit={openForm} onDelete={removeRecord} toolbar={canManage ? <><Select allowClear placeholder="Danh mục" value={categoryId} onChange={(value) => { setCategoryId(value); setPage(1) }} options={(categories.data ?? []).map((item) => ({ value: item.id, label: item.name ?? `#${item.id}` }))} style={{ minWidth: 180 }} /><Button type="primary" onClick={() => openForm()}>Thêm dịch vụ</Button></> : undefined} />
     <Modal className="responsive-modal" title={editing ? 'Sửa dịch vụ' : 'Thêm dịch vụ'} open={open && canManage} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={save.isPending || uploading} okText="Lưu" cancelText="Hủy">
       <Form className="responsive-form" form={form} layout="vertical" onFinish={submit}>

@@ -11,7 +11,8 @@ import 'service_detail_screen.dart';
 import 'service_packages_screen.dart';
 
 class ServicesScreen extends StatefulWidget {
-  const ServicesScreen({super.key});
+  const ServicesScreen({super.key, this.initialQuery = ''});
+  final String initialQuery;
 
   @override
   State<ServicesScreen> createState() => _ServicesScreenState();
@@ -24,6 +25,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
   int _tab = 0; // 0 = dịch vụ, 1 = combo
 
   @override
+  void initState() {
+    super.initState();
+    _search.text = widget.initialQuery;
+  }
+
+  @override
   void dispose() {
     _search.dispose();
     super.dispose();
@@ -32,6 +39,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogProvider>();
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
     final q = _search.text.trim().toLowerCase();
 
     final services = catalog.services.where((s) {
@@ -49,7 +57,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
               const Expanded(
@@ -58,15 +66,17 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ServicePackagesScreen(),
+              Flexible(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ServicePackagesScreen(),
+                    ),
                   ),
+                  icon: const Icon(Icons.card_membership_outlined),
+                  label: const Text('Gói dịch vụ'),
                 ),
-                icon: const Icon(Icons.card_membership_outlined),
-                label: const Text('Gói dịch vụ'),
               ),
             ],
           ),
@@ -79,6 +89,13 @@ class _ServicesScreenState extends State<ServicesScreen> {
             decoration: InputDecoration(
               hintText: 'Tìm dịch vụ, combo...',
               prefixIcon: const Icon(Icons.search),
+              suffixIcon: q.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Xóa tìm kiếm',
+                      onPressed: () => setState(_search.clear),
+                      icon: const Icon(Icons.close),
+                    ),
               filled: true,
               fillColor: Colors.white,
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
@@ -104,7 +121,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
         if (_tab == 0) ...[
           const SizedBox(height: 8),
           SizedBox(
-            height: 44,
+            height: 48 + (textScale - 1).clamp(0, 2) * 20,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -191,39 +208,54 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 ),
               ],
             )
-          : GridView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              itemCount: count,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.60,
-              ),
-              itemBuilder: (context, i) {
-                if (isServiceTab) {
-                  final s = services[i];
-                  return ServiceCard(
-                    service: s,
-                    categoryName: catalog.categoryName(s.categoryId),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ServiceDetailScreen(service: s),
-                      ),
-                    ),
-                  );
-                }
-                final c = combos[i];
-                return ComboCard(
-                  combo: c,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ComboDetailScreen(combo: c),
-                    ),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final columns = constraints.maxWidth < 350 || scale > 1.3
+                    ? 1
+                    : constraints.maxWidth >= 700
+                    ? 3
+                    : 2;
+                return GridView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    8,
+                    20,
+                    MediaQuery.paddingOf(context).bottom + 24,
                   ),
+                  itemCount: count,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    mainAxisExtent: 320 + (scale - 1).clamp(0, 2) * 160,
+                  ),
+                  itemBuilder: (context, i) {
+                    if (isServiceTab) {
+                      final s = services[i];
+                      return ServiceCard(
+                        service: s,
+                        categoryName: catalog.categoryName(s.categoryId),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ServiceDetailScreen(service: s),
+                          ),
+                        ),
+                      );
+                    }
+                    final c = combos[i];
+                    return ComboCard(
+                      combo: c,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ComboDetailScreen(combo: c),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

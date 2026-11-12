@@ -25,6 +25,7 @@ PasswordRecoveryService.ValidateConfiguration(builder.Configuration);
 
 builder.Services.Configure<BankTransferOptions>(builder.Configuration.GetSection(BankTransferOptions.Section));
 builder.Services.AddScoped<DatabasePermissionFilter>();
+builder.Services.AddSpaAssistant();
 builder.Services.AddControllers(options => options.Filters.AddService<DatabasePermissionFilter>());
 builder.Services.AddDbContext<Klcn021HealthBeautyContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -76,9 +77,8 @@ app.UseHttpsRedirection();
 if (app.Environment.IsDevelopment())
     app.UseCors(DevelopmentClientCors.PolicyName);
 
-app.UseRateLimiter();
-
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

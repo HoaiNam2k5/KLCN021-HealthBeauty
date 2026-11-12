@@ -23,7 +23,7 @@ const theme: ThemeConfig = {
     boxShadowSecondary: 'none',
   },
   components: {
-    Button: { primaryColor: '#ffffff', fontWeight: 500, controlHeight: 38 },
+    Button: { primaryColor: '#ffffff', fontWeight: 500, controlHeight: 38, borderRadius: 6 },
     Table: { headerBg: '#faf9f6', headerColor: '#414141', rowHoverBg: '#f1eee9' },
     Modal: { titleFontSize: 18 },
     Menu: { darkItemColor: '#ded5d0', darkItemHoverColor: '#ffffff', darkItemSelectedColor: '#ffffff', darkItemBg: '#252321', darkSubMenuItemBg: '#252321', darkItemSelectedBg: '#8c4559', darkItemHoverBg: '#36312e', itemBorderRadius: 8 },

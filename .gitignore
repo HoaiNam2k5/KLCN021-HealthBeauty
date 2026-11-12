@@ -52,3 +52,16 @@ Thumbs.db
 /CONSOLIDATION_RESULT.json
 /CONSOLIDATION_CLEANUP.json
 /Firebase_Config_Cho_Nhom/
+
+# Generated test evidence and Python caches
+**/TestResults/
+**/__pycache__/
+**/*.pyc
+
+# Local signing keys and private credentials
+**/*.pem
+**/*.pfx
+**/*.p12
+**/*.jks
+**/*.keystore
+**/key.properties

@@ -39,6 +39,8 @@ class CatalogProvider extends ChangeNotifier {
   int _offerRequest = 0;
   int _staffRequest = 0;
   bool _disposed = false;
+  int _catalogRevision = 0;
+  final Map<String, Future<ReviewSummary>> _reviewRequests = {};
 
   /// Public catalog survives account changes; authenticated data never does.
   void bind(int? accountId) {
@@ -78,6 +80,7 @@ class CatalogProvider extends ChangeNotifier {
   Future<void> load({bool force = false}) async {
     if (_disposed || loading || (loaded && !force)) return;
     loading = true;
+    final revision = ++_catalogRevision;
     error = null;
     _notify();
     try {
@@ -106,7 +109,13 @@ class CatalogProvider extends ChangeNotifier {
       combos = nextCombos;
       promotions = nextPromotions;
       loaded = true;
-      await Future.wait([loadMyVouchers(), loadVoucherOffers(), loadStaff()]);
+      _notify();
+      await Future.wait([
+        loadMyVouchers(),
+        loadVoucherOffers(),
+        loadStaff(),
+        _hydrateLegacyReviewStatistics(nextServices, revision),
+      ]);
     } on DioException catch (e) {
       if (!_disposed) error = ApiError.message(e);
     } catch (e) {
@@ -132,6 +141,7 @@ class CatalogProvider extends ChangeNotifier {
       final res = await _dio.get('/staff');
       final next = (res.data as List)
           .map((e) => Staff.fromJson(e as Map<String, dynamic>))
+          .where((staff) => staff.isTechnician)
           .toList();
       if (!_isCurrent(version) || request != _staffRequest) return;
       staffList = next;
@@ -391,29 +401,91 @@ class CatalogProvider extends ChangeNotifier {
     return '';
   }
 
-  Future<ReviewSummary> loadServiceReviews(int serviceId) async {
+  /// Fill aggregates only for older catalogs, using the existing public API.
+  Future<void> _hydrateLegacyReviewStatistics(
+    List<Service> catalog,
+    int revision,
+  ) async {
+    final missing = catalog
+        .where((s) => !s.hasReviewStatistics)
+        .map((s) => s.id)
+        .toList();
+    var cursor = 0;
+    Future<void> worker() async {
+      while (!_disposed &&
+          revision == _catalogRevision &&
+          cursor < missing.length) {
+        final id = missing[cursor++];
+        try {
+          await loadServiceReviews(id);
+        } catch (_) {
+          // Unknown/error must never be presented as zero reviews.
+        }
+      }
+    }
+
+    await Future.wait(
+      List.generate(missing.length < 3 ? missing.length : 3, (_) => worker()),
+    );
+  }
+
+  Future<ReviewSummary> loadServiceReviews(int serviceId) {
+    final revision = _catalogRevision;
+    final key = '$revision:$serviceId';
+    return _reviewRequests[key] ??= _fetchServiceReviews(
+      serviceId,
+      revision,
+      key,
+    );
+  }
+
+  Future<ReviewSummary> _fetchServiceReviews(
+    int serviceId,
+    int revision,
+    String key,
+  ) async {
     try {
       final res = await _dio.get(
         '/reviews',
         queryParameters: {'serviceId': serviceId},
+        options: Options(
+          extra: {'skipAuth': true},
+          receiveTimeout: const Duration(seconds: 10),
+        ),
       );
-      if (res.data is Map) {
-        return ReviewSummary.fromJson(
-          Map<String, dynamic>.from(res.data as Map),
-        );
+      if (res.data is! Map) {
+        throw const FormatException('Invalid review response');
       }
-      return const ReviewSummary();
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error loading reviews for service $serviceId: $e');
+      final json = Map<String, dynamic>.from(res.data as Map);
+      if (json['averageRating'] is! num ||
+          json['totalReviews'] is! num ||
+          json['items'] is! List) {
+        throw const FormatException('Invalid review response');
       }
-      return const ReviewSummary();
+      final summary = ReviewSummary.fromJson(json);
+      if (!_disposed && revision == _catalogRevision) {
+        services = services
+            .map(
+              (s) => s.id == serviceId
+                  ? s.withReviewStatistics(
+                      summary.averageRating,
+                      summary.totalReviews,
+                    )
+                  : s,
+            )
+            .toList();
+        _notify();
+      }
+      return summary;
+    } finally {
+      _reviewRequests.remove(key);
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _catalogRevision++;
     _accountVersion++;
     super.dispose();
   }

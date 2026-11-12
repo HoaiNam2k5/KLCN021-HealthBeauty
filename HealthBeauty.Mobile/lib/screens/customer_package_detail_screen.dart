@@ -153,7 +153,7 @@ class _CustomerPackageDetailScreenState
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
-                    Text('Mã gói đã mua #${owned.id} · ${owned.statusLabel}'),
+                    Text(owned.statusLabel),
                     Text('Giá khi đăng ký: ${vnd(owned.price)}'),
                     Text('Đăng ký: ${dateStr(owned.createdAt)}'),
                     if (owned.paidAt != null)
@@ -214,6 +214,22 @@ class _CustomerPackageDetailScreenState
                                 item.serviceName,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
+                              const SizedBox(height: 12),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: LinearProgressIndicator(
+                                  value: item.granted == 0
+                                      ? 0
+                                      : (item.used / item.granted).clamp(
+                                          0.0,
+                                          1.0,
+                                        ),
+                                  minHeight: 8,
+                                  semanticsLabel:
+                                      '${item.serviceName}: đã dùng ${item.used} trên ${item.granted} lượt',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
                               Text(
                                 'Được cấp: ${item.granted} · Đã dùng: ${item.used} · Đang giữ: ${item.reserved}',
                               ),
@@ -252,9 +268,7 @@ class _CustomerPackageDetailScreenState
                               Text(
                                 '${_usageService(owned, usage.customerPackageItemId)} · ${usage.quantity} lượt',
                               ),
-                              Text(
-                                '${usage.statusLabel} · Lịch hẹn #${usage.appointmentId}',
-                              ),
+                              Text(usage.statusLabel),
                               Text(
                                 '${dateStr(usage.createdAt)} ${timeStr(usage.createdAt)}',
                               ),

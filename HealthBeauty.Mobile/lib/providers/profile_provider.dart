@@ -194,7 +194,13 @@ class ProfileProvider extends ChangeNotifier {
               contentType: DioMediaType.parse(type),
             ),
           }),
-          options: Options(extra: {'sessionGeneration': session}),
+          // Cloudinary may take 30s after the API receives the file.
+          // Allow upload/processing time without changing normal API requests.
+          options: Options(
+            sendTimeout: const Duration(seconds: 60),
+            receiveTimeout: const Duration(seconds: 45),
+            extra: {'sessionGeneration': session},
+          ),
         );
       }
       if (!_current(epoch)) return false;

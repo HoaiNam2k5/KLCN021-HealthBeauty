@@ -284,14 +284,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
           'Ngày lập: ${timeStr(invoice.createdAt)} · ${dateStr(invoice.createdAt)}',
         ),
         const SizedBox(height: 8),
-        Text(
-          invoice.statusLabel,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: invoice.isPaid
-                ? Colors.green.shade700
-                : Theme.of(context).colorScheme.primary,
-          ),
+        StatusChip(
+          label: invoice.statusLabel,
+          color: invoice.isPaid
+              ? Colors.green.shade700
+              : Theme.of(context).colorScheme.primary,
         ),
       ],
     ),

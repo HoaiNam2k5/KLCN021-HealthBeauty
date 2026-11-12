@@ -1,4 +1,10 @@
 import api from './client'
+export interface PackagePaymentRow { id: number; customerId: number; customerName: string | null; name: string; price: number; status: 'Pending' | 'Paid' | 'Cancelled'; createdAt: string; paidAt: string | null; paymentMethod: string | null; expiresAt: string | null }
+export interface PackagePaymentFilter { page?: number; pageSize?: number; search?: string; status?: string; id?: number }
+export async function getPackagePayments(params: PackagePaymentFilter): Promise<{ totalCount: number; items: PackagePaymentRow[] }> {
+  const { data } = await api.get('/service-packages/payments', { params })
+  return data
+}
 import type { CustomerPackage, PackagePaymentRequest, PackagePurchaseDetail, PackagePurchaseRequest, PackageSalesResponse, ServicePackage, ServicePackageRequest } from '../types/servicePackages'
 
 export async function getServicePackages(management = false): Promise<ServicePackage[]> {

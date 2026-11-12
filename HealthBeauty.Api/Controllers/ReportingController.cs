@@ -167,6 +167,42 @@ public sealed partial class ReportsController
         var json = JsonSerializer.SerializeToElement(ok.Value);
         var items = json.GetProperty("Items").EnumerateArray().ToList();
         if (items.Count > 10000) return BadRequest("Export exceeds 10000 rows; narrow filters.");
+        if (report == "orders")
+        {
+            // Báo cáo doanh thu dùng cùng nguồn và khoảng thời gian với biểu đồ trên web.
+            var labels = new[] { "Kỳ thống kê", "Tổng hóa đơn", "Đã thanh toán", "Chưa thanh toán", "Doanh thu đã thu (đồng)" };
+            var rowsForReport = new List<IReadOnlyList<object?>>();
+            void AddRow(params object?[] values)
+            {
+                var padded = new object?[labels.Length];
+                Array.Copy(values, padded, Math.Min(values.Length, padded.Length));
+                rowsForReport.Add(padded);
+            }
+            var groups = new Dictionary<string, string> { ["day"] = "Ngày", ["week"] = "Tuần", ["month"] = "Tháng", ["quarter"] = "Quý", ["year"] = "Năm" };
+            string StartLabel() => !f.From.HasValue ? "Không giới hạn" : f.From.Value.TimeOfDay == TimeSpan.Zero ? f.From.Value.ToString("dd/MM/yyyy") : f.From.Value.ToString("dd/MM/yyyy HH:mm");
+            string EndLabel() => !f.To.HasValue ? "Không giới hạn" : f.To.Value.TimeOfDay == TimeSpan.Zero && f.To.Value > DateTime.MinValue ? f.To.Value.AddDays(-1).ToString("dd/MM/yyyy") : $"trước {f.To.Value:dd/MM/yyyy HH:mm}";
+            AddRow("Thời gian", $"{StartLabel()} – {EndLabel()}");
+            AddRow("Thống kê theo", groups[f.GroupBy]);
+            AddRow("Tổng số hóa đơn", json.GetProperty("TotalCount").GetInt32());
+            AddRow("Tổng doanh thu đã thu (đồng)", json.GetProperty("PaidRevenue").GetDecimal());
+            AddRow("Doanh thu tính theo hóa đơn đã thanh toán, dựa trên ngày lập hóa đơn.");
+            AddRow();
+            AddRow(labels.Cast<object?>().ToArray());
+            foreach (var item in items)
+            {
+                var date = item.GetProperty("PeriodStart").GetDateTime();
+                var period = f.GroupBy switch {
+                    "day" => date.ToString("dd/MM/yyyy"), "week" => $"Tuần từ {date:dd/MM/yyyy}",
+                    "month" => date.ToString("MM/yyyy"), "quarter" => $"Quý {(date.Month - 1) / 3 + 1}/{date.Year}",
+                    "year" => date.ToString("yyyy"), _ => date.ToString("dd/MM/yyyy")
+                };
+                AddRow(period, item.GetProperty("InvoiceCount").GetInt32(), item.GetProperty("PaidInvoiceCount").GetInt32(), item.GetProperty("UnpaidInvoiceCount").GetInt32(), item.GetProperty("PaidRevenue").GetDecimal());
+            }
+            if (items.Count == 0) AddRow("Không có hóa đơn trong kỳ đã chọn.");
+            if (rowsForReport.Count > ReportingWorkbook.MaximumRows) return BadRequest("Export exceeds 10000 rows; narrow filters.");
+            return File(ReadableReportWorkbook.Create(["BÁO CÁO DOANH THU", "", "", "", ""], rowsForReport),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "bao-cao-doanh-thu.xlsx");
+        }
         string[] headers = report switch { "appointments" => ["PeriodStart", "Status", "Count"], "orders" => ["PeriodStart", "InvoiceCount", "PaidInvoiceCount", "UnpaidInvoiceCount", "PaidRevenue"],
             "new-customers" => ["PeriodStart", "Count"], _ => f.GroupBy == "staff" ? ["Id", "Name", "InvoiceCount", "PaidRevenue"] : ["Id", "Kind", "Name", "InvoiceCount", "Quantity", "GrossAmount"] };
         object? Value(JsonElement row, string key) { var v = row.GetProperty(key); return v.ValueKind switch { JsonValueKind.Number => v.GetDecimal(), JsonValueKind.Null => null, _ => v.GetString() }; }

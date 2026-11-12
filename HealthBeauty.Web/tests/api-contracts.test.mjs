@@ -97,6 +97,17 @@ const staffContract = await loadModule('../src/types/customersStaff.ts')
 const staffLinks = await loadModule('../src/features/customers-staff/staffAccountOptions.ts')
 const staffProfile = { fullName: ' Nhân viên ', position: ' Staff ', specialty: ' Massage ', phone: ' 0901234567 ', hireDate: '2026-10-20' }
 
+test('staff avatar survives create/update mapping and supports explicit removal', () => {
+  const avatarUrl = ' https://res.cloudinary.com/example/image/upload/avatar.png '
+  assert.equal(staffContract.mapStaffRequest({ ...staffProfile, avatarUrl }).avatarUrl, avatarUrl.trim())
+  assert.equal(staffContract.mapCreateStaffRequest({ ...staffProfile, avatarUrl, email: 'a@example.com', password: 'password123' }).avatarUrl, avatarUrl.trim())
+  assert.equal(staffContract.mapStaffRequest({ ...staffProfile, avatarUrl: '' }).avatarUrl, '')
+  assert.equal('avatarUrl' in staffContract.mapStaffRequest(staffProfile), false)
+  const mapped = staffContract.mapStaff({ nhanVienId: 7, avatarUrl: avatarUrl.trim(), role: 'Staff', isActive: true })
+  assert.equal(mapped.avatarUrl, avatarUrl.trim())
+  assert.equal(mapped.role, 'Staff')
+})
+
 test('creating a staff account trims profile and email but preserves password exactly', () => {
   const body = staffContract.mapCreateStaffRequest({ ...staffProfile, email: ' staff@example.com ', password: ' password123 ' })
   assert.equal(body.fullName, 'Nhân viên')

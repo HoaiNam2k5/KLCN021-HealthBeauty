@@ -128,7 +128,13 @@ button, input, select, textarea { font: inherit; }
 .page-heading .ant-typography { overflow-wrap: anywhere; }
 .page-heading > .ant-space-item, .page-toolbar > .ant-space-item { min-width: 0; max-width: 100%; }
 .page-toolbar { max-width: 100%; gap: 10px !important; }
+.page-toolbar .ant-btn-default:not(:disabled), .filter-bar .ant-btn-default:not(:disabled) { border-color: #d8d5d1; color: #45413e; font-weight: 500; }
+.page-toolbar .ant-btn-default:not(:disabled):hover, .filter-bar .ant-btn-default:not(:disabled):hover { border-color: #aaa39d; color: #252321; background: #f7f6f3; }
+.ant-form-item .ant-form-item-label > label { font-weight: 600; }
 .table-search { width: 260px; max-width: 100%; }
+.admin-filter-row { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 10px; width: 100%; margin-bottom: 20px; }
+.admin-search { width: 280px; max-width: 100%; }
+.admin-filter-row > .ant-space-item { min-width: 0; max-width: 100%; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 12px !important; width: 100%; margin-bottom: 20px; }
 .filter-bar > .ant-space-item { flex: 1 1 180px; min-width: 0; max-width: 100%; }
 .filter-bar > .ant-space-item:first-child { flex: 2 1 260px; }
@@ -139,6 +145,53 @@ button, input, select, textarea { font: inherit; }
 .ant-table-wrapper .ant-table-cell { vertical-align: middle; }
 .ant-table-wrapper .ant-table-thead > tr > th { font-size: 12px; font-weight: 600; color: #746a63; }
 .ant-table-wrapper .ant-table-pagination { flex-wrap: wrap; gap: 6px; }
+.appointments-management .table-scroll-container { overflow: visible; }
+.appointments-management .ant-table-cell { overflow-wrap: anywhere; }
+.appointment-cell-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.appointment-status-tag { max-width: 100%; margin-inline-end: 0; white-space: normal; }
+.appointment-status-tag, .ant-tag { font-weight: 600; }
+.appointments-management .ant-table-cell { padding-inline: 8px !important; }
+.description-detail-button.ant-btn { padding-inline: 0; font-weight: 600; }
+.action-dropdown { max-width: calc(100vw - 16px); }
+.action-dropdown .ant-dropdown-menu { max-height: min(60vh, 400px); overflow-y: auto; }
+.appointment-action-trigger.ant-btn { width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 6px; color: #45413e; border-color: #d8d5d1; background: #fff; box-shadow: none; }
+.appointment-action-trigger .anticon { font-size: 16px; }
+.appointment-action-dropdown .ant-dropdown-menu { min-width: 210px; padding: 4px; }
+.appointment-action-dropdown .ant-dropdown-menu-item { padding: 9px 12px; }
+.report-filters .report-no-print.ant-btn { color: #374151; border-color: #c8cdd3; background: #f2f3f5; font-weight: 600; }
+.report-filters .report-no-print.ant-btn:hover { color: #111827 !important; border-color: #9ca3af !important; background: #e5e7eb !important; }
+.action-grid { display: grid; grid-template-columns: repeat(3, 32px); gap: 4px; align-items: center; width: max-content; max-width: 100%; }
+.action-icon.ant-btn { width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; color: #57534e; border-color: transparent; background: transparent; box-shadow: none; }
+.action-icon--edit.ant-btn { color: #246393; }
+.action-icon--confirm.ant-btn { color: #247047; }
+.action-icon--delete.ant-btn { color: #b63831; }
+.action-icon.ant-btn:not(:disabled):hover { color: #252321; border-color: #dedbd6; background: #f4f3f0; }
+.action-icon--edit.ant-btn:not(:disabled):hover { color: #1d527a; }
+.action-icon--confirm.ant-btn:not(:disabled):hover { color: #195332; }
+.action-icon--delete.ant-btn:not(:disabled):hover { color: #a12520; border-color: #edcfcc; background: #fbf1f0; }
+.action-icon.ant-btn:focus-visible { outline: 2px solid #8c4559; outline-offset: 2px; }
+.action-icon.ant-btn:disabled { color: #b7b2ad; border-color: transparent; background: transparent; }
+.ant-btn.export-button:not(:disabled), .report-filters .ant-btn.export-button:not(:disabled) { color: #fff; border-color: #217447; background: #217447; font-weight: 500; box-shadow: none; }
+.ant-btn.export-button:not(:disabled):hover, .report-filters .ant-btn.export-button:not(:disabled):hover { color: #fff !important; border-color: #175b37 !important; background: #175b37 !important; }
+.ant-btn.export-button:not(:disabled):active { color: #fff; border-color: #12492b; background: #12492b; }
+.ant-btn.export-button:disabled { color: #a6a6a6; border-color: #d9d9d9; background: #f5f5f5; }
+.report-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #dedbd6; }
+.report-status-name { display: inline-flex; align-items: center; gap: 8px; }
+.report-status-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.report-print-period { display: none; }
+@media print {
+  .healthbeauty-report-page, .healthbeauty-report-page * { font-family: 'Segoe UI', Arial, sans-serif !important; }
+  .healthbeauty-report-page .report-print-period { display: block !important; margin-bottom: 12px; }
+}
+.management-card-list { display: grid; gap: 12px; }
+.management-card-pagination { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.appointment-mobile-card { min-width: 0; }
+.appointment-card-heading, .appointment-card-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.appointment-card-heading { margin-bottom: 6px; }
+.appointment-card-heading > .ant-typography { min-width: 0; overflow-wrap: anywhere; }
+.appointment-card-content { display: grid; gap: 8px; margin-block: 12px; overflow-wrap: anywhere; }
+.appointment-card-content .ant-tag { justify-self: start; }
+.appointment-card-footer { padding-top: 12px; border-top: 1px solid #efebe6; }
 .ant-card { border-color: #e9e5e0; }
 .ant-card .ant-card-head { border-color: #efebe6; }
 .ant-modal { max-width: calc(100vw - 32px); }
@@ -206,9 +259,17 @@ button, input, select, textarea { font: inherit; }
 .app-sider:not(.ant-layout-sider-collapsed) .ant-menu-item { height: auto; min-height: 44px; line-height: 20px; padding-block: 10px; }
 .app-sider:not(.ant-layout-sider-collapsed) .ant-menu-title-content { white-space: normal; line-height: 20px; }
 .combo-component-row { margin-inline: 0 !important; width: 100%; }
-.report-filters .filter-bar { align-items: center; margin-bottom: 0; }
+.report-filter-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; width: 100%; }
+.report-filter-field { display: flex; flex-direction: column; align-items: stretch; gap: 6px; flex: 1 1 130px; min-width: 0; }
+.report-filter-field:first-child { flex: 2 1 270px; }
+.report-filter-label { color: #45413e; font-size: 13px; font-weight: 500; }
+.report-filter-field .ant-select, .report-filter-field .ant-picker { width: 100%; min-width: 0; }
+.report-filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 0 1 auto; max-width: 100%; }
 @media (max-width: 600px) {
-  .report-filters .filter-bar > .ant-picker { width: 100%; }
+  .report-filter-field { flex: 1 1 130px; }
+  .report-filter-field:first-child { flex-basis: 100%; }
+  .report-filter-actions { flex-basis: 100%; }
+  .report-filter-actions .ant-btn { flex: 1 1 auto; }
 }
 
 .account-dropdown-summary { display: flex; flex-direction: column; gap: 4px; width: 200px; max-width: calc(100vw - 64px); padding: 6px 2px; color: #252321; overflow-wrap: anywhere; }

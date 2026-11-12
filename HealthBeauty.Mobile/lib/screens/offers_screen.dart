@@ -170,11 +170,21 @@ class _OffersScreenState extends State<OffersScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          MediaQuery.paddingOf(context).bottom + 24,
+        ),
         children: [
           const Text(
             'Ưu đãi',
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Khám phá chương trình và quản lý ví voucher',
+            style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
           const SectionTitle('Nhập mã voucher'),

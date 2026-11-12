@@ -441,6 +441,7 @@ public partial class Klcn021HealthBeautyContext : DbContext
             entity.Property(e => e.NhanVienId).HasColumnName("NhanVienID");
             entity.Property(e => e.ChucVu).HasMaxLength(50);
             entity.Property(e => e.ChuyenMon).HasMaxLength(255);
+            entity.Property(e => e.AvatarUrl).HasMaxLength(2048);
             entity.Property(e => e.HoTen).HasMaxLength(100);
             entity.Property(e => e.SoDienThoai)
                 .HasMaxLength(15)

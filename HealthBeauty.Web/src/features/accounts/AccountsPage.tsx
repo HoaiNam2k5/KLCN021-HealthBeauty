@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Alert, App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
+import { LockOutlined, SafetyOutlined, UnlockOutlined } from '@ant-design/icons'
+import { ActionButton, ActionGrid } from '../../components/ActionButton'
 import type { TableColumnsType } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as accountsApi from '../../api/accounts'
@@ -72,12 +74,12 @@ export default function AccountsPage() {
     { title: 'Họ tên', render: (_, account) => account.fullName || account.tenTaiKhoan || '—' },
     { title: 'Vai trò', dataIndex: 'role', render: (role: string) => <Tag>{getRoleLabel(role)}</Tag> },
     { title: 'Trạng thái', render: (_, account) => <Tag color={account.trangThai ? 'green' : 'default'}>{account.trangThai ? 'Hoạt động' : 'Đã khóa'}</Tag> },
-    ...(canWrite ? [{ title: 'Thao tác', key: 'actions', render: (_: unknown, account: AdminAccount) => <Space wrap>
-      <Button size="small" disabled={roles.isError || roles.isLoading || account.taiKhoanId === actorId} onClick={() => { setFormError(null); roleForm.resetFields(); roleForm.setFieldsValue({ roleId: account.roleId, staffId: undefined }); setEditing(account) }}>Gán vai trò</Button>
+    ...(canWrite ? [{ title: 'Thao tác', key: 'actions', render: (_: unknown, account: AdminAccount) => <ActionGrid>
+      <ActionButton label="Gán vai trò" tone="edit" icon={<SafetyOutlined />} disabled={roles.isError || roles.isLoading || account.taiKhoanId === actorId} onClick={() => { setFormError(null); roleForm.resetFields(); roleForm.setFieldsValue({ roleId: account.roleId, staffId: undefined }); setEditing(account) }} />
       <Popconfirm title={account.trangThai ? 'Khóa tài khoản này?' : 'Mở khóa tài khoản này?'} description={account.trangThai ? 'Tài khoản sẽ không thể tiếp tục truy cập.' : undefined} onConfirm={() => toggleActive(account)} okText="Xác nhận" cancelText="Hủy">
-        <Button size="small" danger={account.trangThai} disabled={account.taiKhoanId === actorId}>{account.trangThai ? 'Khóa' : 'Mở khóa'}</Button>
+        <ActionButton label={account.trangThai ? 'Khóa tài khoản' : 'Mở khóa tài khoản'} tone={account.trangThai ? 'delete' : 'confirm'} icon={account.trangThai ? <LockOutlined /> : <UnlockOutlined />} disabled={account.taiKhoanId === actorId} />
       </Popconfirm>
-    </Space> }] : []),
+    </ActionGrid> }] : []),
   ]
   return <section>
     <Space className="page-heading" wrap>
@@ -86,7 +88,7 @@ export default function AccountsPage() {
     </Space>
 
     {roles.isError && <Alert type="error" showIcon message="Không tải được vai trò. Cần quyền xem vai trò và quyền để chọn vai trò khi tạo hoặc sửa tài khoản." action={<Button onClick={() => void roles.refetch()}>Thử lại</Button>} style={{ marginBottom: 12 }} />}
-    <Input.Search className="filter-search" aria-label="Tìm tài khoản" placeholder="Tìm email hoặc tên tài khoản" value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={() => { setSearch(keyword.trim()); setPage(1) }} allowClear enterButton style={{ width: '100%', maxWidth: 420, marginBottom: 16 }} />
+    <div className="admin-filter-row"><Input.Search className="admin-search" aria-label="Tìm tài khoản" placeholder="Tìm email hoặc tên tài khoản" value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={() => { setSearch(keyword.trim()); setPage(1) }} allowClear enterButton /></div>
     {query.isError && <Alert type="error" showIcon message={getApiErrorMessage(query.error, 'Không tải được tài khoản.')} action={<Button onClick={() => void query.refetch()}>Thử lại</Button>} style={{ marginBottom: 12 }} />}
     <Table<AdminAccount> className="responsive-table" rowKey="taiKhoanId" columns={columns} dataSource={query.data ?? []} loading={query.isLoading} pagination={{ responsive: true, current: page, pageSize, showSizeChanger: true, onChange: (nextPage, size) => { setPage(size !== pageSize ? 1 : nextPage); setPageSize(size) } }} scroll={{ x: 814 }} />
 

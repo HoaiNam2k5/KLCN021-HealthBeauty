@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/format.dart';
 import '../models/catalog.dart';
 import '../models/service_package.dart';
+import 'booking_choice_card.dart';
 
 class PackageBookingSelection extends StatelessWidget {
   final CustomerServicePackage package;
@@ -61,60 +62,63 @@ class PackageBookingSelection extends StatelessWidget {
           ],
         ),
         for (final balance in package.items)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    balance.serviceName,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+          BookingChoiceCard(
+            title: balance.serviceName,
+            imageUrl: availableServices[balance.serviceId]?.imageUrl,
+            duration: availableServices[balance.serviceId] == null
+                ? null
+                : durationStr(
+                    availableServices[balance.serviceId]!.durationMinutes,
                   ),
-                  Text(
-                    'Được cấp: ${balance.granted} · Đã dùng: ${balance.used} · Đang giữ: ${balance.reserved}',
-                  ),
-                  Text(
-                    'Còn lại: ${balance.remaining} · Có thể đặt: ${balance.available}',
-                  ),
-                  if (!availableServices.containsKey(balance.serviceId))
-                    const Text('Dịch vụ hiện không còn khả dụng.'),
-                  Row(
-                    children: [
-                      const Expanded(child: Text('Số lượt lần này')),
-                      IconButton(
-                        tooltip: 'Giảm số lượt',
-                        onPressed:
-                            loading || (quantities[balance.serviceId] ?? 0) <= 0
-                            ? null
-                            : () => onQuantity(
+            detail:
+                'Còn ${balance.remaining}/${balance.granted} lượt · Có thể đặt ${balance.available}',
+            selected: (quantities[balance.serviceId] ?? 0) > 0,
+            footer: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Được cấp: ${balance.granted} · Đã dùng: ${balance.used} · Đang giữ: ${balance.reserved}',
+                ),
+                Text(
+                  'Còn lại: ${balance.remaining} · Có thể đặt: ${balance.available}',
+                ),
+                if (!availableServices.containsKey(balance.serviceId))
+                  const Text('Dịch vụ hiện không còn khả dụng.'),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Số lượt lần này')),
+                    IconButton(
+                      tooltip: 'Giảm số lượt',
+                      onPressed:
+                          loading || (quantities[balance.serviceId] ?? 0) <= 0
+                          ? null
+                          : () => onQuantity(
+                              balance.serviceId,
+                              (quantities[balance.serviceId] ?? 0) - 1,
+                            ),
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Text('${quantities[balance.serviceId] ?? 0}'),
+                    IconButton(
+                      tooltip: 'Tăng số lượt',
+                      onPressed:
+                          loading ||
+                              !package.canUseAt(DateTime.now()) ||
+                              !availableServices.containsKey(
                                 balance.serviceId,
-                                (quantities[balance.serviceId] ?? 0) - 1,
-                              ),
-                        icon: const Icon(Icons.remove_circle_outline),
-                      ),
-                      Text('${quantities[balance.serviceId] ?? 0}'),
-                      IconButton(
-                        tooltip: 'Tăng số lượt',
-                        onPressed:
-                            loading ||
-                                !package.canUseAt(DateTime.now()) ||
-                                !availableServices.containsKey(
-                                  balance.serviceId,
-                                ) ||
-                                (quantities[balance.serviceId] ?? 0) >=
-                                    balance.available
-                            ? null
-                            : () => onQuantity(
-                                balance.serviceId,
-                                (quantities[balance.serviceId] ?? 0) + 1,
-                              ),
-                        icon: const Icon(Icons.add_circle_outline),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                              ) ||
+                              (quantities[balance.serviceId] ?? 0) >=
+                                  balance.available
+                          ? null
+                          : () => onQuantity(
+                              balance.serviceId,
+                              (quantities[balance.serviceId] ?? 0) + 1,
+                            ),
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
       ],

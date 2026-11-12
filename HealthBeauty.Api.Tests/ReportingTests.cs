@@ -92,4 +92,22 @@ public sealed class ReportingTests
         Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", result.ContentType);
         using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(result.FileContents)); Assert.NotNull(zip.GetEntry("xl/worksheets/sheet1.xml"));
     }
+    [Fact]
+    public async Task RevenueExportUsesReadableVietnameseAndTypedAmounts()
+    {
+        await using var db = await Seed();
+        var result = Assert.IsType<FileContentResult>(await new ReportsController(db).Export("orders", new() { GroupBy = "month", From = new(2025, 1, 1), To = new(2027, 1, 1) }, default));
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(result.FileContents));
+        using var stream = zip.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        var xml = System.Xml.Linq.XDocument.Load(stream);
+        System.Xml.Linq.XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        var text = string.Join(" ", xml.Descendants(ns + "t").Select(x => x.Value));
+        Assert.Contains("BÁO CÁO DOANH THU", text);
+        Assert.Contains("Tổng số hóa đơn", text);
+        Assert.Contains("Doanh thu đã thu (đồng)", text);
+        Assert.DoesNotContain("InvoiceCount", text);
+        Assert.DoesNotContain("Filters", text);
+        Assert.NotNull(xml.Descendants(ns + "cols").SingleOrDefault());
+        Assert.Contains(xml.Descendants(ns + "c"), cell => cell.Attribute("t") is null && decimal.TryParse(cell.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _));
+    }
 }

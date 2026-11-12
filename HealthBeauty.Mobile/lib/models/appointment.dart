@@ -205,15 +205,9 @@ class Appointment {
 
   bool get canReschedule => status == 'ChoXacNhan' || status == 'DaXacNhan';
 
-  /// Compare calendar days; today's appointments stay visible while being served.
+  /// Treat an appointment as past once its scheduled start time has passed.
   bool isPastDateAt(DateTime now) {
-    final scheduled = appointmentAt.toLocal();
-    final today = now.toLocal();
-    return DateTime(
-      scheduled.year,
-      scheduled.month,
-      scheduled.day,
-    ).isBefore(DateTime(today.year, today.month, today.day));
+    return appointmentAt.isBefore(now);
   }
 
   bool isUpcomingAt(DateTime now) =>

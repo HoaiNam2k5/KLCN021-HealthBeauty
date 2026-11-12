@@ -104,6 +104,48 @@ void main() {
     expect(provider.error, contains('PNG'));
   });
 
+  test(
+    'avatar upload outwaits storage deadline without relaxing other requests',
+    () async {
+      final dio = transport((request) {
+        if (request.method == 'POST') {
+          // Storage can take 30s after receiving the file; the app must wait longer.
+          expect(request.receiveTimeout!.inSeconds, greaterThan(30));
+          expect(request.sendTimeout!.inSeconds, greaterThanOrEqualTo(30));
+          return body(profile());
+        }
+        expect(request.receiveTimeout, const Duration(seconds: 10));
+        return body(profile(null));
+      })..options.receiveTimeout = const Duration(seconds: 10);
+      final provider = ProfileProvider(dio: dio)..bind(1);
+      addTearDown(provider.dispose);
+      expect(await provider.updateAvatar(bytes: png), true);
+      expect(await provider.updateAvatar(remove: true), true);
+      expect(dio.options.receiveTimeout, const Duration(seconds: 10));
+    },
+  );
+
+  for (final status in [503, 502, 504]) {
+    test(
+      'avatar storage error $status preserves profile and clears busy state',
+      () async {
+        final provider = ProfileProvider(
+          dio: transport((_) => body('Image storage failure', status)),
+        )..bind(1);
+        addTearDown(provider.dispose);
+        final original = Customer.fromJson(profile());
+        provider.customer = original;
+        expect(await provider.updateAvatar(bytes: png), false);
+        expect(provider.customer, same(original));
+        expect(provider.avatarSaving, false);
+        expect(
+          provider.error,
+          contains(status == 503 ? 'chưa được cấu hình' : 'đang bận'),
+        );
+      },
+    );
+  }
+
   test('late avatar response cannot update another account', () async {
     final started = Completer<void>();
     final reply = Completer<ResponseBody>();

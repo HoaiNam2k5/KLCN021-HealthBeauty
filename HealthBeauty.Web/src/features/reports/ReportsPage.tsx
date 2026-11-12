@@ -31,6 +31,7 @@ function ReportsDashboard({ home }: { home: boolean }) {
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().subtract(29, 'day').startOf('day'), dayjs().startOf('day')])
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month' | 'quarter' | 'year'>('day')
   const [breakdownBy, setBreakdownBy] = useState<'service' | 'combo' | 'staff' | 'category'>('service')
+  const [exporting, setExporting] = useState(false)
   const from = dateRange[0].startOf('day').format(reportText.REPORT_TIME_FORMAT)
   const to = dateRange[1].add(1, 'day').startOf('day').format(reportText.REPORT_TIME_FORMAT)
   const params: ReportFilterParams = { from, to, groupBy }
@@ -56,6 +57,8 @@ function ReportsDashboard({ home }: { home: boolean }) {
   const handleDateRangeChange = (value: [Dayjs | null, Dayjs | null] | null) => { if (value?.[0] && value[1]) setDateRange([value[0].startOf('day'), value[1].startOf('day')]) }
 
   async function exportXlsx() {
+    if (exporting) return
+    setExporting(true)
     try {
       const blob = await exportReportXlsx('orders', { from, to, groupBy })
       const url = URL.createObjectURL(blob)
@@ -65,13 +68,34 @@ function ReportsDashboard({ home }: { home: boolean }) {
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
       message.success('Xuất file Excel báo cáo thành công!')
     } catch (error: unknown) { message.error(getApiErrorMessage(error, 'Không thể xuất báo cáo. Vui lòng thử lại.')) }
+    finally { setExporting(false) }
   }
 
   return <section className="healthbeauty-report-page">
     <style>{`@media print { @page { size: A4; margin: 14mm; } body * { visibility: hidden !important; } .healthbeauty-report-page, .healthbeauty-report-page * { visibility: visible !important; } .healthbeauty-report-page { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; } .report-no-print, .report-filters, .ant-layout-sider, .ant-menu, .page-heading button { display: none !important; } .healthbeauty-report-page .ant-card { break-inside: avoid; box-shadow: none !important; } }`}</style>
     <div className="page-heading"><div><Typography.Title level={3} style={{ margin: 0 }}>{home ? reportText.REPORT_HOME_GREETING : reportText.REPORT_PAGE_TITLE}</Typography.Title></div>{!home && <Button onClick={() => navigate('/')}>Trang chủ</Button>}</div>
+    <div className="report-print-period">Kỳ báo cáo: {dateRange[0].format('DD/MM/YYYY')} – {dateRange[1].format('DD/MM/YYYY')}</div>
     <QuickActionsBar />
-    <Card className="report-filters" size="small" style={{ marginBottom: 16 }}><div className="filter-bar"><Typography.Text strong>{reportText.REPORT_DATE_FILTER_LABEL} </Typography.Text><DatePicker.RangePicker value={dateRange} onChange={handleDateRangeChange} allowClear={false} format="DD/MM/YYYY" placeholder={['Từ ngày', 'Đến ngày']} style={{ maxWidth: '100%' }} /><Select value={groupBy} onChange={setGroupBy} options={[{ label: 'Ngày', value: 'day' }, { label: 'Tuần', value: 'week' }, { label: 'Tháng', value: 'month' }, { label: 'Quý', value: 'quarter' }, { label: 'Năm', value: 'year' }]} /><Select value={breakdownBy} onChange={setBreakdownBy} options={[{ label: 'Dịch vụ', value: 'service' }, { label: 'Combo', value: 'combo' }, { label: 'Nhân viên', value: 'staff' }, { label: 'Loại dịch vụ', value: 'category' }]} /><Button className="report-no-print" icon={<DownloadOutlined />} disabled={isLoading} onClick={exportXlsx}>Xuất Excel</Button><Button className="report-no-print" icon={<PrinterOutlined />} onClick={() => window.print()}>In báo cáo</Button></div></Card>
+    <Card className="report-filters" size="small" style={{ marginBottom: 16 }}>
+      <div className="report-filter-fields">
+        <div className="report-filter-field" role="group" aria-labelledby="report-range-label">
+          <span id="report-range-label" className="report-filter-label">Khoảng ngày</span>
+          <DatePicker.RangePicker value={dateRange} onChange={handleDateRangeChange} allowClear={false} format="DD/MM/YYYY" placeholder={['Từ ngày', 'Đến ngày']} />
+        </div>
+        <div className="report-filter-field">
+          <label htmlFor="report-period" className="report-filter-label">Thống kê theo</label>
+          <Select id="report-period" value={groupBy} onChange={setGroupBy} options={[{ label: 'Ngày', value: 'day' }, { label: 'Tuần', value: 'week' }, { label: 'Tháng', value: 'month' }, { label: 'Quý', value: 'quarter' }, { label: 'Năm', value: 'year' }]} />
+        </div>
+        <div className="report-filter-field">
+          <label htmlFor="report-breakdown" className="report-filter-label">Phân tích theo</label>
+          <Select id="report-breakdown" value={breakdownBy} onChange={setBreakdownBy} options={[{ label: 'Dịch vụ', value: 'service' }, { label: 'Combo', value: 'combo' }, { label: 'Nhân viên', value: 'staff' }, { label: 'Loại dịch vụ', value: 'category' }]} />
+        </div>
+        <div className="report-filter-actions">
+          <Button type="primary" className="report-no-print export-button" title="Xuất báo cáo doanh thu" icon={<DownloadOutlined />} loading={exporting} onClick={exportXlsx}>Xuất Excel</Button>
+          <Button className="report-no-print" icon={<PrinterOutlined />} onClick={() => window.print()}>In báo cáo</Button>
+        </div>
+      </div>
+    </Card>
     {firstError && <Alert type="error" showIcon message={reportText.REPORT_FETCH_ERROR} description={getApiErrorMessage(firstError, 'Không tải được dữ liệu báo cáo. Vui lòng thử lại.')} style={{ marginBottom: 16 }} />}
     {isLoading ? <Spin tip={reportText.REPORT_LOADING} /> : <>
       <OverviewCards appointmentCount={appointmentCount} customerCount={customerList.data?.length ?? 0} revenue={orderSummary.data?.paidRevenue ?? 0} newCustomerCount={newCustomerCount} averageRating={averageRating} unknownHistoricalCount={newCustomers.data?.unknownHistoricalCount ?? 0} />
@@ -149,5 +173,5 @@ function TopServicesChart({ data }: { data: TopServiceItem[] }) {
   return <Card title="Dịch vụ được đặt nhiều nhất">{data.length ? <ResponsiveContainer width="100%" height={reportText.REPORT_CHART_HEIGHT}><BarChart data={data} layout="vertical" margin={reportText.REPORT_CHART_MARGIN}><CartesianGrid stroke={reportText.REPORT_GRID_COLOR} /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12 }} /><Tooltip /><Bar dataKey="quantity" name="Lượt đặt" fill="#2F7D4F" radius={[0, 3, 3, 0]} /></BarChart></ResponsiveContainer> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={reportText.REPORT_EMPTY_CHART} />}</Card>
 }
 function AppointmentStatusSummary({ statuses }: { statuses: StatusChartItem[] }) {
-  return <Card title="Số lịch theo trạng thái">{statuses.length ? statuses.map((item) => <div key={item.status} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #dedbd6' }}><span>{item.name}</span><Typography.Text strong>{item.count}</Typography.Text></div>) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={reportText.REPORT_EMPTY} />}</Card>
+  return <Card title="Thống kê lịch hẹn theo trạng thái">{statuses.length ? statuses.map((item) => <div key={item.status} className="report-status-row"><span className="report-status-name"><span className="report-status-dot" style={{ backgroundColor: item.color }} />{item.name}</span><Typography.Text strong>{item.count}</Typography.Text></div>) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={reportText.REPORT_EMPTY} />}</Card>
 }

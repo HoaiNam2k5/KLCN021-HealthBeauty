@@ -1,7 +1,8 @@
 import axios from 'axios'
 import { useEffect, useMemo, useState } from 'react'
-import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Form, Input, Modal, Row, Segmented, Select, Space, Tag, TimePicker, Typography } from 'antd'
-import { AppstoreOutlined, DownloadOutlined, TableOutlined } from '@ant-design/icons'
+import { App as AntApp, Alert, Button, Card, Col, DatePicker, Descriptions, Drawer, Dropdown, Form, Input, Modal, Row, Segmented, Select, Space, Tag, TimePicker, Typography } from 'antd'
+import type { MenuProps } from 'antd'
+import { AppstoreOutlined, CheckOutlined, CloseOutlined, DollarOutlined, DownloadOutlined, EyeOutlined, PlayCircleOutlined, TableOutlined, UserAddOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -253,6 +254,14 @@ export default function AppointmentsPage() {
     return names
   }, [customers.data, appointmentItems])
   const changeStatus = (appointment: Appointment, nextStatus: string) => {
+    if (!canWrite || mutations.status.isPending) return
+    if (nextStatus === 'DaXacNhan' || nextStatus === 'DaDen' || nextStatus === 'DangThucHien') {
+      mutations.status.mutate({ id: appointment.id, status: nextStatus }, {
+        onSuccess: () => message.success(`Đã cập nhật: ${statusLabels[nextStatus].toLocaleLowerCase()}.`),
+        onError: handleError,
+      })
+      return
+    }
     const complete = nextStatus === 'HoanThanh'
     modal.confirm({
       title: complete ? `Hoàn thành lịch hẹn #${appointment.id}?` : `${statusLabels[nextStatus]} — lịch hẹn #${appointment.id}?`,
@@ -271,13 +280,41 @@ export default function AppointmentsPage() {
   }
   const appointmentActions = (appointment: Appointment) => {
     const action = getAppointmentPrimaryAction(appointment.status)
-    return <Space wrap>
-      {canWrite && action && <Button type="primary" size="small" loading={mutations.status.isPending} onClick={() => changeStatus(appointment, action.status)}>{action.label}</Button>}
-      {canWrite && appointment.status === 'DaXacNhan' && <Button size="small" disabled={mutations.status.isPending} onClick={() => changeStatus(appointment, 'DaDen')}>Khách đã đến</Button>}
-      {canWrite && canCancel(appointment.status) && <Button size="small" danger disabled={mutations.status.isPending} onClick={() => { cancelForm.resetFields(); setCancelTarget(appointment) }}>Hủy lịch</Button>}
-      {appointment.status === 'HoanThanh' && has('INVOICE.READ') && <Button size="small" onClick={() => navigate(appointment.invoiceId ? `/billing?invoiceId=${appointment.invoiceId}${appointment.invoiceStatus === 'ChuaThanhToan' ? '&collect=1' : ''}` : '/billing')}>{appointment.invoiceStatus === 'ChuaThanhToan' ? 'Thu tiền' : 'Xem hóa đơn'}</Button>}
-    </Space>
+    const items: MenuProps['items'] = [
+      { key: 'detail', label: 'Xem chi tiết', icon: <EyeOutlined />, onClick: () => setSelected(appointment) },
+    ]
+    if (canWrite && action) items.push({ key: 'next-status', label: action.label,
+      icon: action.status === 'DangThucHien' ? <PlayCircleOutlined /> : <CheckOutlined />,
+      disabled: mutations.status.isPending, onClick: () => changeStatus(appointment, action.status) })
+    if (canWrite && appointment.status === 'DaXacNhan') items.push({ key: 'arrived', label: 'Khách đã đến', icon: <UserAddOutlined />,
+      disabled: mutations.status.isPending, onClick: () => changeStatus(appointment, 'DaDen') })
+    if (appointment.status === 'HoanThanh' && has('INVOICE.READ')) items.push({ key: 'invoice',
+      label: appointment.invoiceStatus === 'ChuaThanhToan' ? 'Thu tiền' : 'Xem hóa đơn', icon: <DollarOutlined />,
+      onClick: () => navigate(appointment.invoiceId ? `/billing?invoiceId=${appointment.invoiceId}${appointment.invoiceStatus === 'ChuaThanhToan' ? '&collect=1' : ''}` : '/billing') })
+    if (canWrite && canCancel(appointment.status)) items.push({ type: 'divider' }, { key: 'cancel', label: 'Hủy lịch', danger: true,
+      icon: <CloseOutlined />, disabled: mutations.status.isPending, onClick: () => { cancelForm.resetFields(); setCancelTarget(appointment) } })
+    return <Dropdown trigger={['click']} placement="bottomRight" autoAdjustOverflow getPopupContainer={() => document.body}
+      classNames={{ root: 'action-dropdown appointment-action-dropdown' }} menu={{ items }}>
+      <Button size="small" className="appointment-action-trigger" icon={<AppstoreOutlined />} title="Thao tác lịch hẹn" aria-label={`Thao tác lịch hẹn #${appointment.id}`} />
+    </Dropdown>
   }
+  const customerLabel = (appointment: Appointment) => appointment.customerName ?? customerNames.get(appointment.customerId) ?? `Khách #${appointment.customerId}`
+  const staffLabel = (appointment: Appointment) => appointment.staffId === null ? 'Chưa phân công' : appointment.staffName ?? staffNames.get(appointment.staffId) ?? `Nhân viên #${appointment.staffId}`
+  const serviceLabel = (appointment: Appointment) => appointment.items.map((item) => item.serviceName).join(', ') || '—'
+  const statusTag = (value: string) => {
+    const presentation = getAppointmentStatusPresentation(value)
+    return <Tag className="appointment-status-tag" style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent' }}>{presentation.label}</Tag>
+  }
+  const appointmentCard = (appointment: Appointment) => <Card size="small" className="appointment-mobile-card">
+    <div className="appointment-card-heading"><Typography.Text strong>{customerLabel(appointment)}</Typography.Text>{statusTag(appointment.status)}</div>
+    <Typography.Text type="secondary">#{appointment.id} · {dayjs(appointment.appointmentAt).format('HH:mm · DD/MM/YYYY')}</Typography.Text>
+    <div className="appointment-card-content">
+      <div><Typography.Text type="secondary">KTV: </Typography.Text>{staffLabel(appointment)}</div>
+      <div className="appointment-cell-summary">{serviceLabel(appointment)}</div>
+      {appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}
+    </div>
+    <div className="appointment-card-footer">{appointmentActions(appointment)}</div>
+  </Card>
   const statusCounts = appointmentItems.reduce<Record<string, number>>((counts, appointment) => {
     counts[appointment.status] = (counts[appointment.status] ?? 0) + 1
     return counts
@@ -347,14 +384,16 @@ export default function AppointmentsPage() {
     {viewMode === 'table' ? (
       <ManagementTable<Appointment>
         title="Lịch hẹn"
+        className="appointments-management"
+        fitColumns
+        renderCard={appointmentCard}
         columns={[
-          { title: 'Ngày giờ', dataIndex: 'appointmentAt', key: 'appointmentAt', render: (value: string, appointment: Appointment) => <Space>{dayjs(value).format('DD/MM/YYYY HH:mm')}{appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}</Space> },
-          { title: 'Khách hàng', dataIndex: 'customerId', key: 'customer', render: (id: number) => customerNames.get(id) ?? `Khách #${id}` },
-          { title: 'Nhân viên', dataIndex: 'staffId', key: 'staff', render: (id: number | null) => id === null ? 'Chưa phân công' : staffNames.get(id) ?? `Nhân viên #${id}` },
-          { title: 'Dịch vụ', dataIndex: 'items', key: 'items', render: (items: Appointment['items']) => items.map((item) => item.serviceName).join(', ') || '—' },
-        { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (value: string) => { const presentation = getAppointmentStatusPresentation(value); return <Tag style={{ color: presentation.color, background: presentation.background, borderColor: 'transparent' }}>{presentation.label}</Tag> } },
-          { title: 'Ghi chú', dataIndex: 'note', key: 'note', render: (value: string | null) => value || '—' },
-        { title: 'Thao tác', key: 'details', render: (_, record) => <Space orientation="vertical" align="start">{appointmentActions(record)}<Button type="link" onClick={() => setSelected(record)}>Xem chi tiết</Button></Space> },
+          { title: 'Ngày giờ', key: 'appointmentAt', render: (_, appointment) => <div><strong>{dayjs(appointment.appointmentAt).format('HH:mm')}</strong><div>{dayjs(appointment.appointmentAt).format('DD/MM/YYYY')}</div>{appointment.fundingSource === 'ServicePackage' && <Tag color="purple">Gói dịch vụ</Tag>}</div> },
+          { title: 'Khách hàng', key: 'customer', render: (_, appointment) => <div className="appointment-cell-summary">{customerLabel(appointment)}</div> },
+          { title: 'Kỹ thuật viên', key: 'staff', render: (_, appointment) => <div className="appointment-cell-summary">{staffLabel(appointment)}</div> },
+          { title: 'Dịch vụ', key: 'items', render: (_, appointment) => <div className="appointment-cell-summary">{serviceLabel(appointment)}</div> },
+          { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: statusTag },
+          { title: 'Thao tác', key: 'details', width: 150, render: (_, record) => appointmentActions(record) },
         ]}
         data={appointmentItems}
         total={appointments.data?.totalCount ?? 0}
@@ -374,8 +413,7 @@ export default function AppointmentsPage() {
           <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 190, maxWidth: '100%' }} value={status} onChange={(value) => { setStatus(value); setPage(1) }} options={APPOINTMENT_STATUSES.map((value) => ({ value, label: statusLabels[value] }))} />
           {canReadStaff && <Select allowClear showSearch optionFilterProp="label" placeholder="Tất cả nhân viên" style={{ width: 190, maxWidth: '100%' }} value={staffId} onChange={(value) => { setStaffId(value); setPage(1) }} options={(visibleStaff).map((item) => ({ value: item.nhanVienId, label: item.hoTen }))} />}
           <Button onClick={() => { setDate(dayjs()); setPage(1) }}>Hôm nay</Button>
-          <Button icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách</Button>
-          {canCreate && <Button type="primary" onClick={() => setCreateOpen(true)}>Tạo lịch hẹn</Button>}
+          <Button type="primary" className="export-button" icon={<DownloadOutlined />} onClick={exportAppointments}>Xuất danh sách CSV</Button>
         </>}
       />
     ) : (

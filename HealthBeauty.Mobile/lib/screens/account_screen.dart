@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../widgets/app_logo.dart';
-
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 
@@ -12,6 +10,7 @@ import '../models/membership_tier.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/common.dart';
+import '../widgets/app_logo.dart';
 import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
 import 'service_packages_screen.dart';
@@ -63,7 +62,12 @@ class _AccountScreenState extends State<AccountScreen> {
 
     if (!auth.isLoggedIn) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          24,
+          20,
+          MediaQuery.paddingOf(context).bottom + 24,
+        ),
         children: [
           const Text(
             'Tài khoản',
@@ -126,6 +130,15 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          _buildMenuCard([
+            _MenuItem(
+              icon: Icons.local_offer_outlined,
+              title: 'Khám phá ưu đãi',
+              subtitle: 'Xem chương trình và voucher hiện có',
+              onTap: () => mainTab.value = 3,
+            ),
+          ]),
         ],
       );
     }
@@ -142,11 +155,21 @@ class _AccountScreenState extends State<AccountScreen> {
     return RefreshIndicator(
       onRefresh: profile.load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          MediaQuery.paddingOf(context).bottom + 24,
+        ),
         children: [
           const Text(
             'Tài khoản',
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Hồ sơ, gói đã mua và quyền lợi thành viên',
+            style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
 
@@ -174,19 +197,19 @@ class _AccountScreenState extends State<AccountScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                              ),
+                          Text(
+                            displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
                             ),
                           ),
+                          const SizedBox(height: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -208,12 +231,14 @@ class _AccountScreenState extends State<AccountScreen> {
                                   color: tier.primaryColor,
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  tier.name,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: tier.primaryColor,
+                                Flexible(
+                                  child: Text(
+                                    tier.name,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: tier.primaryColor,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -316,7 +341,7 @@ class _AccountScreenState extends State<AccountScreen> {
               _MenuItem(
                 icon: Icons.local_offer_outlined,
                 title: 'Ưu đãi & Voucher của bạn',
-                subtitle: 'Khám phá mã giảm giá độc quyền',
+                subtitle: 'Chương trình hiện có và ví voucher của bạn',
                 onTap: () {
                   mainTab.value = 3; // Chuyển sang Tab Ưu đãi
                 },
@@ -406,7 +431,7 @@ class _AccountScreenState extends State<AccountScreen> {
             // Footer phiên bản
             Center(
               child: Text(
-                'HealthBeauty Spa & Clinic • Phiên bản 1.0.0',
+                'HealthBeauty Spa & Clinic • Phiên bản 1.1.3',
                 style: TextStyle(
                   color: cs.onSurfaceVariant.withValues(alpha: 0.6),
                   fontSize: 12,
@@ -462,20 +487,25 @@ class _AccountScreenState extends State<AccountScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Dòng trên: Logo thương hiệu & Tên hạng thẻ
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const AppLogo(size: 28),
                     const SizedBox(width: 6),
-                    Text(
-                      'HEALTHBEAUTY',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 12,
-                        letterSpacing: 1.5,
-                        fontWeight: FontWeight.w700,
+                    Flexible(
+                      child: Text(
+                        'HEALTHBEAUTY',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          letterSpacing: 1.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -497,13 +527,15 @@ class _AccountScreenState extends State<AccountScreen> {
                     children: [
                       Icon(tier.icon, size: 14, color: tier.primaryColor),
                       const SizedBox(width: 4),
-                      Text(
-                        tier.name.toUpperCase(),
-                        style: TextStyle(
-                          color: tier.primaryColor,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                          letterSpacing: 0.5,
+                      Flexible(
+                        child: Text(
+                          tier.name.toUpperCase(),
+                          style: TextStyle(
+                            color: tier.primaryColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ],
@@ -511,7 +543,50 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
+
+            // Chip thông minh EMV mô phỏng thẻ VIP cao cấp & Sóng không tiếp xúc
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFE5C158), Color(0xFFC79824)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: const Color(0xFFF3E29D),
+                      width: 0.8,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.credit_card,
+                      size: 14,
+                      color: Color(0xFF4A3403),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.contactless_outlined,
+                  color: Colors.white.withValues(alpha: 0.6),
+                  size: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
 
             // Dòng giữa: Điểm tích lũy và Mã thẻ
             Row(
@@ -543,13 +618,17 @@ class _AccountScreenState extends State<AccountScreen> {
                     ],
                   ),
                 ),
-                Text(
-                  cardId,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    letterSpacing: 1.5,
+                Flexible(
+                  child: Text(
+                    cardId,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      letterSpacing: 1.5,
+                    ),
                   ),
                 ),
               ],
@@ -561,7 +640,7 @@ class _AccountScreenState extends State<AccountScreen> {
               style: TextStyle(color: Colors.white70, fontSize: 11),
             ),
             const SizedBox(height: 6),
-            // Progress is informational; points spent can lower this displayed milestone.
+            // Progress is informational; spending points may lower this milestone.
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
@@ -576,15 +655,18 @@ class _AccountScreenState extends State<AccountScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  tier.nextPoints == null
-                      ? 'Đã đạt mốc tham khảo cao nhất'
-                      : 'Còn ${pointsNeeded ?? 0} điểm đến mốc ${tier.nextTierName}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 11,
+                Expanded(
+                  child: Text(
+                    tier.nextPoints == null
+                        ? 'Đã đạt mốc tham khảo cao nhất'
+                        : 'Còn ${pointsNeeded ?? 0} điểm đến mốc ${tier.nextTierName}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontSize: 11,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   '${(progress * 100).toInt()}%',
                   style: TextStyle(
@@ -595,7 +677,39 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () => _showTierBenefits(context, tier),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.workspace_premium_outlined,
+                    size: 16,
+                    color: tier.primaryColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Mốc điểm & quyền lợi ${tier.name}',
+                      style: TextStyle(
+                        color: tier.primaryColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 10,
+                    color: tier.primaryColor,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             const Divider(color: Colors.white12, height: 1),
             const SizedBox(height: 12),
 
@@ -731,7 +845,25 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.qr_code_2, size: 160, color: AppColors.ink),
+                  const Icon(Icons.qr_code_2, size: 150, color: AppColors.ink),
+                  const SizedBox(height: 12),
+                  // Mã vạch Barcode mô phỏng
+                  Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(34, (i) {
+                        final isThick = (i % 3 == 0) || (i % 7 == 0);
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          width: isThick ? 3.0 : 1.2,
+                          height: 36,
+                          color: Colors.black87,
+                        );
+                      }),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     code,
@@ -753,6 +885,30 @@ class _AccountScreenState extends State<AccountScreen> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                    ),
+                    icon: const Icon(Icons.copy_rounded, size: 14),
+                    label: const Text(
+                      'Sao chép mã',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: code));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đã sao chép mã thẻ thành viên'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -1154,10 +1310,10 @@ class _MenuItem extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.surfaceTint,
+                color: AppColors.rose.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, size: 20, color: AppColors.ink),
+              child: Icon(icon, size: 20, color: AppColors.rose),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1177,7 +1333,7 @@ class _MenuItem extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.inkMuted,
                       ),
                     ),
@@ -1188,12 +1344,18 @@ class _MenuItem extends StatelessWidget {
             if (trailing != null)
               trailing!
             else if (trailingText != null)
-              Text(
-                trailingText!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.inkMuted,
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    trailingText!,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.inkMuted,
+                    ),
+                  ),
                 ),
               )
             else

@@ -5,7 +5,7 @@ namespace HealthBeauty.Api.Contracts;
 public sealed record UpdateCustomerRequest([param: Required, StringLength(100)] string FullName, [param: Phone, StringLength(15)] string? Phone, [param: StringLength(20)] string? Gender);
 public sealed record CustomerResponse(int Id, string FullName, string? Phone, string? Gender, int RewardPoints, string? AvatarUrl = null);
 public sealed record VoucherResponse(int Id, string Code, int PromotionId, string PromotionName, int? CustomerId, string? CustomerName, decimal DiscountValue, DateTime ExpiresAt, bool Active, int PointsCost = 0);
-public sealed record StaffRequest([param: Required, StringLength(100)] string FullName, [param: StringLength(50)] string? Position, [param: StringLength(255)] string? Specialty, [param: Phone, StringLength(15)] string? Phone, DateOnly? HireDate);
+public sealed record StaffRequest([param: Required, StringLength(100)] string FullName, [param: StringLength(50)] string? Position, [param: StringLength(255)] string? Specialty, [param: Phone, StringLength(15)] string? Phone, DateOnly? HireDate, [param: StringLength(2048)] string? AvatarUrl = null);
 public sealed record CreateStaffRequest(
     [param: Required, StringLength(100)] string FullName,
     [param: StringLength(50)] string? Position,
@@ -13,7 +13,8 @@ public sealed record CreateStaffRequest(
     [param: Phone, StringLength(15)] string? Phone,
     DateOnly? HireDate,
     [param: Required, EmailAddress, StringLength(255)] string Email,
-    [param: Required, MinLength(8), MaxLength(128)] string Password);
+    [param: Required, MinLength(8), MaxLength(128)] string Password,
+    [param: StringLength(2048)] string? AvatarUrl = null);
 public sealed record WorkScheduleRequest([param: Range(1, int.MaxValue)] int StaffId, DateOnly WorkDate, TimeOnly StartAt, TimeOnly EndAt, [param: StringLength(30)] string? Status);
 public sealed record ComboItemRequest([param: Range(1, int.MaxValue)] int ServiceId, [param: Range(1, 100)] int Quantity);
 public sealed record ComboRequest([param: Required, StringLength(150)] string Name, [param: Range(0, 1000000000)] decimal Price, DateOnly? ValidFrom, DateOnly? ValidTo, [param: MinLength(1)] List<ComboItemRequest> Items, string? ImageUrl = null);

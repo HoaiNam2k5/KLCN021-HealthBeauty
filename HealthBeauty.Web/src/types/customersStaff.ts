@@ -13,6 +13,9 @@ export interface UpdateCustomerRequest {
 }
 
 export interface StaffResponse {
+  avatarUrl?: string | null
+  role?: string | null
+  isActive?: boolean
   nhanVienId: number
   taiKhoanId?: number | null
   hoTen: string | null
@@ -23,6 +26,9 @@ export interface StaffResponse {
 }
 
 export interface Staff {
+  avatarUrl?: string | null
+  role?: string | null
+  isActive?: boolean
   id: number
   nhanVienId: number
   taiKhoanId?: number | null
@@ -34,6 +40,7 @@ export interface Staff {
 }
 
 export interface StaffRequest {
+  avatarUrl?: string
   fullName: string
   position: string
   specialty: string
@@ -74,6 +81,7 @@ export function mapStaffRequest(values: StaffRequest): StaffRequest {
     specialty: values.specialty.trim(),
     phone: values.phone.trim(),
     hireDate: values.hireDate,
+    ...(values.avatarUrl !== undefined ? { avatarUrl: values.avatarUrl.trim() } : {}),
   }
 }
 

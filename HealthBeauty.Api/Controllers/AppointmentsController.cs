@@ -51,7 +51,7 @@ public sealed class AppointmentsController(Klcn021HealthBeautyContext db) : Cont
         if (customerId is null) return BadRequest("Customer profile is required.");
         if (!isStaff && request.CustomerId.HasValue && request.CustomerId != ownCustomerId) return Forbid();
         if (!await db.Khachhangs.AnyAsync(x => x.KhachHangId == customerId.Value, cancellationToken)) return BadRequest("Customer does not exist.");
-        if (request.StaffId.HasValue && !await db.Nhanviens.AnyAsync(x => x.NhanVienId == request.StaffId.Value, cancellationToken)) return BadRequest("Staff does not exist.");
+        if (request.StaffId.HasValue && !await TechnicianEligibility.ExistsAsync(db, request.StaffId.Value, cancellationToken)) return BadRequest("The selected technician is unavailable or is not eligible for service appointments.");
         if (request.AppointmentAt <= DateTime.Now) return BadRequest("Appointment time must be in the future.");
         if (request.Items is null || request.Items.Count == 0) return BadRequest("At least one service is required.");
         if (request.CustomerPackageId.HasValue && request.Items.Any(x => x.ComboId.HasValue)) return BadRequest("Package sessions cannot be combined with combos or cash-funded services.");

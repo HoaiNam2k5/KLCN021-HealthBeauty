@@ -126,6 +126,29 @@ public sealed class ServicePackagesController(Klcn021HealthBeautyContext db) : C
         if (!own.HasValue) return Forbid();
         return Ok((await db.CustomerPackages.AsNoTracking().Include(x => x.Items).Where(x => x.CustomerId == own).OrderByDescending(x => x.Id).ToListAsync(ct)).Select(View));
     }
+    [HttpGet("payments")]
+    public async Task<IActionResult> PaymentList(CancellationToken ct, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null, [FromQuery] string? status = null, [FromQuery] int? id = null)
+    {
+        if (!Management) return Forbid();
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId)) return Unauthorized();
+        var now = DateTime.UtcNow;
+        var allowed = await db.Taikhoans.AsNoTracking().AnyAsync(account => account.TaiKhoanId == accountId && account.TrangThai
+            && (!account.KhoaDen.HasValue || account.KhoaDen <= now)
+            && db.VaitroQuyens.Any(grant => grant.VaiTroId == account.VaiTroId && grant.DuocCap && grant.Quyen.TrangThai && grant.Quyen.MaQuyen == "INVOICE.READ"), ct);
+        if (!allowed) return Forbid();
+        if (page < 1 || page > 1000000 || pageSize < 1 || pageSize > 100 || search?.Length > 200 || id <= 0 ||
+            (status != null && status is not ("Pending" or "Paid" or "Cancelled"))) return BadRequest("Invalid payment filters.");
+        var query = db.CustomerPackages.AsNoTracking();
+        if (id.HasValue) query = query.Where(x => x.Id == id.Value);
+        if (status != null) query = query.Where(x => x.Status == status);
+        if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Name.Contains(search) || db.Khachhangs.Any(c => c.KhachHangId == x.CustomerId && c.HoTen.Contains(search)));
+        var totalCount = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new { x.Id, x.CustomerId, CustomerName = db.Khachhangs.Where(c => c.KhachHangId == x.CustomerId).Select(c => c.HoTen).FirstOrDefault(),
+                x.Name, x.Price, x.Status, x.CreatedAt, x.PaidAt, x.PaymentMethod, x.ExpiresAt }).ToListAsync(ct);
+        return Ok(new { totalCount, items });
+    }
     [Authorize(Roles = "Admin,Manager,Reception"), HttpGet("customers/{customerId:int}")] public async Task<IActionResult> Customer(int customerId, CancellationToken ct) => Ok((await db.CustomerPackages.AsNoTracking().Include(x => x.Items).Where(x => x.CustomerId == customerId).OrderByDescending(x => x.Id).ToListAsync(ct)).Select(View));
     [HttpGet("purchases/{id:int}")]
     public async Task<IActionResult> Detail(int id, CancellationToken ct)

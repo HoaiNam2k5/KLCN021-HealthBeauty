@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../core/app_theme.dart';
 import '../models/invoice.dart';
 import '../providers/auth_provider.dart';
 import '../providers/invoice_provider.dart';
@@ -120,6 +121,7 @@ class _InvoiceCard extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           '${dateStr(invoice.createdAt)} · Lịch hẹn #${invoice.appointmentId}',
+          style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
         ),
         const SizedBox(height: 8),
         if (invoice.items.isNotEmpty)
@@ -135,16 +137,15 @@ class _InvoiceCard extends StatelessWidget {
           children: [
             Text(
               vnd(invoice.total),
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-            Text(
-              invoice.statusLabel,
-              style: TextStyle(
-                color: invoice.isPaid
-                    ? Colors.green.shade700
-                    : Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w700,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+                color: AppColors.rose,
               ),
+            ),
+            StatusChip(
+              label: invoice.statusLabel,
+              color: invoice.isPaid ? AppColors.sage : AppColors.rose,
             ),
           ],
         ),

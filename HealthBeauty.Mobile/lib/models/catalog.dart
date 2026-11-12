@@ -31,6 +31,8 @@ class Service {
   final String? imageUrl;
   final int totalReviews;
   final int bookedCount;
+  final bool hasReviewStatistics;
+  final bool hasBookingStatistics;
 
   const Service({
     required this.id,
@@ -43,6 +45,8 @@ class Service {
     this.imageUrl,
     this.totalReviews = 0,
     this.bookedCount = 0,
+    this.hasReviewStatistics = true,
+    this.hasBookingStatistics = true,
   });
 
   factory Service.fromJson(Map<String, dynamic> j) => Service(
@@ -56,6 +60,23 @@ class Service {
     imageUrl: (j['imageUrl'] as String?)?.trim(),
     totalReviews: (j['totalReviews'] as num?)?.toInt() ?? 0,
     bookedCount: (j['bookedCount'] as num?)?.toInt() ?? 0,
+    hasReviewStatistics: j['totalReviews'] is num && j['averageRating'] is num,
+    hasBookingStatistics: j['bookedCount'] is num,
+  );
+
+  Service withReviewStatistics(double average, int count) => Service(
+    id: id,
+    categoryId: categoryId,
+    name: name,
+    price: price,
+    durationMinutes: durationMinutes,
+    description: description,
+    averageRating: count == 0 ? null : average,
+    imageUrl: imageUrl,
+    totalReviews: count,
+    bookedCount: bookedCount,
+    hasReviewStatistics: true,
+    hasBookingStatistics: hasBookingStatistics,
   );
 }
 
@@ -371,6 +392,9 @@ class Staff {
   final String? position;
   final String? specialty;
   final String? phone;
+  final String? avatarUrl;
+  final String? role;
+  final bool? isActive;
 
   const Staff({
     required this.id,
@@ -378,6 +402,9 @@ class Staff {
     this.position,
     this.specialty,
     this.phone,
+    this.avatarUrl,
+    this.role,
+    this.isActive,
   });
 
   factory Staff.fromJson(Map<String, dynamic> j) => Staff(
@@ -386,12 +413,29 @@ class Staff {
     position: (j['chucVu'] ?? j['position']) as String?,
     specialty: (j['chuyenMon'] ?? j['specialty']) as String?,
     phone: (j['soDienThoai'] ?? j['phone']) as String?,
+    avatarUrl: (j['avatarUrl'] as String?)?.trim(),
+    role: j['role'] as String?,
+    isActive: j['isActive'] as bool?,
   );
+
+  /// Prefer account metadata; old APIs only expose the position title.
+  bool get isTechnician {
+    if (isActive == false) return false;
+    if (role != null) return role!.trim().toLowerCase() == 'staff';
+    return const {
+      'staff',
+      'ktv',
+      'technician',
+      'therapist',
+      'kỹ thuật viên',
+      'ky thuat vien',
+    }.contains(position?.trim().toLowerCase());
+  }
 
   String get displayTitle {
     final parts = <String>[];
     if (position != null && position!.trim().isNotEmpty) {
-      parts.add(position!.trim());
+      parts.add(isTechnician ? 'Kỹ thuật viên' : position!.trim());
     }
     if (specialty != null && specialty!.trim().isNotEmpty) {
       parts.add(specialty!.trim());

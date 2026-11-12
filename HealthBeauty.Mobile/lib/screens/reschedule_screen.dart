@@ -138,7 +138,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     if (duration == null) return;
     await notifications.scheduleAppointmentReminder(
       id: updated.id,
-      title: 'Nhắc nhở lịch hẹn ${updated.code}',
+      title: 'Nhắc nhở lịch hẹn',
       body:
           'Lịch hẹn bắt đầu lúc ${timeStr(updated.appointmentAt)} (${dateStr(updated.appointmentAt)}).',
       reminderTime: updated.appointmentAt.subtract(duration),
@@ -185,7 +185,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             .toList()
           ..sort();
     return Scaffold(
-      appBar: AppBar(title: Text('Đổi lịch ${appointment.code}')),
+      appBar: AppBar(title: const Text('Đổi lịch hẹn')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),

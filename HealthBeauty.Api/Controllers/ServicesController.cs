@@ -19,14 +19,70 @@ public sealed class ServicesController(Klcn021HealthBeautyContext db) : Controll
         var query = db.Dichvus.AsNoTracking().Where(x => x.TrangThai);
         if (categoryId.HasValue) query = query.Where(x => x.LoaiDichVuId == categoryId.Value);
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(x => x.TenDichVu.Contains(keyword));
-        return Ok(await query.OrderBy(x => x.TenDichVu).Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId, x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa, x.ImageUrl)).ToListAsync(cancellationToken));
+        return Ok(await WithStatistics(query.OrderBy(x => x.TenDichVu), cancellationToken));
     }
 
     [AllowAnonymous, HttpGet("services/{id:int}")]
     public async Task<ActionResult<ServiceResponse>> GetService(int id, CancellationToken cancellationToken)
     {
-        var item = await db.Dichvus.AsNoTracking().Where(x => x.DichVuId == id && x.TrangThai).Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId, x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa, x.ImageUrl)).FirstOrDefaultAsync(cancellationToken);
+        var item = (await WithStatistics(db.Dichvus.AsNoTracking().Where(x => x.DichVuId == id && x.TrangThai), cancellationToken)).SingleOrDefault();
         return item is null ? NotFound() : Ok(item);
+    }
+
+
+    private sealed record ReviewAggregate(int ServiceId, int Total, double Average);
+    private sealed record BookingAggregate(int ServiceId, int Total);
+
+    private async Task<List<ServiceResponse>> WithStatistics(IQueryable<Dichvu> query, CancellationToken ct)
+    {
+        var items = await query.Select(x => new ServiceResponse(x.DichVuId, x.LoaiDichVuId,
+            x.TenDichVu, x.Gia, x.ThoiLuongPhut, x.MoTa, x.ImageUrl, 0, 0, 0)).ToListAsync(ct);
+        if (items.Count == 0) return items;
+        var ids = items.Select(x => x.Id).ToArray();
+        var reviews = await ReviewStatistics(ids).ToDictionaryAsync(x => x.ServiceId, ct);
+        var bookings = await BookingStatistics(ids).ToDictionaryAsync(x => x.ServiceId, ct);
+        // Three queries total for any catalog size: services, review aggregates,
+        // booking aggregates. No per-service database round trips.
+        return items.Select(item => item with
+        {
+            AverageRating = reviews.TryGetValue(item.Id, out var review)
+                ? Math.Round(review.Average, 1, MidpointRounding.AwayFromZero) : 0,
+            TotalReviews = reviews.GetValueOrDefault(item.Id)?.Total ?? 0,
+            BookedCount = bookings.GetValueOrDefault(item.Id)?.Total ?? 0
+        }).ToList();
+    }
+
+
+    private IQueryable<ReviewAggregate> ReviewStatistics(int[] ids)
+    {
+        var visible = db.Danhgia.AsNoTracking().Where(x => x.TrangThai == "HienThi" && !x.IsDeleted);
+        var directReviews = from review in visible
+            join line in db.Chitiethoadons.AsNoTracking() on review.HoaDonId equals line.HoaDonId
+            where line.DichVuId.HasValue && ids.Contains(line.DichVuId.Value)
+            select new { ServiceId = line.DichVuId.GetValueOrDefault(), ReviewId = review.DanhGiaId, Stars = (double)review.SoSao };
+        var comboReviews = from review in visible
+            join line in db.Chitiethoadons.AsNoTracking() on review.HoaDonId equals line.HoaDonId
+            join component in db.Chitietcombos.AsNoTracking() on line.ComboId equals (int?)component.ComboId
+            where ids.Contains(component.DichVuId)
+            select new { ServiceId = component.DichVuId, ReviewId = review.DanhGiaId, Stars = (double)review.SoSao };
+        // UNION removes a review reached via duplicate invoice lines or both a
+        // direct service and its combo. Visibility matches GET /reviews.
+        return directReviews.Union(comboReviews).GroupBy(x => x.ServiceId)
+            .Select(g => new ReviewAggregate(g.Key, g.Count(), g.Average(x => x.Stars)));
+    }
+
+    private IQueryable<BookingAggregate> BookingStatistics(int[] ids)
+    {
+        var directBookings = from line in db.Chitietlichhens.AsNoTracking()
+            where ids.Contains(line.DichVuId) && line.LichHen.TrangThai != "DaHuy"
+            select new { ServiceId = line.DichVuId, AppointmentId = line.LichHenId };
+        var comboBookings = from line in db.Chitietlichhens.AsNoTracking()
+            join component in db.Chitietcombos.AsNoTracking() on line.ComboId equals (int?)component.ComboId
+            where ids.Contains(component.DichVuId) && line.LichHen.TrangThai != "DaHuy"
+            select new { ServiceId = component.DichVuId, AppointmentId = line.LichHenId };
+        // A booking is one non-cancelled appointment, not service quantity.
+        return directBookings.Union(comboBookings).GroupBy(x => x.ServiceId)
+            .Select(g => new BookingAggregate(g.Key, g.Count()));
     }
 
     [Authorize(Roles = "Admin,Manager,Reception"), HttpPost("services")]

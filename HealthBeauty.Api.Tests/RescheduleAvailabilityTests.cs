@@ -18,7 +18,7 @@ public sealed class RescheduleAvailabilityTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Khachhangs.AddRange(new Khachhang { KhachHangId = 1, TaiKhoanId = 11, HoTen = "Owner" },
             new Khachhang { KhachHangId = 2, TaiKhoanId = 22, HoTen = "Other" });
-        db.Nhanviens.Add(new Nhanvien { NhanVienId = 1, HoTen = "Staff" });
+        db.Nhanviens.Add(new Nhanvien { NhanVienId = 1, HoTen = "Staff", ChucVu = "KTV" });
         db.Dichvus.Add(new Dichvu { DichVuId = 1, TenDichVu = "Service", ThoiLuongPhut = 60, TrangThai = true });
         db.Lichlamviecs.Add(new Lichlamviec { NhanVienId = 1, NgayLam = DateOnly.FromDateTime(Day), GioBatDau = new TimeOnly(9, 0), GioKetThuc = new TimeOnly(13, 0), TrangThai = "LamViec" });
         db.Lichhens.AddRange(new Lichhen { LichHenId = 7, KhachHangId = 1, NhanVienId = 1, NgayGioHen = Day, TrangThai = "DaXacNhan", Chitietlichhens = [new() { DichVuId = 1 }] },

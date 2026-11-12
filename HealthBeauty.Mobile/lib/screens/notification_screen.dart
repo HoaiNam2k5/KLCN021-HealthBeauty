@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
 import '../core/format.dart';
 import '../models/notification_item.dart';
@@ -48,9 +49,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Future<void> _loadData({bool refresh = false}) async {
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) return;
-    await context
-        .read<NotificationProvider>()
-        .loadNotifications(refresh: refresh, unreadOnly: _unreadOnly);
+    await context.read<NotificationProvider>().loadNotifications(
+      refresh: refresh,
+      unreadOnly: _unreadOnly,
+    );
   }
 
   String _formatNotificationTime(DateTime dt) {
@@ -84,17 +86,32 @@ class _NotificationScreenState extends State<NotificationScreen> {
     if (type == 'PACKAGE') {
       final id = int.tryParse(data?['purchaseId']?.toString() ?? '');
       if (id != null && id > 0) {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerPackageDetailScreen(customerPackageId: id)));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CustomerPackageDetailScreen(customerPackageId: id),
+          ),
+        );
       }
     } else if (type == 'APPOINTMENT' || type == 'LICHHEN') {
       Navigator.pop(context);
       mainTab.value = 2; // Sang tab Lịch hẹn
-    } else if (type == 'PROMOTION' || type == 'KHUYENMAI' || type == 'VOUCHER') {
+    } else if (type == 'PROMOTION' ||
+        type == 'KHUYENMAI' ||
+        type == 'VOUCHER') {
       Navigator.pop(context);
       mainTab.value = 3; // Sang tab Ưu đãi
     } else if (type == 'INVOICE' || type == 'HOADON') {
-      final target = InvoiceNotificationTarget.fromPayload({...?data, 'type': type})!;
-      Navigator.push(context, MaterialPageRoute(builder: (_) => InvoiceNotificationScreen(target: target)));
+      final target = InvoiceNotificationTarget.fromPayload({
+        ...?data,
+        'type': type,
+      })!;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvoiceNotificationScreen(target: target),
+        ),
+      );
     } else {
       // Hiển thị dialog xem nội dung chi tiết nếu là thông báo hệ thống
       showDialog(
@@ -103,7 +120,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          title: Text(
+            item.title,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,7 +133,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
               ),
               const SizedBox(height: 12),
-              Text(item.body, style: const TextStyle(fontSize: 15, height: 1.4)),
+              Text(
+                item.body,
+                style: const TextStyle(fontSize: 15, height: 1.4),
+              ),
             ],
           ),
           actions: [
@@ -145,8 +168,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
               icon: const Icon(Icons.done_all),
               tooltip: 'Đánh dấu tất cả là đã đọc',
               onPressed: () async {
-                final success =
-                    await context.read<NotificationProvider>().markAllAsRead();
+                final success = await context
+                    .read<NotificationProvider>()
+                    .markAllAsRead();
                 if (success && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -165,7 +189,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
               children: [
                 // Filter Tabs
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       FilterChip(
@@ -202,38 +229,44 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     child: notif.isLoading && notif.items.isEmpty
                         ? const Center(child: CircularProgressIndicator())
                         : notif.items.isEmpty
-                            ? _buildEmptyState()
-                            : ListView.separated(
-                                controller: _scrollController,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                itemCount: notif.items.length +
-                                    (notif.isLoadingMore ? 1 : 0),
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  if (index >= notif.items.length) {
-                                    return const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 16),
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        ),
+                        ? _buildEmptyState()
+                        : ListView.separated(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            itemCount:
+                                notif.items.length +
+                                (notif.isLoadingMore ? 1 : 0),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              if (index >= notif.items.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                       ),
-                                    );
-                                  }
+                                    ),
+                                  ),
+                                );
+                              }
 
-                                  final item = notif.items[index];
-                                  return _NotificationCard(
-                                    item: item,
-                                    timeStr: _formatNotificationTime(item.createdAt),
-                                    onTap: () => _handleItemClick(item),
-                                  );
-                                },
-                              ),
+                              final item = notif.items[index];
+                              return _NotificationCard(
+                                item: item,
+                                timeStr: _formatNotificationTime(
+                                  item.createdAt,
+                                ),
+                                onTap: () => _handleItemClick(item),
+                              );
+                            },
+                          ),
                   ),
                 ),
               ],
@@ -311,15 +344,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 _unreadOnly
                     ? 'Không có thông báo chưa đọc'
                     : 'Chưa có thông báo nào',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: Text(
-                  _unreadOnly
-                      ? 'Tất cả các thông báo của bạn đã được đọc.'
-                      : 'Các cập nhật về lịch hẹn, ưu đãi và quà tặng sẽ hiển thị ở đây.',
+                  _unreadOnly ? 'Tất cả các thông báo của bạn đã được đọc.' : 'Các cập nhật về lịch hẹn, ưu đãi và quà tặng sẽ hiển thị ở đây.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.inkMuted),
                 ),
@@ -448,8 +482,12 @@ class _NotificationCard extends StatelessWidget {
                             item.title,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: isUnread ? FontWeight.w700 : FontWeight.w500,
-                              color: isUnread ? AppColors.ink : AppColors.ink.withValues(alpha: 0.8),
+                              fontWeight: isUnread
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isUnread
+                                  ? AppColors.ink
+                                  : AppColors.ink.withValues(alpha: 0.8),
                             ),
                           ),
                         ),

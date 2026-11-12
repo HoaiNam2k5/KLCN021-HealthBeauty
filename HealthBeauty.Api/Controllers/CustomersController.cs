@@ -87,8 +87,11 @@ public sealed class StaffController(Klcn021HealthBeautyContext db, IPasswordServ
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var management = User.IsInRole("Admin") || User.IsInRole("Manager") || User.IsInRole("Reception");
-        return Ok(await db.Nhanviens.AsNoTracking().OrderBy(x => x.HoTen).Select(x => new {
-            x.NhanVienId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam,
+        var query = management ? db.Nhanviens.AsNoTracking() : TechnicianEligibility.Query(db);
+        return Ok(await query.OrderBy(x => x.HoTen).Select(x => new {
+            x.NhanVienId, x.HoTen, x.ChucVu, x.ChuyenMon, x.SoDienThoai, x.NgayVaoLam, x.AvatarUrl,
+            Role = x.TaiKhoan != null ? x.TaiKhoan.VaiTro.TenVaiTro : null,
+            IsActive = !x.TaiKhoanId.HasValue || (x.TaiKhoan != null && x.TaiKhoan.TrangThai),
             TaiKhoanId = management ? x.TaiKhoanId : null
         }).ToListAsync(ct));
     }
@@ -129,6 +132,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db, IPasswordServ
             || name.Length == 0 || name.Length > 100 || request.Position?.Trim().Length > 50
             || request.Specialty?.Trim().Length > 255 || phone?.Length > 15 || !new PhoneAttribute().IsValid(phone))
             return BadRequest("Email, password or employee information is invalid.");
+        if (!CatalogImageUrl.IsValid(request.AvatarUrl)) return BadRequest("AvatarUrl must be an HTTP/HTTPS URL without credentials, up to 2048 characters.");
         var role = await db.Vaitros.SingleOrDefaultAsync(x => x.TenVaiTro == "Staff", ct);
         if (role is null) return BadRequest("Staff role has not been configured.");
         await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
@@ -136,7 +140,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db, IPasswordServ
         var account = new Taikhoan { Email = email, TenTaiKhoan = name, MatKhauHash = passwords.Hash(request.Password),
             VaiTro = role, VaiTroId = role.VaiTroId, TrangThai = true, NgayTao = DateTime.UtcNow };
         var item = new Nhanvien { TaiKhoan = account, HoTen = name, ChucVu = request.Position?.Trim(),
-            ChuyenMon = request.Specialty?.Trim(), SoDienThoai = phone, NgayVaoLam = request.HireDate };
+            ChuyenMon = request.Specialty?.Trim(), SoDienThoai = phone, NgayVaoLam = request.HireDate, AvatarUrl = CatalogImageUrl.Normalize(request.AvatarUrl) };
         db.Nhanviens.Add(item);
         try
         {
@@ -155,7 +159,7 @@ public sealed class StaffController(Klcn021HealthBeautyContext db, IPasswordServ
             return Conflict("Email already exists.");
         }
         return Created($"/api/v1/staff/{item.NhanVienId}", new {
-            item.NhanVienId, item.TaiKhoanId, item.HoTen, item.ChucVu, item.ChuyenMon, item.SoDienThoai, item.NgayVaoLam
+            item.NhanVienId, item.TaiKhoanId, item.HoTen, item.ChucVu, item.ChuyenMon, item.SoDienThoai, item.NgayVaoLam, item.AvatarUrl
         });
     }
 
@@ -163,6 +167,9 @@ public sealed class StaffController(Klcn021HealthBeautyContext db, IPasswordServ
     public async Task<IActionResult> Update(int id, StaffRequest request, CancellationToken ct)
     {
         var item = await db.Nhanviens.FindAsync([id], ct); if (item is null) return NotFound();
+        if (!CatalogImageUrl.IsValid(request.AvatarUrl)) return BadRequest("AvatarUrl must be an HTTP/HTTPS URL without credentials, up to 2048 characters.");
+        // Omitted/null preserves the saved photo; an explicit empty string removes it.
+        if (request.AvatarUrl is not null) item.AvatarUrl = CatalogImageUrl.Normalize(request.AvatarUrl);
         item.HoTen = request.FullName.Trim(); item.ChucVu = request.Position?.Trim(); item.ChuyenMon = request.Specialty?.Trim(); item.SoDienThoai = request.Phone?.Trim(); item.NgayVaoLam = request.HireDate;
         await db.SaveChangesAsync(ct); return Ok(item);
     }

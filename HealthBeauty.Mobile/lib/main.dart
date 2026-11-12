@@ -11,6 +11,7 @@ import 'providers/profile_provider.dart';
 import 'providers/invoice_provider.dart';
 import 'providers/service_package_provider.dart';
 import 'screens/main_shell.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,15 +71,39 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _splashFinished = false;
+
+  void _onSplashFinished() {
+    if (mounted) {
+      setState(() => _splashFinished = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    if (auth.isInitializing) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    return const MainShell();
+    final showSplash = auth.isInitializing || !_splashFinished;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 550),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: showSplash
+          ? SplashScreen(
+              key: const ValueKey('app_splash_screen'),
+              onFinished: _onSplashFinished,
+            )
+          : const MainShell(
+              key: ValueKey('main_shell_screen'),
+            ),
+    );
   }
 }

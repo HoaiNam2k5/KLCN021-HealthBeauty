@@ -8,10 +8,18 @@ import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/invoice_provider.dart';
+import '../providers/service_package_provider.dart';
 import '../widgets/common.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/hero_banner_carousel.dart';
 import '../widgets/pending_invoice_reminder.dart';
 import '../widgets/service_tile.dart';
+import '../widgets/shimmer_loading.dart';
+import '../widgets/staff_showcase.dart';
+import '../widgets/home_discovery.dart';
+import 'branch_screen.dart';
+import 'service_packages_screen.dart';
+import 'services_screen.dart';
 import 'booking_screen.dart';
 import 'login_screen.dart';
 import 'main_shell.dart';
@@ -35,29 +43,39 @@ class HomeScreen extends StatelessWidget {
     final upcoming = appts.upcoming;
     final next = upcoming.isEmpty ? null : upcoming.first;
     final featured = catalog.services.take(6).toList();
-    final promos = catalog.promotions.take(2).toList();
+    final singleColumn =
+        MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(14) > 20;
 
     return RefreshIndicator(
       onRefresh: () => Future.wait([
         catalog.load(force: true),
+        context.read<ServicePackageProvider>().loadCatalog(),
         appts.load(),
         if (auth.isLoggedIn) notif.fetchUnreadCount(),
         if (auth.isLoggedIn) context.read<InvoiceProvider>().refreshPending(),
       ]),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          MediaQuery.paddingOf(context).bottom + 24,
+        ),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const AppLogo(),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       auth.isLoggedIn ? 'Xin chào,' : 'Chào mừng bạn đến với,',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: cs.onSurfaceVariant),
                     ),
                     Text(
@@ -73,13 +91,13 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               if (!auth.isLoggedIn)
-                OutlinedButton.icon(
+                IconButton.outlined(
+                  tooltip: 'Đăng nhập',
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                   ),
                   icon: const Icon(Icons.login, size: 18),
-                  label: const Text('Đăng nhập'),
                 )
               else
                 Stack(
@@ -135,6 +153,27 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+
+          TextField(
+            key: const Key('home_service_search'),
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Hôm nay bạn muốn chăm sóc gì?',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onSubmitted: (query) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: const Text('Tìm dịch vụ')),
+                    body: ServicesScreen(initialQuery: query),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 18),
 
           // Lịch hẹn sắp tới
           if (auth.isLoggedIn) const PendingInvoiceReminder(),
@@ -236,20 +275,44 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-          const SizedBox(height: 24),
-          SectionTitle(
-            'Dịch vụ nổi bật',
-            trailing: TextButton(
-              onPressed: () => mainTab.value = 1,
-              child: const Text('Xem tất cả'),
+          const SizedBox(height: 16),
+          // Carousel Banner ưu đãi tự động trượt
+          const HeroBannerCarousel(),
+
+          const SizedBox(height: 20),
+          HomeShortcuts(
+            onServices: () => mainTab.value = 1,
+            onPackages: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ServicePackagesScreen()),
+            ),
+            onOffers: () => mainTab.value = 3,
+            onBranch: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BranchScreen()),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+          Padding(
+            padding: EdgeInsets.only(
+              right:
+                  MediaQuery.sizeOf(context).width >= 360 &&
+                      MediaQuery.textScalerOf(context).scale(14) <= 18
+                  ? 68
+                  : 0,
+            ),
+            child: SectionTitle(
+              'Dịch vụ nổi bật',
+              trailing: TextButton(
+                onPressed: () => mainTab.value = 1,
+                child: const Text('Xem tất cả'),
+              ),
             ),
           ),
           const SizedBox(height: 8),
           if (catalog.loading && !catalog.loaded)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            )
+            const ServiceGridShimmer(itemCount: 4)
           else if (catalog.error != null && !catalog.loaded)
             ErrorState(
               message: catalog.error!,
@@ -267,13 +330,15 @@ class HomeScreen extends StatelessWidget {
           else
             GridView.builder(
               shrinkWrap: true,
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: featured.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: singleColumn ? 1 : 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 0.60,
+                mainAxisExtent:
+                    275 + (MediaQuery.textScalerOf(context).scale(14) - 14) * 7,
               ),
               itemBuilder: (context, i) {
                 final s = featured[i];
@@ -290,47 +355,10 @@ class HomeScreen extends StatelessWidget {
               },
             ),
 
-          if (promos.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            SectionTitle(
-              'Ưu đãi',
-              trailing: TextButton(
-                onPressed: () => mainTab.value = 3,
-                child: const Text('Xem tất cả'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final p in promos)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: AppCard(
-                  onTap: () => mainTab.value = 3,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.local_offer, color: AppColors.rose),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              p.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              p.discountLabel,
-                              style: const TextStyle(color: AppColors.rose),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+          const SizedBox(height: 16),
+          const HomePackageOffers(),
+          const SizedBox(height: 24),
+          const StaffShowcase(),
         ],
       ),
     );

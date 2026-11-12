@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthBeauty.Api.Models;
@@ -14,6 +14,8 @@ public partial class Nhanvien
     public string? ChucVu { get; set; }
 
     public string? ChuyenMon { get; set; }
+
+    public string? AvatarUrl { get; set; }
 
     public string? SoDienThoai { get; set; }
 

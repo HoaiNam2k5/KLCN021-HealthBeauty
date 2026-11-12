@@ -48,6 +48,11 @@ class AppointmentProvider extends ChangeNotifier {
     _uncertainReschedules.clear();
   }
 
+  /// Refresh time-based list partitions without modifying appointment data.
+  void refreshClock() {
+    if (!_disposed && items.isNotEmpty) notifyListeners();
+  }
+
   @override
   void dispose() {
     _disposed = true;

@@ -144,7 +144,7 @@ public sealed class MobileAuthenticationHttpTests
         using (var scope = server.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<Klcn021HealthBeautyContext>();
-            db.Nhanviens.Add(new Nhanvien { NhanVienId = 7, HoTen = "Availability fixture" });
+            db.Nhanviens.Add(new Nhanvien { NhanVienId = 7, HoTen = "Availability fixture", ChucVu = "KTV" });
             db.Lichlamviecs.Add(new Lichlamviec { NhanVienId = 7, NgayLam = day, GioBatDau = new(9, 0), GioKetThuc = new(10, 0) });
             await db.SaveChangesAsync();
         }

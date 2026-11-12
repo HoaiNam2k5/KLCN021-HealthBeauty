@@ -26,21 +26,15 @@ void main() {
     });
   }
 
-  test(
-    'today stays active even after start time, tomorrow remains upcoming',
-    () {
-      expect(booking(1, DateTime(2026, 10, 26, 9)).isUpcomingAt(today), true);
-      expect(
-        booking(
-          2,
-          DateTime(2026, 10, 26, 9),
-          'DangThucHien',
-        ).isUpcomingAt(today),
-        true,
-      );
-      expect(booking(3, DateTime(2026, 10, 27, 9)).isUpcomingAt(today), true);
-    },
-  );
+  test('past start times move to history while future and exact start remain upcoming', () {
+    expect(booking(1, DateTime(2026, 10, 26, 9)).isUpcomingAt(today), false);
+    expect(
+      booking(2, DateTime(2026, 10, 26, 9), 'DangThucHien').isUpcomingAt(today),
+      false,
+    );
+    expect(booking(3, DateTime(2026, 10, 27, 9)).isUpcomingAt(today), true);
+    expect(booking(4, today).isUpcomingAt(today), true);
+  });
 
   test(
     'completed and cancelled remain history regardless of scheduled date',
@@ -75,20 +69,17 @@ void main() {
     },
   );
 
-  test(
-    'crossing midnight reclassifies cached data without a backend write',
-    () {
-      var clock = DateTime(2026, 10, 26, 23, 59, 59);
-      final provider = AppointmentProvider(dio: Dio(), now: () => clock);
-      addTearDown(provider.dispose);
-      provider.items = [booking(1, DateTime(2026, 10, 26, 18))];
-      expect(provider.upcoming.single.id, 1);
-      clock = DateTime(2026, 10, 27);
-      expect(provider.upcoming, isEmpty);
-      expect(provider.history.single.id, 1);
-      expect(provider.items.single.status, 'DaXacNhan');
-    },
-  );
+  test('crossing the scheduled time reclassifies cached data without a backend write', () {
+    var clock = DateTime(2026, 10, 26, 17, 59, 59);
+    final provider = AppointmentProvider(dio: Dio(), now: () => clock);
+    addTearDown(provider.dispose);
+    provider.items = [booking(1, DateTime(2026, 10, 26, 18))];
+    expect(provider.upcoming.single.id, 1);
+    clock = DateTime(2026, 10, 26, 18, 0, 1);
+    expect(provider.upcoming, isEmpty);
+    expect(provider.history.single.id, 1);
+    expect(provider.items.single.status, 'DaXacNhan');
+  });
 
   test('UTC and equivalent local timestamps use the same calendar day', () {
     final local = DateTime(2026, 10, 25, 18);

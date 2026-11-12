@@ -70,6 +70,10 @@ void main() {
           price: 700000,
           durationMinutes: 30,
         ),
+      ]
+      ..combos = const [
+        Combo(id: 9, name: 'Combo thư giãn', price: 500000, active: true,
+          items: [ComboItem(serviceId: 1, serviceName: 'Dịch vụ thấp', quantity: 2)]),
       ];
     addTearDown(catalog.dispose);
     await tester.pumpWidget(
@@ -81,6 +85,32 @@ void main() {
       ),
     );
   }
+
+  testWidgets('CAT01 and CAT02: catalog searches by service name and clears', (
+    tester,
+  ) async {
+    await pump(tester);
+    expect(find.byType(ServiceCard), findsNWidgets(3));
+    await tester.enterText(find.byType(TextField).first, 'GIỮA');
+    await tester.pump();
+    expect(find.text('Dịch vụ giữa'), findsOneWidget);
+    expect(find.text('Dịch vụ thấp'), findsNothing);
+    expect(find.text('Dịch vụ cao'), findsNothing);
+    await tester.tap(find.byTooltip('Xóa tìm kiếm'));
+    await tester.pump();
+    expect(find.byType(ServiceCard), findsNWidgets(3));
+  });
+
+  testWidgets('CAT06: combo catalog opens its configured components', (tester) async {
+    await pump(tester);
+    await tester.tap(find.text('Combo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Combo thư giãn'), findsOneWidget);
+    await tester.tap(find.text('Combo thư giãn'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dịch vụ thấp'), findsOneWidget);
+    expect(find.text('x2'), findsOneWidget);
+  });
 
   testWidgets(
     'zero-to-budget range filters cards, preserves package entry and clears',
@@ -133,4 +163,20 @@ void main() {
       expect(find.byType(ServiceCard), findsNWidgets(3));
     },
   );
+
+  testWidgets('CAT03: equal minimum and maximum show only exact price', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('price_filter_button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('minimum_price_field')), '300000');
+    await tester.enterText(find.byKey(const Key('maximum_price_field')), '300000');
+    await tester.tap(find.byKey(const Key('apply_price_filter')));
+    await tester.pumpAndSettle();
+    expect(find.text('Dịch vụ giữa'), findsOneWidget);
+    expect(find.text('Dịch vụ thấp'), findsNothing);
+    expect(find.text('Dịch vụ cao'), findsNothing);
+    expect(find.byType(ServiceCard), findsOneWidget);
+  });
 }

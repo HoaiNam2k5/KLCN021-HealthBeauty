@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthBeauty.Api", "HealthB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthBeauty.Api.Tests", "HealthBeauty.Api.Tests\HealthBeauty.Api.Tests.csproj", "{07D0B8A6-F1E6-45E0-AE49-9A86CF253423}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthBeauty.Selenium.Tests", "HealthBeauty.Selenium.Tests\HealthBeauty.Selenium.Tests.csproj", "{3D77AC82-0595-4A88-B20B-BC9700DE0032}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{07D0B8A6-F1E6-45E0-AE49-9A86CF253423}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07D0B8A6-F1E6-45E0-AE49-9A86CF253423}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07D0B8A6-F1E6-45E0-AE49-9A86CF253423}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D77AC82-0595-4A88-B20B-BC9700DE0032}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D77AC82-0595-4A88-B20B-BC9700DE0032}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D77AC82-0595-4A88-B20B-BC9700DE0032}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D77AC82-0595-4A88-B20B-BC9700DE0032}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

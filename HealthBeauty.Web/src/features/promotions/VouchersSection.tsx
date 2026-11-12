@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Alert, App, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, PoweroffOutlined, SearchOutlined } from '@ant-design/icons'
+import { ActionButton, ActionGrid } from '../../components/ActionButton'
 import dayjs, { type Dayjs } from 'dayjs'
 import { getApiErrorMessage } from '../../components/apiError'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -67,12 +68,12 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
   return <section style={{ marginTop: 28 }}>
     <div className="page-heading">
       <Typography.Title level={4} style={{ margin: 0 }}>Voucher</Typography.Title>
-      <Space wrap size={10} align="center">
-        <Input allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm mã, khuyến mãi hoặc khách hàng" style={{ width: 280, maxWidth: '100%' }} />
+    </div>
+      <Space wrap size={10} align="center" className="admin-filter-row">
+        <Input className="admin-search" aria-label="Tìm mã, khuyến mãi hoặc khách hàng" allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm mã, khuyến mãi hoặc khách hàng" />
         <Select value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: 'Tất cả trạng thái' }, { value: 'active', label: 'Đang bật' }, { value: 'inactive', label: 'Đã tắt / đã dùng' }]} style={{ width: 180, maxWidth: '100%' }} />
         {canManage && <Button type="primary" onClick={() => openForm()}>Thêm voucher</Button>}
       </Space>
-    </div>
     {query.isError && <Alert type="error" showIcon message="Không tải được danh sách voucher" description={getApiErrorMessage(query.error, 'Vui lòng thử lại sau.')} style={{ marginBottom: 16 }} />}
     <Table<Voucher> className="responsive-table" rowKey="id" dataSource={query.data ?? []} loading={query.isLoading} scroll={{ x: 'max-content' }} pagination={{ responsive: true, pageSize: 10, showSizeChanger: true }} columns={[
       { title: 'STT', key: 'stt', width: 65, align: 'center', render: (_value, _record, index) => index + 1 },
@@ -82,11 +83,11 @@ export default function VouchersSection({ promotions, canManage }: { promotions:
       { title: 'Giá trị giảm tối đa', dataIndex: 'discountValue', render: (value: number) => `${value.toLocaleString('vi-VN')} ₫` },
       { title: 'Hạn sử dụng', dataIndex: 'expiresAt', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') },
       { title: 'Trạng thái', render: (_, voucher) => <Tag color={!voucher.active ? 'default' : dayjs(voucher.expiresAt).isBefore(dayjs()) ? 'warning' : 'success'}>{!voucher.active ? 'Đã tắt / đã dùng' : dayjs(voucher.expiresAt).isBefore(dayjs()) ? 'Hết hạn' : 'Đang bật'}</Tag> },
-      ...(canManage ? [{ title: 'Thao tác', key: 'actions', render: (_: unknown, voucher: Voucher) => <Space>
-        <Button type="link" onClick={() => openForm(voucher)}>Sửa</Button>
-        <Button type="link" loading={toggle.isPending && toggle.variables?.id === voucher.id} onClick={() => void changeStatus(voucher)}>{voucher.active ? 'Tắt' : 'Bật'}</Button>
-        {voucher.active && <Button type="link" danger onClick={() => Modal.confirm({ title: 'Ngừng sử dụng voucher?', content: 'Thông tin voucher sẽ được giữ lại.', okText: 'Ngừng sử dụng', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => disable(voucher) })}>Ngừng sử dụng</Button>}
-      </Space> }] : []),
+      ...(canManage ? [{ title: 'Thao tác', key: 'actions', render: (_: unknown, voucher: Voucher) => <ActionGrid>
+        <ActionButton label="Sửa voucher" tone="edit" icon={<EditOutlined />} onClick={() => openForm(voucher)} />
+        <ActionButton label={voucher.active ? 'Tắt voucher' : 'Bật voucher'} tone="toggle" icon={<PoweroffOutlined />} loading={toggle.isPending && toggle.variables?.id === voucher.id} onClick={() => void changeStatus(voucher)} />
+        {voucher.active && <ActionButton label="Ngừng sử dụng voucher" tone="delete" icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: 'Ngừng sử dụng voucher?', content: 'Thông tin voucher sẽ được giữ lại.', okText: 'Ngừng sử dụng', okType: 'danger', cancelText: 'Hủy', centered: true, onOk: () => disable(voucher) })} />}
+      </ActionGrid> }] : []),
     ]} />
     <Modal className="responsive-modal" title={editing ? 'Sửa voucher' : 'Thêm voucher'} open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={save.isPending} okText="Lưu" cancelText="Hủy">
       <Form className="responsive-form" form={form} layout="vertical" onFinish={(values) => void submit(values)}>

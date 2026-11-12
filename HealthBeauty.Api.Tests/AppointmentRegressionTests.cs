@@ -21,7 +21,7 @@ public sealed class AppointmentRegressionTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Khachhangs.AddRange(new Khachhang { KhachHangId = 1, TaiKhoanId = 1, HoTen = "Customer One" },
             new Khachhang { KhachHangId = 2, TaiKhoanId = 2, HoTen = "Customer Two" });
-        db.Nhanviens.AddRange(new Nhanvien { NhanVienId = 1, HoTen = "Staff One" }, new Nhanvien { NhanVienId = 2, HoTen = "Staff Two" });
+        db.Nhanviens.AddRange(new Nhanvien { NhanVienId = 1, HoTen = "Staff One", ChucVu = "KTV" }, new Nhanvien { NhanVienId = 2, HoTen = "Staff Two", ChucVu = "KTV" });
         db.Dichvus.Add(new Dichvu { DichVuId = 1, TenDichVu = "Service", Gia = 100000m, ThoiLuongPhut = 60, TrangThai = true });
         db.Lichhens.Add(new Lichhen { LichHenId = 1, KhachHangId = 1, NhanVienId = 1,
             NgayGioHen = start ?? Day.AddHours(9), TrangThai = status,

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Input, Select, Space, Table, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { getAuditLogs, type AuditLog } from '../../api/auditLogs'
 import { getAccounts } from '../../api/accounts'
@@ -40,8 +40,8 @@ export default function AuditLogsPage() {
       <Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => { void query.refetch(); void accounts.refetch() }}>Làm mới</Button>
     </Space>
 
-    <Space className="filter-bar" wrap style={{ marginBottom: 16 }}>
-      <Input aria-label="Tìm nhật ký" placeholder="Tìm tài khoản, hoạt động, đối tượng hoặc IP" value={keyword} onChange={(event) => setKeyword(event.target.value)} allowClear style={{ width: 360, maxWidth: '100%' }} />
+    <Space className="admin-filter-row" wrap>
+      <Input className="admin-search" prefix={<SearchOutlined />} aria-label="Tìm nhật ký" placeholder="Tìm tài khoản, hoạt động, đối tượng hoặc IP" value={keyword} onChange={(event) => setKeyword(event.target.value)} allowClear />
       <Select aria-label="Lọc hoạt động" placeholder="Tất cả hoạt động" value={action} onChange={setAction} options={actions} allowClear style={{ width: 200, maxWidth: '100%' }} />
       <Select aria-label="Số bản ghi mới nhất" value={take} onChange={(value) => { setTake(value); setAction(undefined) }} options={[100, 200, 500].map((value) => ({ value, label: `${value} bản ghi mới nhất` }))} style={{ width: 200, maxWidth: '100%' }} />
     </Space>
